@@ -26,6 +26,8 @@ import {
   RoomEvent,
   TrackPublishDefaults,
   VideoCaptureOptions,
+  ScreenShareCaptureOptions,
+  TrackPublishOptions,
 } from 'livekit-client';
 import { useRouter } from 'next/navigation';
 import { useSetupE2EE } from '@/lib/useSetupE2EE';
@@ -146,6 +148,19 @@ function VideoConferenceComponent(props: {
   }, [props.userChoices, props.options.hq, props.options.codec]);
 
   const room = React.useMemo(() => new Room(roomOptions), []);
+
+  // O ControlBar do <VideoConference> chama setScreenShareEnabled(true, undefined, ...) e
+  // ControlBarProps nao expoe captureOptions. Sem `audio: true` o navegador nem exibe a
+  // opcao de compartilhar o audio junto com a tela. Injetamos aqui.
+  React.useMemo(() => {
+    const lp = room.localParticipant;
+    const original = lp.setScreenShareEnabled.bind(lp);
+    lp.setScreenShareEnabled = (
+      enabled: boolean,
+      options?: ScreenShareCaptureOptions,
+      publishOptions?: TrackPublishOptions,
+    ) => original(enabled, { audio: true, contentHint: 'motion', ...options }, publishOptions);
+  }, [room]);
 
   React.useEffect(() => {
     if (e2eeEnabled) {
