@@ -8,6 +8,8 @@ import { AlertTriangleIcon, Volume2Icon } from '@/lib/icons';
 import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
 import { NoiseSuppressionControl } from '@/lib/NoiseSuppressionControl';
+import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
+import { encodingFor, loadQualityPref } from '@/lib/screenShareQuality';
 import { buildAudioCaptureConstraints, loadNoiseSuppressionPref } from '@/lib/noiseSuppression';
 import { ParticipantAudioPanel } from '@/lib/ParticipantAudioPanel';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
@@ -211,10 +213,15 @@ function VideoConferenceComponent(props: {
           },
         );
       }
+      // Qualidade escolhida pela pessoa no dropdown. Precisa ser lida AQUI, no
+      // momento do compartilhamento, e nao no `publishDefaults` do Room: o
+      // Room ja foi construido e seu screenShareEncoding e imutavel. Um
+      // `videoEncoding` explicito em publishOptions tem precedencia sobre ele.
+      const chosenEncoding = encodingFor(loadQualityPref());
       return original(
         enabled,
         { audio: true, contentHint: 'motion', systemAudio: 'include', ...options },
-        publishOptions,
+        { videoEncoding: chosenEncoding, ...publishOptions },
       ).then((publication) => {
         if (enabled) {
           const hasAudio = !!lp.getTrackPublication(Track.Source.ScreenShareAudio);
@@ -332,6 +339,7 @@ function VideoConferenceComponent(props: {
         />
         <ParticipantAudioPanel />
         <NoiseSuppressionControl />
+        <ScreenShareQualityControl />
         <JoinLeaveSounds />
         <DebugMode />
         <RecordingIndicator />

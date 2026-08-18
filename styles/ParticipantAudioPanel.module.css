@@ -96,11 +96,33 @@
 .slider {
   width: 100%;
   accent-color: var(--lk-accent-bg);
+  /* Marca de referencia no ganho unitario (0 dB). Por causa da curva
+     perceptual quadratica, 0 dB nao fica no meio do curso, e sim em
+     sqrt(1/2) ~= 70.7% — a marca deixa esse ponto visivel. */
+  background-image: linear-gradient(
+    to right,
+    transparent calc(70.7% - 1px),
+    var(--lk-fg4) calc(70.7% - 1px),
+    var(--lk-fg4) calc(70.7% + 1px),
+    transparent calc(70.7% + 1px)
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 .volumeValue {
   font-size: 0.8rem;
   color: var(--lk-fg4);
-  min-width: 2.5rem;
+  min-width: 4rem;
   text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+}
+
+.volumeDb {
+  font-size: 0.68rem;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
 }

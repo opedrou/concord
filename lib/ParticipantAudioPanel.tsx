@@ -14,6 +14,51 @@ const DEFAULT_VOLUME = 1;
 const MAX_VOLUME = 2;
 const STORAGE_PREFIX = 'lk-participant-volume:';
 
+// --- Curva perceptual -------------------------------------------------------
+//
+// `GainNode.gain` e amplitude LINEAR, mas o ouvido humano percebe volume de
+// forma aproximadamente logaritmica: dobrar a amplitude nao soa como "o dobro
+// do volume". Num slider linear isso faz quase toda a diferenca audivel se
+// concentrar no fim do curso, e a metade de baixo fica praticamente inutil.
+//
+// Usamos uma lei de potencia (quadratica), que e a aproximacao classica de
+// fader de mesa de som: ganho = MAX * x^EXP, com x = posicao normalizada 0..1.
+// Com EXP=2 e MAX=2, o ganho unitario (0 dB, som original) cai em
+// x = sqrt(1/2) ~= 0.707, ou seja ~71% do curso — sobra bastante percurso fino
+// na regiao baixa, que e onde o ouvido discrimina melhor, e o trecho final vira
+// boost ate +6 dB.
+//
+// Guardamos e aplicamos SEMPRE o ganho linear (compativel com o que ja esta no
+// localStorage de quem usou a versao anterior); a curva existe so entre a
+// posicao do slider e esse ganho.
+const CURVE_EXPONENT = 2;
+const SLIDER_STEPS = 100;
+
+/** Posicao do slider (0..SLIDER_STEPS) -> ganho linear (0..MAX_VOLUME). */
+function sliderToGain(position: number): number {
+  const x = Math.min(Math.max(position / SLIDER_STEPS, 0), 1);
+  return MAX_VOLUME * Math.pow(x, CURVE_EXPONENT);
+}
+
+/** Ganho linear -> posicao do slider. Inversa exata de `sliderToGain`. */
+function gainToSlider(gain: number): number {
+  const x = Math.min(Math.max(gain / MAX_VOLUME, 0), 1);
+  return Math.pow(x, 1 / CURVE_EXPONENT) * SLIDER_STEPS;
+}
+
+/** Ganho linear -> decibeis, pra exibicao. 0 vira -Infinity (silencio). */
+function gainToDb(gain: number): number {
+  return 20 * Math.log10(gain);
+}
+
+/** Rotulo curto em dB: "0 dB", "+4.1 dB", "-8.5 dB", "-∞". */
+function formatDb(gain: number): string {
+  if (gain <= 0) return '−∞';
+  const db = gainToDb(gain);
+  if (Math.abs(db) < 0.05) return '0 dB';
+  return `${db > 0 ? '+' : '−'}${Math.abs(db).toFixed(1)} dB`;
+}
+
 type SourceKey = 'mic' | 'screenShareAudio';
 
 const SOURCE_MAP: Record<SourceKey, Track.Source.Microphone | Track.Source.ScreenShareAudio> = {
@@ -138,13 +183,19 @@ function VolumeControl(props: {
         className={styles.slider}
         type="range"
         min={0}
-        max={MAX_VOLUME * 100}
-        step={5}
-        value={Math.round(volume * 100)}
-        onChange={(e) => applyVolume(Number(e.target.value) / 100)}
+        max={SLIDER_STEPS}
+        step={1}
+        // A posicao passa pela curva perceptual; o que vai pro setVolume (e pro
+        // localStorage) continua sendo o ganho linear.
+        value={Math.round(gainToSlider(volume))}
+        onChange={(e) => applyVolume(sliderToGain(Number(e.target.value)))}
         aria-label={`Volume de ${label} de ${participant.identity}`}
+        aria-valuetext={`${Math.round(volume * 100)} por cento, ${formatDb(volume)}`}
       />
-      <span className={styles.volumeValue}>{Math.round(volume * 100)}%</span>
+      <span className={styles.volumeValue} title={`Ganho linear ${volume.toFixed(2)}×`}>
+        {Math.round(volume * 100)}%
+        <small className={styles.volumeDb}>{formatDb(volume)}</small>
+      </span>
     </div>
   );
 }
