@@ -1,0 +1,72 @@
+/* Layout proprio no lugar do <VideoConference>. As classes 'lk-*' vem de
+   @livekit/components-styles (mesmas que o componente padrao usa) — aqui so
+   cobrimos o que e novo: a grade de tiles (sem paginacao por swipe, o app e
+   pensado pra 2-5 pessoas — ver HANDOFF) e a faixa lateral do modo foco. */
+
+.stage {
+  width: 100%;
+}
+
+.inner {
+  min-height: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-auto-rows: 1fr;
+  gap: var(--lk-grid-gap, 0.5rem);
+  width: 100%;
+  height: 100%;
+  padding: var(--lk-grid-gap, 0.5rem);
+}
+
+/* Com 1-2 pessoas nao faz sentido esticar os tiles pra ocupar a largura
+   inteira em telas grandes — mantem um tamanho legivel, centralizado. */
+.grid[data-count='1'],
+.grid[data-count='2'] {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 480px));
+  justify-content: center;
+}
+
+.focusMain {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.focusMain > :global(.lk-participant-tile) {
+  width: 100%;
+  height: 100%;
+}
+
+.focusStrip {
+  display: flex;
+  flex-direction: row;
+  gap: var(--lk-grid-gap, 0.5rem);
+  overflow-x: auto;
+  padding: var(--lk-grid-gap, 0.5rem);
+  flex-shrink: 0;
+}
+
+.focusStrip > :global(.lk-participant-tile) {
+  width: 10rem;
+  height: 6rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .focusWrapper {
+    flex-direction: column-reverse;
+  }
+
+  .focusStrip {
+    flex-direction: row;
+    max-height: 5rem;
+  }
+
+  .focusStrip > :global(.lk-participant-tile) {
+    width: 7rem;
+    height: 4rem;
+  }
+}

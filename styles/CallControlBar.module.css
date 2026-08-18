@@ -1,0 +1,38 @@
+/* Barra de controle propria (ver lib/CallControlBar.tsx). A classe
+   'lk-control-bar' ja da o essencial (flex, padding, borda superior); aqui so
+   ajustamos o que e novo: permitir quebra de linha no celular e posicionar o
+   popover de qualidade de transmissao. */
+
+.bar {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.screenShareGroup {
+  position: relative;
+}
+
+.popoverBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: transparent;
+}
+
+.qualityPopover {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 25;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--lk-border-radius);
+  background: var(--lk-bg2);
+  border: 1px solid var(--lk-border-color);
+  box-shadow: var(--lk-box-shadow);
+}
+
+@media (max-width: 640px) {
+  .qualityPopover {
+    right: -2.5rem;
+  }
+}

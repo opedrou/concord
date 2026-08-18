@@ -57,6 +57,11 @@
   background-color: rgba(255, 255, 255, 0.06);
 }
 
+.channelButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
 .channelButtonActive {
   background-color: var(--lk-accent-bg, rgba(255, 255, 255, 0.12));
 }
@@ -133,6 +138,11 @@
 .userAction:hover {
   color: var(--lk-fg);
   text-decoration: underline;
+}
+
+.userAction:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
 }
 
 /* Telas estreitas: a sidebar nao pode comer a tela inteira. Vira uma tira

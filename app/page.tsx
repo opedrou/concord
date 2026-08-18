@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ChannelSidebar } from '@/lib/ChannelSidebar';
-import { MembersPanel } from '@/lib/MembersPanel';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { logout } from '@/lib/api-client';
 import styles from '../styles/Home.module.css';
@@ -42,7 +41,6 @@ export default function Page() {
           Voce ve quem esta em cada canal antes mesmo de entrar — basta clicar no canal.
         </p>
       </main>
-      <MembersPanel />
     </div>
   );
 }

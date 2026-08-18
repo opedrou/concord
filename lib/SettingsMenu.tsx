@@ -134,7 +134,11 @@ export function SettingsMenu(props: SettingsMenuProps) {
                   ? 'Meeting is currently being recorded'
                   : 'No active recordings for this meeting'}
               </p>
-              <button disabled={processingRecRequest} onClick={() => toggleRoomRecording()}>
+              <button
+                className="lk-button"
+                disabled={processingRecRequest}
+                onClick={() => toggleRoomRecording()}
+              >
                 {isRecording ? 'Stop' : 'Start'} Recording
               </button>
             </section>

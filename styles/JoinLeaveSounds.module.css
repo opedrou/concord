@@ -1,11 +1,6 @@
-/* Botao flutuante pra silenciar/reativar o som de entrada/saida de participantes.
-   Mesma familia visual do botao "Participantes" do ParticipantAudioPanel, so que
-   deslocado pra nao sobrepor. */
+/* Antes era outro botao flutuante solto, deslocado pra nao sobrepor os outros
+   botoes flutuantes — sintoma da bagunca original. Agora e so mais um item
+   na fileira de lib/CallControlBar.tsx, sem posicionamento proprio. */
 .toggleButton {
-  position: fixed;
-  right: 9.5rem;
-  bottom: calc(var(--lk-control-bar-height, 69px) + 1rem);
-  z-index: 20;
-  border-radius: var(--lk-border-radius);
-  box-shadow: var(--lk-box-shadow);
+  flex-shrink: 0;
 }

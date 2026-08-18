@@ -7,10 +7,23 @@ import { Avatar } from '@/lib/Avatar';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import styles from '../styles/MembersPanel.module.css';
 
-// PENDENTE (ver relatorio da ONDA C): este componente e autocontido e ainda
-// nao esta plugado em nenhuma pagina — falta decidir onde encaixar ao lado
-// da ChannelSidebar (que e territorio da ONDA A). Uso pretendido:
-// <MembersPanel /> em qualquer lugar do layout autenticado.
+// So aparece no contexto de canal de TEXTO (TextChannelShell.tsx e no
+// overlay de texto do RoomShell.tsx) — na tela de call ela so competia por
+// espaco com os controles de video, era uma das queixas originais.
+
+const COLLAPSED_STORAGE_KEY = 'lk-members-panel-collapsed';
+
+function loadCollapsedPref(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    // Default recolhido: colapsada ela ocupa so o botao, nunca uma largura
+    // fixa "de graca" — so expande quando a pessoa pede.
+    return raw === null ? true : raw === 'true';
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Painel lateral com todo mundo cadastrado (nao so quem esta numa call),
@@ -23,8 +36,23 @@ import styles from '../styles/MembersPanel.module.css';
 export function MembersPanel() {
   const [members, setMembers] = React.useState<Member[]>([]);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
-  const [collapsed, setCollapsed] = React.useState(true);
+  // Estado de aberto/fechado persistido — quem fecha o painel nao quer
+  // reabri-lo toda vez que troca de canal de texto.
+  const [collapsed, setCollapsed] = React.useState(loadCollapsedPref);
   const { presence } = usePresencePolling();
+
+  const toggleCollapsed = React.useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // localStorage pode falhar (modo privado, quota etc); a UI continua
+        // funcionando, so nao lembra a preferencia entre sessoes.
+      }
+      return next;
+    });
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -67,7 +95,7 @@ export function MembersPanel() {
       <button
         type="button"
         className={styles.toggle}
-        onClick={() => setCollapsed((c) => !c)}
+        onClick={toggleCollapsed}
         aria-expanded={!collapsed}
       >
         <span>Membros — {members.length}</span>

@@ -1,70 +1,41 @@
-.toggleButton {
+/* Card de volume aberto ao clicar num tile de participante (ver
+   <ParticipantVolumeCard /> / <CallParticipantTile />). Substituiu o antigo
+   botao flutuante "Participantes" + drawer lateral — o pedido era que o
+   controle aparecesse perto de quem foi clicado, so quando clicado. */
+
+.backdrop {
   position: fixed;
-  right: 1rem;
-  bottom: calc(var(--lk-control-bar-height, 69px) + 1rem);
-  z-index: 20;
+  inset: 0;
+  z-index: 39;
+  /* Invisivel de proposito — existe so pra capturar o clique de fora e
+     fechar o card, sem escurecer a chamada por baixo. */
+  background: transparent;
+}
+
+.card {
+  position: fixed;
+  z-index: 40;
+  width: 17.5rem;
+  max-width: calc(100vw - 1rem);
+  background-color: var(--lk-bg2);
+  border: 1px solid var(--lk-border-color);
   border-radius: var(--lk-border-radius);
   box-shadow: var(--lk-box-shadow);
-}
-
-.panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(22rem, 100vw);
-  background-color: var(--lk-bg2);
-  border-left: 1px solid var(--lk-border-color);
-  box-shadow: var(--lk-box-shadow);
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-.panelHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
-  border-bottom: 1px solid var(--lk-border-color);
-  position: sticky;
-  top: 0;
-  background-color: var(--lk-bg2);
-}
-
-.panelHeader h3 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--lk-fg);
-}
-
-.emptyState {
-  padding: 1rem;
-  color: var(--lk-fg4);
-}
-
-.participantList {
-  list-style: none;
-  margin: 0;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.participantRow {
-  background-color: var(--lk-bg3);
-  border-radius: var(--lk-border-radius);
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  border: 1px solid transparent;
 }
 
-.participantRow.speaking {
+.card.speaking {
   border-color: var(--lk-accent-bg);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .participantName {
@@ -85,6 +56,19 @@
 .muteButton {
   padding: 0.25rem 0.5rem;
   min-width: 2rem;
+}
+
+/* `.lk-button:hover` ja cobre o fundo; aqui so garantimos foco visivel pra
+   quem navega por teclado — nenhum componente proprio do projeto tinha isso
+   antes (parte do que "hover quebrado" realmente significava). */
+.muteButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
+}
+
+.slider:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
 }
 
 .volumeLabel {

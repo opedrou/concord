@@ -1,0 +1,27 @@
+/* Tile de participante proprio (ver lib/CallParticipantTile.tsx). A maior
+   parte do visual vem de graca da classe 'lk-participant-tile' (shippada por
+   @livekit/components-styles) — aqui so cobrimos o que e novidade: o clique
+   abrindo o volume (cursor + feedback de hover/focus, que o tile padrao
+   nunca precisou ter porque nao era clicavel) e o tamanho do avatar dentro
+   do placeholder de camera desligada. */
+
+.tile {
+  cursor: pointer;
+}
+
+.tile:hover {
+  outline: 2px solid var(--lk-control-hover-bg, rgba(255, 255, 255, 0.15));
+  outline-offset: -2px;
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
+.placeholder {
+  /* A regra padrao do LiveKit e '.lk-participant-placeholder svg { height:
+     100%; width: auto; padding: 10% }' — so mira em <svg>, entao o <Avatar/>
+     (que pode ser <img> ou <div> de iniciais) precisa do proprio tamanho. */
+  padding: 10%;
+}

@@ -5,15 +5,11 @@ import toast from 'react-hot-toast';
 import { decodePassphrase } from '@/lib/client-utils';
 import { DebugMode } from '@/lib/Debug';
 import { AlertTriangleIcon, Volume2Icon } from '@/lib/icons';
-import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
+import { CallStage } from '@/lib/CallStage';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
-import { NoiseSuppressionControl } from '@/lib/NoiseSuppressionControl';
-import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
 import { encodingFor, loadQualityPref } from '@/lib/screenShareQuality';
 import { buildAudioCaptureConstraints, loadNoiseSuppressionPref } from '@/lib/noiseSuppression';
-import { ParticipantAudioPanel } from '@/lib/ParticipantAudioPanel';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
-import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ConnectionDetails } from '@/lib/types';
 import preJoinStyles from '@/styles/PreJoinUsername.module.css';
 import {
@@ -21,7 +17,6 @@ import {
   LocalUserChoices,
   PreJoin,
   RoomContext,
-  VideoConference,
 } from '@livekit/components-react';
 import {
   ExternalE2EEKeyProvider,
@@ -45,7 +40,6 @@ import { useLowCPUOptimizer } from '@/lib/usePerfomanceOptimiser';
 
 const CONN_DETAILS_ENDPOINT =
   process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? '/api/connection-details';
-const SHOW_SETTINGS_MENU = process.env.NEXT_PUBLIC_SHOW_SETTINGS_MENU == 'true';
 
 export function PageClientImpl(props: {
   roomName: string;
@@ -254,8 +248,9 @@ function VideoConferenceComponent(props: {
         .then(() => {
           room.setE2EEEnabled(true).catch((e) => {
             if (e instanceof DeviceUnsupportedError) {
-              alert(
-                `You're trying to join an encrypted meeting, but your browser does not support it. Please update it to the latest version and try again.`,
+              toast.error(
+                `Você está tentando entrar numa reunião criptografada, mas seu navegador não suporta isso. Atualize para a versão mais recente e tente de novo.`,
+                { duration: 10000, position: 'top-center' },
               );
               console.error(e);
             } else {
@@ -314,14 +309,25 @@ function VideoConferenceComponent(props: {
   const handleOnLeave = React.useCallback(() => router.push('/'), [router]);
   const handleError = React.useCallback((error: Error) => {
     console.error(error);
-    alert(`Encountered an unexpected error, check the console logs for details: ${error.message}`);
+    toast.error(`Erro inesperado, veja o console para detalhes: ${error.message}`, {
+      duration: 8000,
+      position: 'top-center',
+    });
   }, []);
   const handleEncryptionError = React.useCallback((error: Error) => {
     console.error(error);
-    alert(
-      `Encountered an unexpected encryption error, check the console logs for details: ${error.message}`,
-    );
+    toast.error(`Erro de criptografia inesperado, veja o console para detalhes: ${error.message}`, {
+      duration: 8000,
+      position: 'top-center',
+    });
   }, []);
+  // A CallControlBar reporta erro de dispositivo por fonte (mic/camera/tela);
+  // reaproveita o mesmo toast, so descartando o `source` que nao muda a
+  // mensagem exibida.
+  const handleDeviceError = React.useCallback(
+    (deviceError: { source: Track.Source; error: Error }) => handleError(deviceError.error),
+    [handleError],
+  );
 
   React.useEffect(() => {
     if (lowPowerMode) {
@@ -333,14 +339,7 @@ function VideoConferenceComponent(props: {
     <div className="lk-room-container">
       <RoomContext.Provider value={room}>
         <KeyboardShortcuts />
-        <VideoConference
-          chatMessageFormatter={formatChatMessageLinks}
-          SettingsComponent={SHOW_SETTINGS_MENU ? SettingsMenu : undefined}
-        />
-        <ParticipantAudioPanel />
-        <NoiseSuppressionControl />
-        <ScreenShareQualityControl />
-        <JoinLeaveSounds />
+        <CallStage chatMessageFormatter={formatChatMessageLinks} onDeviceError={handleDeviceError} />
         <DebugMode />
         <RecordingIndicator />
       </RoomContext.Provider>

@@ -1,26 +1,39 @@
+/* Antes era um botao flutuante fixo no canto esquerdo, brigando com o resto
+   da UI (queixa do dono). Agora vive dentro da propria fila de controles da
+   chamada (ver lib/CallControlBar.tsx), do mesmo tamanho que os outros
+   botoes de lk-button — so mais um controle na fileira, nao mais um objeto
+   solto por cima do video. */
 .wrapper {
-  position: fixed;
-  left: 1rem;
-  bottom: calc(var(--lk-control-bar-height, 69px) + 1rem);
-  z-index: 20;
+  position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.4rem;
-  max-width: min(20rem, 60vw);
+  align-items: center;
 }
 
 .toggleButton {
-  border-radius: var(--lk-border-radius);
-  box-shadow: var(--lk-box-shadow);
   font-size: 0.8rem;
-  white-space: normal;
-  text-align: left;
+  white-space: nowrap;
+}
+
+.label {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .label {
+    display: inline;
+  }
 }
 
 .hint {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
   margin: 0;
   padding: 0.5rem 0.75rem;
+  width: max-content;
+  max-width: min(18rem, 80vw);
   background-color: var(--lk-bg2);
   border: 1px solid var(--lk-border-color);
   border-radius: var(--lk-border-radius);

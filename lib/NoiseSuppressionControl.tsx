@@ -103,8 +103,10 @@ export function NoiseSuppressionControl() {
         className={`lk-button ${styles.toggleButton}`}
         onClick={toggle}
         aria-pressed={enabled}
+        title={`Redução de ruído: ${tierLabel(tier)}`}
       >
-        {enabled ? <MicIcon size={18} /> : <MicOffIcon size={18} />} {tierLabel(tier)}
+        {enabled ? <MicIcon size={18} /> : <MicOffIcon size={18} />}
+        <span className={styles.label}>{tierLabel(tier)}</span>
       </button>
       {monitorDeviceHint && enabled && (
         <p className={styles.hint}>

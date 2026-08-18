@@ -43,6 +43,17 @@
   border-bottom: none;
 }
 
+/* Faltava por completo — o botao que abre/fecha o painel nao dava nenhum
+   feedback visual de hover/foco (um dos casos reais de "hover quebrado"). */
+.toggle:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
 .toggleIcon {
   color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
 }

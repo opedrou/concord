@@ -92,11 +92,11 @@ export function RoomShell(props: {
           </div>
         )}
       </div>
-      {/* So faz sentido mostrar a lista de membros quando a chamada esta
-          visivel — com o painel de texto aberto por cima, a tela ja fica
-          apertada (ver banner acima) e o painel de membros comecaria
-          recolhido de qualquer forma, entao evitamos so o espaco reservado. */}
-      {!openTextChannel && <MembersPanel />}
+      {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
+          tela de call ela so competia por espaco com os controles de video
+          (reclamacao original). Por isso so aparece quando o painel de texto
+          esta aberto por cima da chamada, nunca durante a call em si. */}
+      {openTextChannel && <MembersPanel />}
     </div>
   );
 }
