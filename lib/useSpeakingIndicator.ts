@@ -76,8 +76,23 @@ export interface SpeakingIndicatorResult {
 
 const DEFAULT_RISE_THRESHOLD = 0.08;
 const DEFAULT_FALL_THRESHOLD = 0.03;
-const DEFAULT_HOLD_MS = 300;
-const DEFAULT_WATCHDOG_MS = 1500;
+// Era 300ms. Investigando o "lag" relatado (ver notas no relatorio): o CSS
+// do proprio LiveKit (@livekit/components-styles,
+// .lk-participant-tile::after) ja aplica `transition-delay: .5s` +
+// `transition-duration: .4s` quando `data-lk-speaking` volta pra `false` —
+// so a borda ACENDER e que e rapida (`.2s` sem delay, regra especifica de
+// `[data-lk-speaking=true]`); APAGAR ja e deliberadamente lento la, pra nao
+// piscar. Com holdMs em 300ms, o atraso total percebido ao PARAR de falar
+// virava holdMs + 0.5s + 0.4s ≈ 1.2s — dois mecanismos de anti-flicker
+// empilhados (um nosso em JS, outro do CSS), quando um so ja bastava. Cortado
+// pela metade: ainda segura pausas curtas entre palavras, sem somar tanto em
+// cima do que o CSS ja da de graca.
+const DEFAULT_HOLD_MS = 150;
+// Era 1500ms. Nao ha motivo forte pra manter tao alto — 1s ja e tempo
+// suficiente pro servidor confirmar "esta falando" antes de desistirmos do
+// caminho local (ver logica do watchdog abaixo), e desiste mais cedo de um
+// analyser que nao esta funcionando.
+const DEFAULT_WATCHDOG_MS = 1000;
 
 // fftSize baixo de proposito: e o mesmo default que o useTrackVolume ja usa
 // (32 — ver hooks-C7fu1g_i.mjs dentro do pacote), só estamos sendo explicitos

@@ -76,31 +76,68 @@
   font-weight: 500;
 }
 
+/* So a foto, agrupada em linha (bug 4 do relatorio) — aproveita a largura da
+   sidebar melhor que uma lista vertical de avatar+nome por linha, e o `wrap`
+   deixa continuar legivel mesmo com muita gente no canal. */
 .occupantList {
   list-style: none;
   margin: 0;
-  padding: 0 0 0 1.625rem;
+  padding: 0.125rem 0 0.375rem 1.625rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.375rem;
 }
 
 .occupant {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: var(--lk-fg2, rgba(255, 255, 255, 0.65));
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  /* Focavel por teclado (tabIndex=0 no JSX) — e o que faz o nome aparecer no
+     foco, nao so no hover do mouse (ver .occupantTooltip abaixo). */
+  cursor: default;
+}
+
+.occupant:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
 }
 
 .occupantAvatar {
   flex-shrink: 0;
 }
 
-.occupantName {
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Nome no hover (mouse) E no foco (teclado/toque) — `:hover` sozinho nao
+   existe em touch, entao tocar no avatar foca o elemento (tabIndex=0) e
+   `:focus-visible`/`:focus` cobrem esse caso tambem. O nome continua
+   acessivel pra leitor de tela o tempo todo via `aria-label` no <li> (ver
+   ChannelSidebar.tsx) — isso aqui e so a copia visual, `aria-hidden`. */
+.occupantTooltip {
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--lk-bg3, #111);
+  color: var(--lk-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
   white-space: nowrap;
+  box-shadow: var(--lk-box-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease-in-out,
+    transform 0.12s ease-in-out;
+  z-index: 30;
+}
+
+.occupant:hover .occupantTooltip,
+.occupant:focus .occupantTooltip,
+.occupant:focus-visible .occupantTooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .empty,

@@ -75,7 +75,10 @@ export function CallParticipantTile(props: {
     [Track.Source.Microphone],
     trackRef.participant.identity,
   );
-  const { isSpeaking } = useSpeakingIndicator(trackRef.participant, micTracks[0]);
+  const { isSpeaking, source: speakingSource } = useSpeakingIndicator(
+    trackRef.participant,
+    micTracks[0],
+  );
 
   const hasLiveVideo = isTrackReference(trackRef) && trackRef.publication.kind === Track.Kind.Video;
   const avatarUrl = avatarMap[trackRef.participant.name || trackRef.participant.identity];
@@ -85,6 +88,11 @@ export function CallParticipantTile(props: {
       {...elementProps}
       // Depois do spread, de proposito: sobrescreve o valor vindo do servidor.
       data-lk-speaking={isSpeaking}
+      // So diagnostico (nao afeta CSS nenhum) — 'local-volume' ou
+      // 'server-events', ver useSpeakingIndicator.ts. Da pra inspecionar num
+      // devtools durante uma call de verdade e confirmar qual fonte esta
+      // ativa por participante, sem precisar instrumentar nada na hora.
+      data-lk-speaking-source={speakingSource}
       className={`${elementProps.className ?? ''} ${styles.tile}`}
     >
       {hasLiveVideo && <VideoTrack trackRef={trackRef} />}

@@ -69,12 +69,20 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
         });
       }
       if (props.activeChannelSlug && props.activeChannelSlug !== channel.slug) {
-        // Trocando de canal de voz com uma chamada em andamento: navegacao
-        // client-side (router.push) so troca o roomName por baixo e o <Room>
-        // antigo nunca chama disconnect() em lugar nenhum do PageClientImpl —
-        // a conexao WebRTC com o canal anterior ficaria pendurada. Forcar um
-        // reload completo garante que o navegador derruba a conexao antiga
-        // antes de abrir a nova.
+        // Trocando de canal de voz com uma chamada em andamento: MANTIDO o
+        // reload completo mesmo depois do PageClientImpl passar a chamar
+        // room.disconnect() no unmount (ver nota la, bug da pessoa duplicada
+        // na lista). Motivo: as duas URLs batem no MESMO segmento de rota
+        // (`/rooms/[roomName]`) — o App Router do Next NAO desmonta a arvore
+        // de componentes so porque o parametro dinamico mudou, ele so
+        // re-renderiza o mesmo RoomShell/PageClientImpl com `roomName` novo.
+        // Como o `Room` vem de um `useMemo` com deps VAZIAS (de proposito,
+        // pra nao cair a chamada — ver PageClientImpl.tsx), o cleanup de
+        // unmount SIMPLESMENTE NÃO DISPARARIA numa troca client-side entre
+        // dois canais de voz: o `<Room>` velho continuaria conectado no
+        // canal errado enquanto a UI mostra o novo. Forcar um reload
+        // completo continua sendo o unico jeito seguro de garantir que a
+        // pagina inteira (e o Room) e recriada do zero.
         window.location.href = `/rooms/${encodeURIComponent(channel.slug)}`;
         return;
       }
@@ -156,6 +164,25 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
             {voiceChannels.map((channel) => {
               const occupants = presence[channel.slug] ?? [];
               const isActive = channel.slug === props.activeChannelSlug;
+
+              // Defesa extra contra o bug da pessoa duplicada (ver
+              // PageClientImpl.tsx e HANDOFF secao 9): mesmo com o
+              // room.disconnect() correto no unmount, uma sessao fantasma
+              // ainda pode sobreviver por alguns segundos ate expirar no SFU
+              // (ex: aba fechada sem chegar a rodar o cleanup do React, ou o
+              // proprio timeout normal do servidor). Deduplicamos por
+              // `cleanName` na EXIBICAO — duas entradas de presenca pra
+              // mesma pessoa viram um so avatar na lista, mesmo que as duas
+              // identities (com sufixo aleatorio diferente) continuem
+              // existindo de verdade no LiveKit.
+              const seenNames = new Set<string>();
+              const dedupedOccupants = occupants.filter((p) => {
+                const cleanName = p.name || p.identity;
+                if (seenNames.has(cleanName)) return false;
+                seenNames.add(cleanName);
+                return true;
+              });
+
               return (
                 <li key={channel.id}>
                   <button
@@ -168,30 +195,49 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                       <SpeakerIcon />
                       {channel.name}
                     </span>
-                    {occupants.length > 0 && (
-                      <ul className={styles.occupantList}>
-                        {occupants.map((p) => {
-                          // Casa por `name` (username limpo), nunca por
-                          // `identity` — a identity carrega o sufixo
-                          // aleatorio `${username}__${randomString(4)}` (ver
-                          // connection-details/route.ts), que nunca bate com
-                          // as chaves de avatarMap (indexado por username).
-                          const cleanName = p.name || p.identity;
-                          return (
-                            <li key={p.identity} className={styles.occupant}>
-                              <Avatar
-                                username={cleanName}
-                                avatarUrl={avatarMap[cleanName] ?? null}
-                                size={20}
-                                className={styles.occupantAvatar}
-                              />
-                              <span className={styles.occupantName}>{cleanName}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
                   </button>
+                  {/* FORA do <button> do canal de proposito: <button> nao
+                      pode conter conteudo interativo (cada avatar precisa
+                      ser focavel pro nome aparecer no foco por teclado — ver
+                      abaixo), e um <li> dentro de <button> ja nao seria HTML
+                      valido. So a foto aparece; o nome mostra no hover E no
+                      foco por teclado/toque via CSS (ver
+                      ChannelSidebar.module.css .occupantTooltip) — nao so
+                      `:hover`, que nao existe em touch. */}
+                  {dedupedOccupants.length > 0 && (
+                    <ul className={styles.occupantList} aria-label={`Pessoas em ${channel.name}`}>
+                      {dedupedOccupants.map((p) => {
+                        // Casa por `name` (username limpo), nunca por
+                        // `identity` — a identity carrega o sufixo aleatorio
+                        // `${username}__${randomString(4)}` (ver
+                        // connection-details/route.ts), que nunca bate com
+                        // as chaves de avatarMap (indexado por username).
+                        const cleanName = p.name || p.identity;
+                        return (
+                          <li
+                            key={p.identity}
+                            className={styles.occupant}
+                            tabIndex={0}
+                            title={cleanName}
+                            aria-label={cleanName}
+                          >
+                            <Avatar
+                              username={cleanName}
+                              avatarUrl={avatarMap[cleanName] ?? null}
+                              size={22}
+                              className={styles.occupantAvatar}
+                            />
+                            {/* Copia visual do aria-label de cima, so pro
+                                tooltip CSS — nao deve ser lida de novo pelo
+                                leitor de tela. */}
+                            <span className={styles.occupantTooltip} aria-hidden="true">
+                              {cleanName}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </li>
               );
             })}
