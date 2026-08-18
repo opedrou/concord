@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // imagem Docker enxuta (o upstream e feito pra Vercel)
+  output: 'standalone',
   reactStrictMode: false,
   productionBrowserSourceMaps: true,
   images: {

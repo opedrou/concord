@@ -19,6 +19,7 @@ import {
   RoomOptions,
   VideoCodec,
   VideoPresets,
+  ScreenSharePresets,
   Room,
   DeviceUnsupportedError,
   RoomConnectOptions,
@@ -120,6 +121,11 @@ function VideoConferenceComponent(props: {
     };
     const publishDefaults: TrackPublishDefaults = {
       dtx: false,
+      // O default da livekit-client e ScreenSharePresets.h1080fps15 (1080p @ 15fps, 2.5 Mbps),
+      // baixo demais pra acompanhar jogo. Forcamos 1920x1080 @ 30fps, 5 Mbps.
+      screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+      // default e 'balanced'; pra jogo queremos derrubar resolucao antes de derrubar fps.
+      degradationPreference: 'maintain-framerate',
       videoSimulcastLayers: props.options.hq
         ? [VideoPresets.h1080, VideoPresets.h720]
         : [VideoPresets.h540, VideoPresets.h216],
