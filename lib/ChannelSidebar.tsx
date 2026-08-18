@@ -6,7 +6,7 @@ import { fetchChannels, type Channel, type CurrentUser } from '@/lib/api-client'
 import { usePresencePolling } from '@/lib/usePresencePolling';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { Avatar } from '@/lib/Avatar';
-import { HashIcon, SpeakerIcon, MicIcon, HeadphonesIcon, SettingsIcon } from '@/lib/icons';
+import { HashIcon, SpeakerIcon, SettingsIcon } from '@/lib/icons';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -225,12 +225,13 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               </span>
             </div>
             <div className={styles.userActions}>
-              <span className={styles.userIcon} aria-hidden="true">
-                <MicIcon size={16} />
-              </span>
-              <span className={styles.userIcon} aria-hidden="true">
-                <HeadphonesIcon size={16} />
-              </span>
+              {/* Aqui havia icones de microfone e fone puramente decorativos.
+                  Foram removidos de proposito: esta sidebar renderiza FORA da
+                  arvore do RoomContext (e irma do PageClientImpl, nao
+                  descendente), entao nao ha estado de track pra ler nem pra
+                  alterar sem reestruturar os providers. Botao que parece
+                  clicavel e nao muta nada e pior que botao nenhum. O controle
+                  de microfone de verdade esta na ControlBar da call. */}
               <div className={styles.accountMenuWrap}>
                 <button
                   type="button"

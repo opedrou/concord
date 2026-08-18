@@ -119,6 +119,12 @@
   gap: 0.5rem;
   padding: 0.5rem 0.625rem;
   border-top: 1px solid var(--lk-border-color);
+  /* `margin-top: auto` e o que PRENDE o rodape embaixo. O `sticky` sozinho
+     nao bastava: sticky so gruda quando o conteudo transborda, entao com
+     poucos canais o painel ficava solto logo abaixo da lista, no meio do
+     vazio. O auto empurra pro fim do flex column quando sobra espaco, e o
+     sticky continua valendo pra quando a lista for longa e rolar. */
+  margin-top: auto;
   position: sticky;
   bottom: 0;
   background-color: var(--lk-bg2);
@@ -128,6 +134,9 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* Sem poder crescer, o bloco ficava do tamanho do conteudo e o nome
+     truncava ("Op...") mesmo com espaco de sobra na barra. */
+  flex: 1 1 auto;
   min-width: 0;
 }
 
