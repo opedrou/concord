@@ -102,6 +102,7 @@
 }
 
 .field input,
+.field select,
 .inlineForm input,
 .inlineInput {
   padding: 0.5rem 0.75rem;
@@ -113,6 +114,7 @@
 }
 
 .field input:focus,
+.field select:focus,
 .inlineForm input:focus,
 .inlineInput:focus {
   outline: 2px solid var(--lk-focus-outline-color, #1f8cf9);

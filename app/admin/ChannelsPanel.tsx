@@ -3,6 +3,7 @@
 import * as React from 'react';
 import {
   Channel,
+  ChannelType,
   apiErrorMessage,
   createChannel,
   deleteChannel,
@@ -10,6 +11,7 @@ import {
   reorderChannels,
   updateChannel,
 } from '@/lib/api-client';
+import { ArrowDownIcon, ArrowUpIcon, HashIcon, SpeakerIcon } from '@/lib/icons';
 import styles from '../../styles/Admin.module.css';
 
 export function ChannelsPanel() {
@@ -20,6 +22,7 @@ export function ChannelsPanel() {
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<number | null>(null);
 
   const [newName, setNewName] = React.useState('');
+  const [newType, setNewType] = React.useState<ChannelType>('voice');
   const [creating, setCreating] = React.useState(false);
 
   const [editingId, setEditingId] = React.useState<number | null>(null);
@@ -48,9 +51,10 @@ export function ChannelsPanel() {
     }
     setCreating(true);
     try {
-      const created = await createChannel({ name: newName.trim() });
+      const created = await createChannel({ name: newName.trim(), type: newType });
       setChannels((prev) => [...(prev ?? []), created]);
       setNewName('');
+      setNewType('voice');
     } catch (err) {
       setActionError(apiErrorMessage(err));
     } finally {
@@ -145,6 +149,17 @@ export function ChannelsPanel() {
               required
             />
           </div>
+          <div className={styles.field}>
+            <label htmlFor="new-channel-type">Tipo</label>
+            <select
+              id="new-channel-type"
+              value={newType}
+              onChange={(e) => setNewType(e.target.value as ChannelType)}
+            >
+              <option value="voice">Voz</option>
+              <option value="text">Texto</option>
+            </select>
+          </div>
           <button className="lk-button" type="submit" disabled={creating}>
             {creating ? 'Criando…' : 'Criar canal'}
           </button>
@@ -179,7 +194,7 @@ export function ChannelsPanel() {
                     aria-label={`Mover ${channel.name} para cima`}
                     onClick={() => move(index, -1)}
                   >
-                    ↑
+                    <ArrowUpIcon size={16} />
                   </button>
                   <button
                     className="lk-button"
@@ -188,15 +203,20 @@ export function ChannelsPanel() {
                     aria-label={`Mover ${channel.name} para baixo`}
                     onClick={() => move(index, 1)}
                   >
-                    ↓
+                    <ArrowDownIcon size={16} />
                   </button>
                 </div>
 
                 <div className={styles.rowMain}>
                   {!isEditing ? (
                     <>
-                      <span className={styles.rowTitle}>{channel.name}</span>
-                      <span className={styles.rowMeta}>#{channel.slug}</span>
+                      <span className={styles.rowTitle}>
+                        {channel.type === 'text' ? <HashIcon size={15} /> : <SpeakerIcon size={15} />}
+                        {channel.name}
+                      </span>
+                      <span className={styles.rowMeta}>
+                        {channel.slug} · {channel.type === 'text' ? 'texto' : 'voz'}
+                      </span>
                     </>
                   ) : (
                     <input

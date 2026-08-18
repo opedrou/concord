@@ -4,6 +4,8 @@
 //     app subir com um segredo default inseguro.
 //  2. Garantir o schema do SQLite (idempotente).
 //  3. Semear o primeiro admin a partir de ADMIN_USERNAME/ADMIN_PASSWORD.
+//  4. Garantir que $DATA_DIR/avatars existe (idempotente) — onde ficam as
+//     fotos de perfil enviadas pelos usuários (ONDA C).
 //
 // Só faz sentido no runtime Node (o Edge não tem acesso a node:sqlite nem
 // node:crypto), daí o guard por NEXT_RUNTIME.
@@ -15,5 +17,8 @@ export async function register() {
     const { getDb, seedInitialAdmin } = await import('./lib/db');
     getDb();
     seedInitialAdmin();
+
+    const { ensureAvatarsDir } = await import('./lib/avatars');
+    ensureAvatarsDir();
   }
 }

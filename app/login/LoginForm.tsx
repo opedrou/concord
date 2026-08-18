@@ -1,11 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import styles from '../../styles/Login.module.css';
 
 export function LoginForm() {
-  const router = useRouter();
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
@@ -28,8 +26,24 @@ export function LoginForm() {
         setSubmitting(false);
         return;
       }
-      router.push('/');
-      router.refresh();
+      // Reforço: pede pro navegador guardar a credencial via Credential
+      // Management API, quando suportada (Chrome/Edge; Firefox e Safari não
+      // implementam). Best-effort — falha em silêncio se indisponível.
+      try {
+        const PasswordCredentialCtor = (window as unknown as { PasswordCredential?: any })
+          .PasswordCredential;
+        if (PasswordCredentialCtor && navigator.credentials) {
+          const cred = new PasswordCredentialCtor({ id: username, password, name: username });
+          await navigator.credentials.store(cred);
+        }
+      } catch {
+        // Sem suporte ou usuário recusou — segue o fluxo normal.
+      }
+      // Navegação de verdade (não router.push do Next) — é o gatilho que os
+      // gerenciadores de senha do navegador esperam pra oferecer "salvar
+      // senha". Um submit via fetch seguido de troca de estado client-side
+      // não é reconhecido como um login bem-sucedido pelo heurístico deles.
+      window.location.assign('/');
     } catch {
       setError('Não foi possível conectar. Tente de novo.');
       setSubmitting(false);

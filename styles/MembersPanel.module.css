@@ -1,0 +1,119 @@
+/* Painel de membros — autocontido, pensado pra caber ao lado de qualquer
+   layout sem tomar a tela toda no celular. Por padrao comeca recolhido
+   (so o cabecalho com a contagem) em qualquer largura; expandir e uma acao
+   explicita do usuario, entao nunca "cai em cima" do resto da UI sozinho. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 16rem;
+  max-width: 80vw;
+  flex-shrink: 0;
+  background-color: var(--lk-bg2);
+  border-left: 1px solid var(--lk-border-color);
+  overflow-y: auto;
+}
+
+.panel.collapsed {
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+  border-left: none;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--lk-border-color);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: var(--lk-fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panel.collapsed .toggle {
+  border-bottom: none;
+}
+
+.toggleIcon {
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+}
+
+.member:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.avatarWrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.statusDot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  border: 2px solid var(--lk-bg2);
+}
+
+.statusOnline {
+  background-color: #23a55a;
+}
+
+.statusOffline {
+  background-color: #80848e;
+}
+
+.memberName {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty,
+.error {
+  padding: 0.5rem 0.625rem;
+  font-size: 0.85rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.5));
+}
+
+/* Telas estreitas: se algum dia for expandido por padrao em algum layout,
+   nunca deixa o painel virar a tela inteira. */
+@media (max-width: 640px) {
+  .panel {
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--lk-border-color);
+    max-height: 45vh;
+  }
+}

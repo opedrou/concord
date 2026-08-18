@@ -31,13 +31,34 @@ export interface DbUser {
   password_hash: string;
   is_admin: number;
   created_at: number;
+  // Nome do arquivo (nao o caminho completo) do avatar em $DATA_DIR/avatars,
+  // ou null quando o usuario nao fez upload de foto (cai no avatar gerado
+  // por iniciais no cliente). Coluna adicionada pela ONDA C — ver
+  // migrateAvatarColumn().
+  avatar_path: string | null;
 }
+
+// Tipo de canal. `voice` é o que já existia (sala do LiveKit); `text` é novo
+// (canal `#` estilo Discord, com histórico de mensagens neste mesmo banco).
+export type ChannelType = 'voice' | 'text';
 
 export interface DbChannel {
   id: number;
   name: string;
   slug: string;
   position: number;
+  created_at: number;
+  // Coluna adicionada pela ONDA A — ver migrateChannelTypeColumn(). Todo
+  // canal criado antes dessa migração recebe 'voice' automaticamente (era o
+  // único tipo que existia), então nada muda pra quem já tinha canais.
+  type: ChannelType;
+}
+
+export interface DbMessage {
+  id: number;
+  channel_id: number;
+  user_id: number | null;
+  content: string;
   created_at: number;
 }
 
@@ -73,9 +94,70 @@ export function getDb(): DatabaseSync {
       created_at INTEGER NOT NULL
     );
   `);
+  // Mensagens de canal de texto. `user_id` pode virar NULL se a conta do
+  // autor for apagada depois (ON DELETE SET NULL) — a mensagem em si
+  // permanece no histórico, só perde a referência de autoria (mostrada como
+  // "usuário removido" no cliente). Apagar o canal apaga as mensagens junto
+  // (ON DELETE CASCADE) — não faz sentido guardar mensagem órfã de um canal
+  // que não existe mais.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
+  // Índice composto (channel_id, id): sustenta tanto "últimas mensagens do
+  // canal" quanto a paginação por cursor (WHERE channel_id = ? AND id < ?
+  // ORDER BY id DESC LIMIT ?) sem varrer a tabela inteira.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_channel_id ON messages (channel_id, id);`);
+
+  migrateAvatarColumn(db);
+  migrateChannelTypeColumn(db);
 
   globalThis.__appDb = db;
   return db;
+}
+
+/**
+ * Migração aditiva (ONDA C): adiciona a coluna `avatar_path` em `users` se
+ * ainda não existir. `CREATE TABLE IF NOT EXISTS` não cobre alterações em
+ * tabela já existente — checamos via PRAGMA table_info antes de rodar o
+ * ALTER TABLE, porque node:sqlite não aceita "ADD COLUMN IF NOT EXISTS" e
+ * rodar o ALTER de novo num banco que já tem a coluna quebraria o boot.
+ * Não destrutivo: nunca dropa nem reescreve dado existente.
+ */
+function migrateAvatarColumn(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(users)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const hasAvatarColumn = columns.some((c) => c.name === 'avatar_path');
+  if (!hasAvatarColumn) {
+    db.exec('ALTER TABLE users ADD COLUMN avatar_path TEXT;');
+    console.log('[migrate] coluna users.avatar_path adicionada.');
+  }
+}
+
+/**
+ * Migração aditiva (ONDA A — canais de texto): adiciona a coluna `type` em
+ * `channels` se ainda não existir, com `DEFAULT 'voice'`. SQLite aplica o
+ * default a toda linha já existente na hora do ALTER TABLE — então qualquer
+ * canal cadastrado antes desse deploy (só existia canal de voz) continua
+ * funcionando como canal de voz sem nenhuma ação manual. Mesmo cuidado da
+ * migração acima: PRAGMA table_info antes do ALTER, porque rodar o ALTER de
+ * novo num banco que já tem a coluna quebraria o boot. Não destrutivo.
+ */
+function migrateChannelTypeColumn(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(channels)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const hasTypeColumn = columns.some((c) => c.name === 'type');
+  if (!hasTypeColumn) {
+    db.exec("ALTER TABLE channels ADD COLUMN type TEXT NOT NULL DEFAULT 'voice';");
+    console.log("[migrate] coluna channels.type adicionada (canais existentes viraram 'voice').");
+  }
 }
 
 /**

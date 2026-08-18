@@ -2,8 +2,11 @@
 //   Body: { name?: string, slug?: string, position?: number }  — todos opcionais,
 //   manda só o que quer mudar. Renomear não muda o slug automaticamente
 //   (evita quebrar quem já entrou na sala pelo slug antigo); pra trocar o
-//   slug, mande `slug` explicitamente.
-//   200: { id, name, slug, position }
+//   slug, mande `slug` explicitamente. `type` (voz/texto) não é editável por
+//   aqui de propósito: trocar o tipo de um canal com histórico de mensagens
+//   (texto) ou presença ativa (voz) é uma operação ambígua o bastante pra
+//   merecer "apagar e recriar" em vez de mutação silenciosa.
+//   200: { id, name, slug, position, type }
 //   400: { error: 'invalid_body' }
 //   401/403: sem sessão / não-admin
 //   404: { error: 'not_found' }
@@ -21,7 +24,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function toPublicChannel(row: DbChannel) {
-  return { id: row.id, name: row.name, slug: row.slug, position: row.position };
+  return { id: row.id, name: row.name, slug: row.slug, position: row.position, type: row.type };
 }
 
 function parseId(raw: string): number | null {

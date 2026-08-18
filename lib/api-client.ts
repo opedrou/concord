@@ -3,16 +3,23 @@
 // app/api/channels/{route,presence/route}.ts.
 
 export interface CurrentUser {
+  // Adicionado pela ONDA C — necessario pra montar a URL do proprio avatar
+  // (GET /api/avatars/:id) sem outra chamada. Aditivo, ver app/api/auth/me.
+  id: number;
   username: string;
   isAdmin: boolean;
 }
 
+/** 'voice' = canal com sala no LiveKit (como ja existia). 'text' = canal `#` com historico de mensagens (ONDA A). */
+export type ChannelType = 'voice' | 'text';
+
 export interface Channel {
   id: number;
   name: string;
-  /** Slug do canal — tambem e o nome da sala no LiveKit (usado em /rooms/[roomName]). */
+  /** Slug do canal — tambem e o nome da sala no LiveKit quando type === 'voice' (usado em /rooms/[roomName]). */
   slug: string;
   position: number;
+  type: ChannelType;
 }
 
 export interface PresenceParticipant {
@@ -131,6 +138,16 @@ export function apiErrorMessage(err: unknown): string {
         return 'Já existe um canal com esse identificador.';
       case 'last_admin':
         return 'Essa ação deixaria o sistema sem nenhum administrador. Promova outra pessoa antes.';
+      case 'invalid_format':
+        return 'Formato de imagem não reconhecido. Use JPEG, PNG, WEBP ou GIF.';
+      case 'file_too_large':
+        return 'Arquivo grande demais.';
+      case 'wrong_password':
+        return 'Senha atual incorreta.';
+      case 'password_too_short':
+        return 'A nova senha precisa ter pelo menos 8 caracteres.';
+      case 'password_mismatch':
+        return 'A confirmação não bate com a nova senha.';
       default:
         return `Erro inesperado (${err.code}).`;
     }
@@ -177,7 +194,11 @@ export async function deleteUser(id: number): Promise<void> {
   await parseJsonOrThrow(res); // 204 nao tem corpo; qualquer outro status lanca com o codigo certo
 }
 
-export async function createChannel(input: { name: string; slug?: string }): Promise<Channel> {
+export async function createChannel(input: {
+  name: string;
+  slug?: string;
+  type?: ChannelType;
+}): Promise<Channel> {
   const res = await fetch('/api/channels', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -215,4 +236,114 @@ export async function reorderChannels(order: number[]): Promise<Channel[]> {
     body: JSON.stringify({ order }),
   });
   return parseJsonOrThrow<Channel[]>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Membros e avatar (ONDA C). Contrato confirmado lendo
+// app/api/members/route.ts e app/api/avatars/{route,[id]/route}.ts.
+
+export interface Member {
+  id: number;
+  username: string;
+  /** URL pra GET /api/avatars/:id, ou null se a pessoa nao tem foto (usar avatar gerado). */
+  avatarUrl: string | null;
+}
+
+/** Lista todo mundo cadastrado (nao so quem esta numa call agora). */
+export async function fetchMembers(): Promise<Member[]> {
+  const res = await fetch('/api/members', { credentials: 'same-origin' });
+  return parseJsonOrThrow<Member[]>(res);
+}
+
+/** Envia a foto de perfil do proprio usuario logado. `file` deve vir de um <input type="file">. */
+export async function uploadAvatar(file: File | Blob): Promise<{ avatarUrl: string }> {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const res = await fetch('/api/avatars', {
+    method: 'POST',
+    credentials: 'same-origin',
+    body: formData,
+  });
+  return parseJsonOrThrow<{ avatarUrl: string }>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Mensagens de canal de texto (ONDA A). Contrato confirmado lendo
+// app/api/channels/[id]/messages/{route,[messageId]/route,stream/route}.ts.
+
+export interface ChannelMessage {
+  id: number;
+  channelId: number;
+  authorId: number | null;
+  /** "Usuario removido" quando o autor apagou a conta desde entao. */
+  authorName: string;
+  content: string;
+  createdAt: number;
+}
+
+interface MessagesPage {
+  messages: ChannelMessage[];
+  /** Se true, existe historico mais antigo que essa pagina (pra "carregar mais"). */
+  hasMore: boolean;
+}
+
+/**
+ * Busca uma pagina de historico do canal. Sem `before`, traz a pagina mais
+ * recente. Com `before`, traz as mensagens imediatamente anteriores aquele id
+ * (rolar pra cima / "carregar mais").
+ */
+export async function fetchMessages(
+  channelId: number,
+  options?: { before?: number; limit?: number },
+): Promise<MessagesPage> {
+  const url = new URL(`/api/channels/${channelId}/messages`, window.location.origin);
+  if (options?.before !== undefined) url.searchParams.set('before', String(options.before));
+  if (options?.limit !== undefined) url.searchParams.set('limit', String(options.limit));
+  const res = await fetch(url.toString(), { credentials: 'same-origin' });
+  return parseJsonOrThrow<MessagesPage>(res);
+}
+
+/** Posta uma mensagem no canal. Autor vem sempre da sessao no servidor, nunca daqui. */
+export async function postMessage(channelId: number, content: string): Promise<ChannelMessage> {
+  const res = await fetch(`/api/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ content }),
+  });
+  return parseJsonOrThrow<ChannelMessage>(res);
+}
+
+/** Apaga uma mensagem. O servidor recusa (403) se quem chama nao for o autor nem admin. */
+export async function deleteMessage(channelId: number, messageId: number): Promise<void> {
+  const res = await fetch(`/api/channels/${channelId}/messages/${messageId}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (res.status === 204) return;
+  await parseJsonOrThrow(res);
+}
+
+/** URL do endpoint SSE de um canal — quem usa monta o proprio `new EventSource(...)`. */
+export function channelMessageStreamUrl(channelId: number): string {
+  return `/api/channels/${channelId}/messages/stream`;
+}
+
+// ---------------------------------------------------------------------------
+// Troca da propria senha (ONDA C). Contrato confirmado lendo
+// app/api/auth/change-password/route.ts.
+
+/** Troca a senha do proprio usuario logado. Exige a senha atual. */
+export async function changePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<void> {
+  const res = await fetch('/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(input),
+  });
+  await parseJsonOrThrow(res);
 }

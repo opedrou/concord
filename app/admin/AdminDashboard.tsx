@@ -60,7 +60,7 @@ export function AdminDashboard({ currentUsername }: { currentUsername: string })
           aria-pressed={tab === 'channels'}
           onClick={() => setTab('channels')}
         >
-          Canais de voz
+          Canais
         </button>
       </nav>
 

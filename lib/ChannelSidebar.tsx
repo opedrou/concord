@@ -4,40 +4,29 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchChannels, type Channel, type CurrentUser } from '@/lib/api-client';
 import { usePresencePolling } from '@/lib/usePresencePolling';
+import { HashIcon, SpeakerIcon } from '@/lib/icons';
 import styles from '../styles/ChannelSidebar.module.css';
-
-// Icone de alto-falante (canal de voz), estilo Discord. SVG inline pra nao
-// depender de biblioteca de icones extra.
-function SpeakerIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 10v4h3.5l4.5 4V6l-4.5 4H3z" />
-      <path d="M16.5 8.5a5 5 0 0 1 0 7" />
-      <path d="M19 6a8.5 8.5 0 0 1 0 12" />
-    </svg>
-  );
-}
 
 export interface ChannelSidebarProps {
   user: CurrentUser | null;
-  /** Slug do canal em que o usuario esta agora (rota /rooms/[roomName]), se algum. */
+  /** Slug do canal de VOZ em que o usuario esta agora (rota /rooms/[roomName]), se algum. */
   activeChannelSlug?: string;
+  /** Slug do canal de TEXTO sendo visualizado agora, se algum. */
+  activeTextChannelSlug?: string;
   onLogout?: () => void;
+  /**
+   * Quando informado, clicar num canal de texto chama isso em vez de navegar
+   * pra /channels/[slug]. Usado pelo RoomShell pra abrir o texto num painel
+   * sobreposto sem desmontar a chamada de voz em andamento (ver RoomShell.tsx).
+   */
+  onSelectTextChannel?: (channel: Channel) => void;
 }
 
 /**
- * Sidebar permanente de canais de voz, estilo Discord: lista os canais e, sob
- * cada um, quem esta dentro agora — sem precisar entrar pra ver.
+ * Sidebar permanente de canais, estilo Discord: duas secoes (texto com "#" e
+ * voz com alto-falante). Sob cada canal de voz mostra quem esta dentro agora
+ * — sem precisar entrar pra ver. Canal de texto nao tem presenca (nao
+ * "entra" em nada, so abre o historico).
  */
 export function ChannelSidebar(props: ChannelSidebarProps) {
   const [channels, setChannels] = React.useState<Channel[]>([]);
@@ -59,7 +48,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
     };
   }, []);
 
-  const handleEnter = React.useCallback(
+  const handleEnterVoice = React.useCallback(
     (channel: Channel) => {
       // Atualiza a presenca localmente na hora — nao espera o proximo poll
       // pra sidebar refletir que voce entrou.
@@ -70,12 +59,12 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
         });
       }
       if (props.activeChannelSlug && props.activeChannelSlug !== channel.slug) {
-        // Trocando de canal com uma chamada em andamento: navegacao client-side
-        // (router.push) so troca o roomName por baixo e o <Room> antigo nunca
-        // chama disconnect() em lugar nenhum do PageClientImpl — a conexao
-        // WebRTC com o canal anterior ficaria pendurada. Forcar um reload
-        // completo garante que o navegador derruba a conexao antiga antes de
-        // abrir a nova.
+        // Trocando de canal de voz com uma chamada em andamento: navegacao
+        // client-side (router.push) so troca o roomName por baixo e o <Room>
+        // antigo nunca chama disconnect() em lugar nenhum do PageClientImpl —
+        // a conexao WebRTC com o canal anterior ficaria pendurada. Forcar um
+        // reload completo garante que o navegador derruba a conexao antiga
+        // antes de abrir a nova.
         window.location.href = `/rooms/${encodeURIComponent(channel.slug)}`;
         return;
       }
@@ -84,46 +73,98 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
     [router, props.user, props.activeChannelSlug, applyOptimisticJoin],
   );
 
-  return (
-    <nav className={styles.sidebar} aria-label="Canais de voz">
-      <div className={styles.header}>
-        <span className={styles.headerTitle}>Canais de voz</span>
-      </div>
+  const { onSelectTextChannel } = props;
+  const handleEnterText = React.useCallback(
+    (channel: Channel) => {
+      if (onSelectTextChannel) {
+        // Contexto de dentro de uma sala de voz: abre em painel sobreposto,
+        // sem navegar (a chamada continua tocando por baixo).
+        onSelectTextChannel(channel);
+        return;
+      }
+      // Fora de uma sala de voz: navegacao client-side normal, nao ha
+      // conexao WebRTC pra proteger.
+      router.push(`/channels/${encodeURIComponent(channel.slug)}`);
+    },
+    [router, onSelectTextChannel],
+  );
 
-      <ul className={styles.channelList}>
-        {loadError && <li className={styles.error}>Nao foi possivel carregar os canais.</li>}
-        {channels.map((channel) => {
-          const occupants = presence[channel.slug] ?? [];
-          const isActive = channel.slug === props.activeChannelSlug;
-          return (
-            <li key={channel.id}>
-              <button
-                type="button"
-                className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
-                onClick={() => handleEnter(channel)}
-                aria-current={isActive ? 'true' : undefined}
-              >
-                <span className={styles.channelName}>
-                  <SpeakerIcon />
-                  {channel.name}
-                </span>
-                {occupants.length > 0 && (
-                  <ul className={styles.occupantList}>
-                    {occupants.map((p) => (
-                      <li key={p.identity} className={styles.occupant}>
-                        {p.name || p.identity}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </button>
-            </li>
-          );
-        })}
-        {!loadError && channels.length === 0 && (
-          <li className={styles.empty}>Nenhum canal disponivel.</li>
-        )}
-      </ul>
+  const textChannels = channels.filter((c) => c.type === 'text');
+  const voiceChannels = channels.filter((c) => c.type === 'voice');
+
+  return (
+    <nav className={styles.sidebar} aria-label="Canais">
+      {loadError && <p className={styles.error}>Nao foi possivel carregar os canais.</p>}
+
+      {!loadError && channels.length === 0 && (
+        <p className={styles.empty}>Nenhum canal disponivel.</p>
+      )}
+
+      {textChannels.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.header}>
+            <span className={styles.headerTitle}>Canais de texto</span>
+          </div>
+          <ul className={styles.channelList}>
+            {textChannels.map((channel) => {
+              const isActive = channel.slug === props.activeTextChannelSlug;
+              return (
+                <li key={channel.id}>
+                  <button
+                    type="button"
+                    className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
+                    onClick={() => handleEnterText(channel)}
+                    aria-current={isActive ? 'true' : undefined}
+                  >
+                    <span className={styles.channelName}>
+                      <HashIcon />
+                      {channel.name}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {voiceChannels.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.header}>
+            <span className={styles.headerTitle}>Canais de voz</span>
+          </div>
+          <ul className={styles.channelList}>
+            {voiceChannels.map((channel) => {
+              const occupants = presence[channel.slug] ?? [];
+              const isActive = channel.slug === props.activeChannelSlug;
+              return (
+                <li key={channel.id}>
+                  <button
+                    type="button"
+                    className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
+                    onClick={() => handleEnterVoice(channel)}
+                    aria-current={isActive ? 'true' : undefined}
+                  >
+                    <span className={styles.channelName}>
+                      <SpeakerIcon />
+                      {channel.name}
+                    </span>
+                    {occupants.length > 0 && (
+                      <ul className={styles.occupantList}>
+                        {occupants.map((p) => (
+                          <li key={p.identity} className={styles.occupant}>
+                            {p.name || p.identity}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className={styles.userBar}>
         {props.user ? (
@@ -132,6 +173,9 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               {props.user.username}
             </span>
             <div className={styles.userActions}>
+              <a href="/profile" className={styles.userAction}>
+                Perfil
+              </a>
               {props.user.isAdmin && (
                 <a href="/admin" className={styles.userAction}>
                   Admin

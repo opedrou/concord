@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { RemoteParticipant, Track } from 'livekit-client';
 import { useIsSpeaking, useRemoteParticipants, useTracks } from '@livekit/components-react';
+import { CloseIcon, SlidersIcon, Volume2Icon, VolumeXIcon } from '@/lib/icons';
 import styles from '../styles/ParticipantAudioPanel.module.css';
 
 // Volume 1 = 100%. A API do livekit-client aceita valores acima de 1 (boost),
@@ -130,7 +131,7 @@ function VolumeControl(props: {
         title={isMuted ? `Desmutar ${label}` : `Mutar ${label} só pra mim`}
         onClick={toggleMute}
       >
-        {isMuted ? '🔇' : '🔊'}
+        {isMuted ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />}
       </button>
       <span className={styles.volumeLabel}>{label}</span>
       <input
@@ -223,7 +224,7 @@ export function ParticipantAudioPanel() {
         aria-expanded={isOpen}
         title="Volume por participante"
       >
-        🎚️ Participantes
+        <SlidersIcon size={18} /> Participantes
       </button>
       {isOpen && (
         <div className={styles.panel} role="dialog" aria-label="Volume por participante">
@@ -235,7 +236,7 @@ export function ParticipantAudioPanel() {
               onClick={() => setIsOpen(false)}
               aria-label="Fechar painel"
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
           </div>
           {remoteParticipants.length === 0 ? (

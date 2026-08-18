@@ -7,6 +7,29 @@
   flex-grow: 1;
   min-width: 0;
   height: 100%;
+  position: relative;
+}
+
+/* PageClientImpl fica sempre montado (a chamada nunca pode ser interrompida
+   so por abrir um canal de texto) — quando o texto esta aberto, so escondemos
+   a camada da chamada via display:none em vez de desmontar. */
+.callLayer {
+  height: 100%;
+}
+
+.textLayer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.callBanner {
+  flex-shrink: 0;
+  padding: 0.5rem 1.25rem;
+  background-color: var(--lk-accent-bg, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--lk-border-color);
+  font-size: 0.8rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.7));
 }
 
 /* Mesmo padrao da home: em tela estreita a sidebar vira uma tira no topo

@@ -10,9 +10,14 @@
   overflow-y: auto;
 }
 
+/* Agrupa cada secao (texto / voz) da sidebar — estilo Discord, duas listas
+   separadas em vez de uma unica lista misturando os dois tipos de canal. */
+.section + .section {
+  border-top: 1px solid var(--lk-border-color);
+}
+
 .header {
-  padding: 1rem;
-  border-bottom: 1px solid var(--lk-border-color);
+  padding: 1rem 1rem 0.5rem;
 }
 
 .headerTitle {

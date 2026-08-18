@@ -1,9 +1,14 @@
 'use client';
 
 import React from 'react';
+import toast from 'react-hot-toast';
 import { decodePassphrase } from '@/lib/client-utils';
 import { DebugMode } from '@/lib/Debug';
+import { AlertTriangleIcon, Volume2Icon } from '@/lib/icons';
+import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
+import { NoiseSuppressionControl } from '@/lib/NoiseSuppressionControl';
+import { buildAudioCaptureConstraints, loadNoiseSuppressionPref } from '@/lib/noiseSuppression';
 import { ParticipantAudioPanel } from '@/lib/ParticipantAudioPanel';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { SettingsMenu } from '@/lib/SettingsMenu';
@@ -26,6 +31,7 @@ import {
   DeviceUnsupportedError,
   RoomConnectOptions,
   RoomEvent,
+  Track,
   TrackPublishDefaults,
   VideoCaptureOptions,
   ScreenShareCaptureOptions,
@@ -148,6 +154,14 @@ function VideoConferenceComponent(props: {
       publishDefaults: publishDefaults,
       audioCaptureDefaults: {
         deviceId: props.userChoices.audioDeviceId ?? undefined,
+        // noiseSuppression/echoCancellation/autoGainControl/voiceIsolation —
+        // antes so o deviceId ia pro getUserMedia, ou seja nada disso estava
+        // ligado explicitamente (o navegador aplica os proprios defaults, que
+        // variam). A preferencia e lida 1x aqui pro estado inicial da track;
+        // o <NoiseSuppressionControl /> reaplica em runtime via
+        // applyConstraints quando a pessoa liga/desliga, sem precisar
+        // reconectar. Ver lib/noiseSuppression.ts pro racional das camadas.
+        ...buildAudioCaptureConstraints(loadNoiseSuppressionPref()),
       },
       adaptiveStream: true,
       dynacast: true,
@@ -166,14 +180,64 @@ function VideoConferenceComponent(props: {
   // O ControlBar do <VideoConference> chama setScreenShareEnabled(true, undefined, ...) e
   // ControlBarProps nao expoe captureOptions. Sem `audio: true` o navegador nem exibe a
   // opcao de compartilhar o audio junto com a tela. Injetamos aqui.
-  React.useMemo(() => {
+  //
+  // `systemAudio: 'include'` pede pro Chrome oferecer tambem a opcao de audio
+  // do SISTEMA (nao so de aba) na caixinha de selecao — quando o navegador
+  // suporta, aumenta a chance de aparecer alguma opcao de audio. Mas o
+  // resultado final ainda depende do que o navegador/SO realmente oferecem:
+  // Chrome/Linux so tem audio de ABA (janela/tela cheia nao tem), Firefox nao
+  // suporta nada disso. Isso e limitacao do navegador, nao da nossa opcao —
+  // ver HANDOFF secao 4.
+  React.useEffect(() => {
     const lp = room.localParticipant;
     const original = lp.setScreenShareEnabled.bind(lp);
     lp.setScreenShareEnabled = (
       enabled: boolean,
       options?: ScreenShareCaptureOptions,
       publishOptions?: TrackPublishOptions,
-    ) => original(enabled, { audio: true, contentHint: 'motion', ...options }, publishOptions);
+    ) => {
+      if (enabled) {
+        // Aviso PROATIVO, antes da caixinha do navegador abrir — a maior
+        // fonte de "o audio nao funciona" e a pessoa escolher janela/tela
+        // cheia ou esquecer de marcar a caixinha de audio.
+        toast(
+          'Pra levar áudio junto: escolha compartilhar uma ABA (não janela nem tela inteira) e marque "Compartilhar áudio da guia/aba" na caixinha do navegador.',
+          {
+            id: 'screen-share-audio-hint',
+            duration: 8000,
+            icon: <Volume2Icon size={18} />,
+            position: 'top-center',
+            className: 'lk-button',
+          },
+        );
+      }
+      return original(
+        enabled,
+        { audio: true, contentHint: 'motion', systemAudio: 'include', ...options },
+        publishOptions,
+      ).then((publication) => {
+        if (enabled) {
+          const hasAudio = !!lp.getTrackPublication(Track.Source.ScreenShareAudio);
+          if (!hasAudio) {
+            // Reativo: publicou video de tela mas SEM faixa de audio. Nao e
+            // bug — quase sempre e a pessoa ter escolhido janela/tela cheia
+            // (Linux), nao marcado a caixinha, ou estar no Firefox (sem
+            // suporte nenhum). So avisa, sem travar o compartilhamento.
+            toast(
+              'Compartilhamento de tela iniciado SEM áudio. No Chrome/Linux só existe áudio de aba (janela/tela cheia não têm); Firefox não suporta áudio de tela. Alternativa pra som de jogo: escolha o dispositivo "Monitor of ..." no seletor de microfone.',
+              {
+                id: 'screen-share-no-audio',
+                duration: 10000,
+                icon: <AlertTriangleIcon size={18} />,
+                position: 'top-center',
+                className: 'lk-button',
+              },
+            );
+          }
+        }
+        return publication;
+      });
+    };
   }, [room]);
 
   React.useEffect(() => {
@@ -267,6 +331,8 @@ function VideoConferenceComponent(props: {
           SettingsComponent={SHOW_SETTINGS_MENU ? SettingsMenu : undefined}
         />
         <ParticipantAudioPanel />
+        <NoiseSuppressionControl />
+        <JoinLeaveSounds />
         <DebugMode />
         <RecordingIndicator />
       </RoomContext.Provider>

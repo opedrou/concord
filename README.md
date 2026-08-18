@@ -1,42 +1,30 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
+# Concord
 
-# LiveKit Meet
+Concord e um app de voz e video self-hosted para grupos pequenos (estilo
+Discord, so que rodando na sua propria infra). Login com usuario e senha,
+canais de voz permanentes com presenca visivel, painel de admin e
+compartilhamento de tela com audio.
 
-<p>
-  <a href="https://meet.livekit.io"><strong>Try the demo</strong></a>
-  •
-  <a href="https://github.com/livekit/components-js">LiveKit Components</a>
-  •
-  <a href="https://docs.livekit.io/">LiveKit Docs</a>
-  •
-  <a href="https://livekit.io/cloud">LiveKit Cloud</a>
-  •
-  <a href="https://blog.livekit.io/">Blog</a>
-</p>
-
-<br>
-
-LiveKit Meet is an open source video conferencing app built on [LiveKit Components](https://github.com/livekit/components-js), [LiveKit Cloud](https://cloud.livekit.io/), and Next.js. It's been completely redesigned from the ground up using our new components library.
-
-![LiveKit Meet screenshot](./.github/assets/livekit-meet.jpg)
+Construido em cima do [LiveKit](https://livekit.io/) (o motor de WebRTC) e da
+[LiveKit Components](https://github.com/livekit/components-js) library, sobre
+Next.js — mas e um fork com identidade propria, nao e o "LiveKit Meet"
+original.
 
 ## Tech Stack
 
-- This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
-- App is built with [@livekit/components-react](https://github.com/livekit/components-js/) library.
-
-## Demo
-
-Give it a try at https://meet.livekit.io.
+- [Next.js](https://nextjs.org/) (App Router).
+- [@livekit/components-react](https://github.com/livekit/components-js/) para
+  os componentes de chamada.
+- `node:sqlite` (builtin do Node 22) para contas, canais e sessao.
 
 ## Dev Setup
 
-Steps to get a local dev setup up and running:
+Passos para rodar localmente:
 
-1. Run `pnpm install` to install all dependencies.
-2. Copy `.env.example` in the project root and rename it to `.env.local`.
-3. Update the missing environment variables in the newly created `.env.local` file.
-4. Run `pnpm dev` to start the development server and visit [http://localhost:3000](http://localhost:3000) to see the result.
-5. Start development 🎉
+1. Rode `pnpm install` para instalar as dependencias.
+2. Copie `.env.example` para `.env.local`.
+3. Preencha as variaveis de ambiente que faltam em `.env.local`.
+4. Rode `pnpm dev` e acesse [http://localhost:3000](http://localhost:3000).
+
+Veja `HANDOFF.md` (na raiz do repo) para a arquitetura de deploy e as
+pegadinhas ja resolvidas de infra.

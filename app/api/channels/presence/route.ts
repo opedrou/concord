@@ -32,7 +32,11 @@ export async function GET(request: NextRequest) {
   if ('response' in auth) return auth.response;
 
   const db = getDb();
-  const channels = db.prepare('SELECT * FROM channels ORDER BY position ASC, id ASC').all() as unknown as DbChannel[];
+  // Só canais de voz têm sala no LiveKit — canal de texto nunca aparece
+  // aqui (não faz sentido consultar presença de algo que não conecta).
+  const channels = db
+    .prepare("SELECT * FROM channels WHERE type = 'voice' ORDER BY position ASC, id ASC")
+    .all() as unknown as DbChannel[];
 
   const bySlug = new Map(channels.map((c) => [c.slug, { id: c.id, slug: c.slug, participants: [] as { identity: string; name: string }[] }]));
 

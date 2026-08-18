@@ -1,6 +1,7 @@
 import { useIsRecording } from '@livekit/components-react';
 import * as React from 'react';
 import toast from 'react-hot-toast';
+import { VideoIcon } from '@/lib/icons';
 
 export function RecordingIndicator() {
   const isRecording = useIsRecording();
@@ -12,7 +13,7 @@ export function RecordingIndicator() {
       if (isRecording) {
         toast('This meeting is being recorded', {
           duration: 3000,
-          icon: '🎥',
+          icon: <VideoIcon size={18} />,
           position: 'top-center',
           className: 'lk-button',
           style: {

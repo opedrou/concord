@@ -22,7 +22,11 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 # make/g++) nem de módulo nativo pra copiar entre estágios, diferente de
 # better-sqlite3. Só precisamos garantir que o diretório de dados exista e
 # pertença ao usuário não-root que roda o processo.
-RUN mkdir -p /data && chown -R nextjs:nodejs /data
+# /data/avatars: fotos de perfil enviadas pelos usuários (ONDA C), mesmo
+# volume persistente do SQLite — precisa existir e pertencer ao uid 1001
+# antes do primeiro upload (instrumentation.ts também garante isso no boot,
+# mas criar aqui evita depender só disso numa imagem nova).
+RUN mkdir -p /data/avatars && chown -R nextjs:nodejs /data
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

@@ -6,7 +6,7 @@
 //   canal cadastrado no banco; nome de sala arbitrário é recusado.
 //
 //   200: { serverUrl, roomName, participantToken, participantName }
-//   400: { error: 'missing_room_name' }
+//   400: { error: 'missing_room_name' } | { error: 'not_a_voice_channel' }
 //   401: { error: 'not_authenticated' }
 //   404: { error: 'channel_not_found' }
 //   500: { error: 'server_misconfigured' }
@@ -45,9 +45,16 @@ export async function GET(request: NextRequest) {
 
     // A sala precisa corresponder a um canal existente — recusa roomName arbitrário.
     const db = getDb();
-    const channel = db.prepare('SELECT slug FROM channels WHERE slug = ?').get(roomName);
+    const channel = db.prepare('SELECT slug, type FROM channels WHERE slug = ?').get(roomName) as
+      | { slug: string; type: string }
+      | undefined;
     if (!channel) {
       return NextResponse.json({ error: 'channel_not_found' }, { status: 404 });
+    }
+    // Token do LiveKit só faz sentido pra canal de voz — canal de texto não
+    // tem sala nenhuma pra entrar.
+    if (channel.type !== 'voice') {
+      return NextResponse.json({ error: 'not_a_voice_channel' }, { status: 400 });
     }
 
     const region = request.nextUrl.searchParams.get('region');
