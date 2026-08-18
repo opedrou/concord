@@ -1,0 +1,106 @@
+.toggleButton {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--lk-control-bar-height, 69px) + 1rem);
+  z-index: 20;
+  border-radius: var(--lk-border-radius);
+  box-shadow: var(--lk-box-shadow);
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(22rem, 100vw);
+  background-color: var(--lk-bg2);
+  border-left: 1px solid var(--lk-border-color);
+  box-shadow: var(--lk-box-shadow);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid var(--lk-border-color);
+  position: sticky;
+  top: 0;
+  background-color: var(--lk-bg2);
+}
+
+.panelHeader h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--lk-fg);
+}
+
+.emptyState {
+  padding: 1rem;
+  color: var(--lk-fg4);
+}
+
+.participantList {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.participantRow {
+  background-color: var(--lk-bg3);
+  border-radius: var(--lk-border-radius);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+}
+
+.participantRow.speaking {
+  border-color: var(--lk-accent-bg);
+}
+
+.participantName {
+  font-weight: 600;
+  color: var(--lk-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volumeRow {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.muteButton {
+  padding: 0.25rem 0.5rem;
+  min-width: 2rem;
+}
+
+.volumeLabel {
+  font-size: 0.8rem;
+  color: var(--lk-fg4);
+  white-space: nowrap;
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--lk-accent-bg);
+}
+
+.volumeValue {
+  font-size: 0.8rem;
+  color: var(--lk-fg4);
+  min-width: 2.5rem;
+  text-align: right;
+}

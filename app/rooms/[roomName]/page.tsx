@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { PageClientImpl } from './PageClientImpl';
+import { RoomShell } from '@/lib/RoomShell';
 import { isVideoCodec } from '@/lib/types';
 
 export default async function Page({
@@ -25,7 +25,7 @@ export default async function Page({
   const singlePC = _searchParams.singlePC !== 'false';
 
   return (
-    <PageClientImpl
+    <RoomShell
       roomName={_params.roomName}
       region={_searchParams.region}
       hq={hq}

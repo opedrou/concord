@@ -1,0 +1,25 @@
+.shell {
+  display: flex;
+  height: 100dvh;
+}
+
+.main {
+  flex-grow: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+/* Mesmo padrao da home: em tela estreita a sidebar vira uma tira no topo
+   (ver ChannelSidebar.module.css) em vez de comer a tela inteira durante a
+   chamada. */
+@media (max-width: 640px) {
+  .shell {
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .main {
+    flex-grow: 1;
+    min-height: 0;
+  }
+}

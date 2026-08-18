@@ -4,9 +4,11 @@ import React from 'react';
 import { decodePassphrase } from '@/lib/client-utils';
 import { DebugMode } from '@/lib/Debug';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
+import { ParticipantAudioPanel } from '@/lib/ParticipantAudioPanel';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ConnectionDetails } from '@/lib/types';
+import preJoinStyles from '@/styles/PreJoinUsername.module.css';
 import {
   formatChatMessageLinks,
   LocalUserChoices,
@@ -43,17 +45,21 @@ export function PageClientImpl(props: {
   hq: boolean;
   codec: VideoCodec;
   singlePeerConnection: boolean;
+  // Nome resolvido pela sessao logada (onda 2). Quando presente, o campo de
+  // username do PreJoin fica preenchido e escondido — nao faz sentido pedir
+  // de novo um nome que ja veio do login.
+  username?: string;
 }) {
   const [preJoinChoices, setPreJoinChoices] = React.useState<LocalUserChoices | undefined>(
     undefined,
   );
   const preJoinDefaults = React.useMemo(() => {
     return {
-      username: '',
+      username: props.username ?? '',
       videoEnabled: true,
       audioEnabled: true,
     };
-  }, []);
+  }, [props.username]);
   const [connectionDetails, setConnectionDetails] = React.useState<ConnectionDetails | undefined>(
     undefined,
   );
@@ -75,7 +81,10 @@ export function PageClientImpl(props: {
   return (
     <main data-lk-theme="default" style={{ height: '100%' }}>
       {connectionDetails === undefined || preJoinChoices === undefined ? (
-        <div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>
+        <div
+          className={props.username ? preJoinStyles.hideUsername : undefined}
+          style={{ display: 'grid', placeItems: 'center', height: '100%' }}
+        >
           <PreJoin
             defaults={preJoinDefaults}
             onSubmit={handlePreJoinSubmit}
@@ -142,6 +151,11 @@ function VideoConferenceComponent(props: {
       },
       adaptiveStream: true,
       dynacast: true,
+      // Necessario pro slider de volume por participante passar de 100%.
+      // Sem audioContext, RemoteAudioTrack.setVolume cai em `el.volume` do
+      // <audio>, que o navegador clampa em 1.0 e o boost nao tem efeito.
+      // Com webAudioMix a track usa um GainNode, cujo gain aceita > 1.
+      webAudioMix: true,
       e2ee: keyProvider && worker && e2eeEnabled ? { keyProvider, worker } : undefined,
       singlePeerConnection: props.options.singlePeerConnection,
     };
@@ -252,6 +266,7 @@ function VideoConferenceComponent(props: {
           chatMessageFormatter={formatChatMessageLinks}
           SettingsComponent={SHOW_SETTINGS_MENU ? SettingsMenu : undefined}
         />
+        <ParticipantAudioPanel />
         <DebugMode />
         <RecordingIndicator />
       </RoomContext.Provider>

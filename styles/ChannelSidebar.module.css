@@ -1,0 +1,144 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 18rem;
+  max-width: 80vw;
+  flex-shrink: 0;
+  height: 100%;
+  background-color: var(--lk-bg2);
+  border-right: 1px solid var(--lk-border-color);
+  overflow-y: auto;
+}
+
+.header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--lk-border-color);
+}
+
+.headerTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.channelList {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-grow: 1;
+}
+
+.channelButton {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.375rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  cursor: pointer;
+  color: var(--lk-fg);
+  text-align: left;
+}
+
+.channelButton:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.channelButtonActive {
+  background-color: var(--lk-accent-bg, rgba(255, 255, 255, 0.12));
+}
+
+.channelName {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.occupantList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.occupant {
+  font-size: 0.8rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.65));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty,
+.error {
+  padding: 0.5rem 0.625rem;
+  font-size: 0.85rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.5));
+}
+
+.userBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--lk-border-color);
+  position: sticky;
+  bottom: 0;
+  background-color: var(--lk-bg2);
+}
+
+.userName {
+  font-size: 0.85rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.userAction {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.userAction:hover {
+  color: var(--lk-fg);
+  text-decoration: underline;
+}
+
+/* Telas estreitas: a sidebar nao pode comer a tela inteira. Vira uma tira
+   colapsavel no topo em vez de ocupar a largura toda de forma fixa. */
+@media (max-width: 640px) {
+  .sidebar {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 45vh;
+    border-right: none;
+    border-bottom: 1px solid var(--lk-border-color);
+  }
+}

@@ -31,6 +31,12 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# banco SQLite local (dev) — em produção fica no volume do Coolify, nunca no repo
+/.data
+*.db
+*.db-shm
+*.db-wal
+
 # vercel
 .vercel
 
