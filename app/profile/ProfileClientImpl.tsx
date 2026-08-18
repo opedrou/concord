@@ -29,10 +29,12 @@ export function ProfileClientImpl() {
 
   React.useEffect(() => {
     if (user) {
-      // Cache-bust com timestamp: a URL e a mesma sempre (/api/avatars/:id),
-      // entao sem isso o navegador continuaria mostrando a foto antiga do
-      // cache depois de um upload novo.
-      setAvatarUrl(`/api/avatars/${user.id}?v=${Date.now()}`);
+      // A URL que vem de /api/auth/me ja e versionada no servidor
+      // (?v=<avatar_path atual>, ver avatarUrlFor em lib/avatars.ts) —
+      // nao precisa mais inventar cache-bust com Date.now() aqui: a URL so
+      // muda quando o arquivo muda de verdade, o que deixa o navegador
+      // cachear a imagem de forma agressiva sem risco de mostrar foto velha.
+      setAvatarUrl(user.avatarUrl);
     }
   }, [user]);
 
@@ -47,7 +49,10 @@ export function ProfileClientImpl() {
     try {
       const resized = await resizeImageClientSide(file);
       const result = await uploadAvatar(resized);
-      setAvatarUrl(`${result.avatarUrl}?v=${Date.now()}`);
+      // Resposta do upload ja vem com a URL versionada com o arquivo novo
+      // (ver avatarUrlFor) — troca o estado direto, sem gambiarra de
+      // timestamp, e a foto nova aparece na hora nesta mesma pagina.
+      setAvatarUrl(result.avatarUrl);
       setAvatarSuccess(true);
     } catch (err) {
       setAvatarError(apiErrorMessage(err));

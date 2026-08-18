@@ -14,6 +14,7 @@ import { requireUser } from '@/lib/api-auth';
 import { getDb } from '@/lib/db';
 import {
   MAX_AVATAR_BYTES,
+  avatarUrlFor,
   deleteAvatarFileIfExists,
   detectImageFormat,
   saveAvatarFile,
@@ -104,5 +105,7 @@ export async function POST(request: NextRequest) {
   // aponta pra ele — evita ficar sem avatar nenhum se algo falhar no meio.
   deleteAvatarFileIfExists(previousAvatar);
 
-  return NextResponse.json({ avatarUrl: `/api/avatars/${user.id}` });
+  // Versionada com o nome do arquivo novo — é o que faz a foto trocada
+  // aparecer sem F5 pra quem acabou de fazer o upload (ver avatarUrlFor).
+  return NextResponse.json({ avatarUrl: avatarUrlFor(user.id, filename) });
 }

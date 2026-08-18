@@ -42,6 +42,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const ext = row.avatar_path.split('.').pop() ?? '';
+
+  // Cache-busting: quem monta a URL a partir de avatarUrlFor() sempre manda
+  // `?v=<avatar_path atual>`, então essa combinação de URL só pode apontar
+  // pro conteúdo que está sendo servido agora — trocar a foto gera um
+  // avatar_path novo (randomUUID), logo uma URL nova. Por isso dá pra
+  // cachear "pra sempre" do lado do navegador sem risco de foto velha:
+  // qualquer requisição pra essa URL exata sempre teria a mesma resposta.
+  // Sem `?v=`, alguém bateu direto na rota sem passar pelo cache-busting
+  // (link antigo, chamada manual) — aí mantemos o cache curto de antes,
+  // porque essa URL pode legitimamente mudar de conteúdo com o tempo.
+  const hasVersion = request.nextUrl.searchParams.has('v');
+  const cacheControl = hasVersion
+    ? 'private, max-age=31536000, immutable'
+    : 'private, max-age=300';
+
   // NextResponse não aceita Buffer diretamente como BodyInit — Uint8Array sim.
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,
@@ -52,7 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       'X-Content-Type-Options': 'nosniff',
       // Nome fixo e genérico — nunca o nome original enviado pelo usuário.
       'Content-Disposition': 'inline; filename="avatar"',
-      'Cache-Control': 'private, max-age=300',
+      'Cache-Control': cacheControl,
     },
   });
 }

@@ -10,10 +10,12 @@ import {
   ScreenShareIcon,
   TrackMutedIndicator,
   useParticipantTile,
+  useParticipantTracks,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { Avatar } from '@/lib/Avatar';
+import { useSpeakingIndicator } from '@/lib/useSpeakingIndicator';
 import styles from '../styles/CallParticipantTile.module.css';
 
 /**
@@ -58,11 +60,33 @@ export function CallParticipantTile(props: {
     htmlProps: { onClick: handleClick },
   });
 
+  // O `data-lk-speaking` que o useParticipantTile devolve vem do
+  // RoomEvent.ActiveSpeakersChanged, ou seja, e o SERVIDOR quem decide quem
+  // esta falando: o audio sobe pro SFU, ele mede o nivel, agrega em intervalos
+  // e transmite de volta. Isso e uma volta de rede inteira ate a VPS so pra
+  // acender uma borda — era o lag que se via na pratica.
+  //
+  // O useSpeakingIndicator mede o nivel direto da track via Web Audio API,
+  // localmente: o audio ja chegou nesta maquina antes de qualquer evento do
+  // servidor. Sobrescrevemos o atributo (o CSS do LiveKit continua sendo quem
+  // desenha a borda, so trocamos a fonte do dado). Se o caminho local falhar,
+  // o proprio hook cai no isSpeaking do servidor — nunca fica sem indicador.
+  const micTracks = useParticipantTracks(
+    [Track.Source.Microphone],
+    trackRef.participant.identity,
+  );
+  const { isSpeaking } = useSpeakingIndicator(trackRef.participant, micTracks[0]);
+
   const hasLiveVideo = isTrackReference(trackRef) && trackRef.publication.kind === Track.Kind.Video;
   const avatarUrl = avatarMap[trackRef.participant.name || trackRef.participant.identity];
 
   return (
-    <div {...elementProps} className={`${elementProps.className ?? ''} ${styles.tile}`}>
+    <div
+      {...elementProps}
+      // Depois do spread, de proposito: sobrescreve o valor vindo do servidor.
+      data-lk-speaking={isSpeaking}
+      className={`${elementProps.className ?? ''} ${styles.tile}`}
+    >
       {hasLiveVideo && <VideoTrack trackRef={trackRef} />}
       {/* A classe 'lk-participant-placeholder' e a mesma do LiveKit — o CSS
           dele ja controla a visibilidade (so aparece com

@@ -208,3 +208,24 @@ export function ChevronDownIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+/** Fone de ouvido (rodape de perfil, estilo Discord — "deafen"). */
+export function HeadphonesIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <rect x="2.5" y="13" width="4" height="7" rx="1.5" />
+      <rect x="17.5" y="13" width="4" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+/** Engrenagem (configuracoes da conta, rodape de perfil). */
+export function SettingsIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.55 1.55M17.55 17.55 19.1 19.1M3 12h2.2M18.8 12H21M4.9 19.1l1.55-1.55M17.55 6.45 19.1 4.9" />
+    </svg>
+  );
+}

@@ -19,12 +19,21 @@ import {
 } from '@livekit/components-react';
 import { CallControlBar } from '@/lib/CallControlBar';
 import { CallParticipantTile } from '@/lib/CallParticipantTile';
+import { TileErrorBoundary } from '@/lib/TileErrorBoundary';
 import { ParticipantVolumeCard, useScreenShareAudioIdentities } from '@/lib/ParticipantAudioPanel';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { SettingsMenu } from '@/lib/SettingsMenu';
+import { ResizeHandle } from '@/lib/ResizeHandle';
+import { usePersistedSize } from '@/lib/usePersistedSize';
 import styles from '../styles/CallStage.module.css';
 
 const SHOW_SETTINGS_MENU = process.env.NEXT_PUBLIC_SHOW_SETTINGS_MENU == 'true';
+
+// Limites da faixa de participantes quando ha transmissao em foco (ver
+// styles/CallStage.module.css) — largura em px, persistida por conta.
+const STRIP_DEFAULT_WIDTH = 220;
+const STRIP_MIN_WIDTH = 160;
+const STRIP_MAX_WIDTH = 420;
 
 function trackRefKey(t: TrackReferenceOrPlaceholder): string {
   return `${t.participant.identity}_${t.source}`;
@@ -109,6 +118,16 @@ export function CallStage(props: {
   const avatarMap = useMembersAvatarMap();
   const screenShareAudioIdentities = useScreenShareAudioIdentities();
 
+  // Largura da faixa de participantes (so existe com foco/transmissao ativa)
+  // — arrastavel pelo usuario, persistida em localStorage. Ver pedido no
+  // relatorio: "que possam diminuir ou aumentar" a faixa, alem das sidebars.
+  const [stripWidth, setStripWidth] = usePersistedSize(
+    'concord:participantStripWidth',
+    STRIP_DEFAULT_WIDTH,
+    STRIP_MIN_WIDTH,
+    STRIP_MAX_WIDTH,
+  );
+
   const [volumeTarget, setVolumeTarget] = React.useState<{
     participant: RemoteParticipant;
     anchor: { x: number; y: number };
@@ -128,31 +147,54 @@ export function CallStage(props: {
           {focusTrack ? (
             <div className={`lk-focus-layout-wrapper ${styles.focusWrapper}`}>
               <div className={styles.focusMain}>
-                <CallParticipantTile trackRef={focusTrack} avatarMap={avatarMap} onOpenVolume={handleOpenVolume} />
+                <TileErrorBoundary>
+                  <CallParticipantTile
+                    trackRef={focusTrack}
+                    avatarMap={avatarMap}
+                    onOpenVolume={handleOpenVolume}
+                  />
+                </TileErrorBoundary>
               </div>
               {otherTracks.length > 0 && (
-                <div className={styles.focusStrip}>
-                  {otherTracks.map((t) => (
-                    <CallParticipantTile
-                      key={trackRefKey(t)}
-                      trackRef={t}
-                      avatarMap={avatarMap}
-                      onOpenVolume={handleOpenVolume}
-                    />
-                  ))}
-                </div>
+                <>
+                  {/* Alca entre o video e a faixa — a faixa fica DEPOIS dela
+                      (a direita), entao `invert` pra arrastar pra esquerda
+                      aumentar o espaco da faixa. Some sozinha em telas
+                      estreitas (ver ResizeHandle.module.css). */}
+                  <ResizeHandle
+                    orientation="vertical"
+                    value={stripWidth}
+                    min={STRIP_MIN_WIDTH}
+                    max={STRIP_MAX_WIDTH}
+                    onChange={setStripWidth}
+                    invert
+                    label="Redimensionar faixa de participantes"
+                  />
+                  <div className={styles.focusStrip} style={{ width: stripWidth }}>
+                    {otherTracks.map((t) => (
+                      <TileErrorBoundary key={trackRefKey(t)}>
+                        <CallParticipantTile
+                          trackRef={t}
+                          avatarMap={avatarMap}
+                          onOpenVolume={handleOpenVolume}
+                        />
+                      </TileErrorBoundary>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           ) : (
             <div className="lk-grid-layout-wrapper">
               <div className={styles.grid} data-count={tracks.length}>
                 {tracks.map((t) => (
-                  <CallParticipantTile
-                    key={trackRefKey(t)}
-                    trackRef={t}
-                    avatarMap={avatarMap}
-                    onOpenVolume={handleOpenVolume}
-                  />
+                  <TileErrorBoundary key={trackRefKey(t)}>
+                    <CallParticipantTile
+                      trackRef={t}
+                      avatarMap={avatarMap}
+                      onOpenVolume={handleOpenVolume}
+                    />
+                  </TileErrorBoundary>
                 ))}
               </div>
             </div>

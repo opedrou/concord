@@ -7,9 +7,17 @@ import { PageClientImpl } from '@/app/rooms/[roomName]/PageClientImpl';
 import { ChannelSidebar } from '@/lib/ChannelSidebar';
 import { MembersPanel } from '@/lib/MembersPanel';
 import { TextChannelPanel } from '@/lib/TextChannelPanel';
+import { ResizeHandle } from '@/lib/ResizeHandle';
+import { usePersistedSize } from '@/lib/usePersistedSize';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { logout, type Channel } from '@/lib/api-client';
 import styles from '../styles/RoomShell.module.css';
+
+// Limites da sidebar de canais na tela de call — largura em px, persistida
+// por conta. Mesma ideia da faixa de participantes em CallStage.tsx.
+const SIDEBAR_DEFAULT_WIDTH = 288; // 18rem, mesmo valor que ja era fixo no CSS
+const SIDEBAR_MIN_WIDTH = 200;
+const SIDEBAR_MAX_WIDTH = 480;
 
 // Envolve a pagina de sala com a mesma sidebar de canais da home, pra dar pra
 // trocar de canal com um clique sem precisar voltar pra lista — sem tocar no
@@ -32,6 +40,16 @@ export function RoomShell(props: {
   // exatamente como no Discord (entrar num canal de texto nao desconecta a
   // chamada em andamento).
   const [openTextChannel, setOpenTextChannel] = React.useState<Channel | null>(null);
+
+  // Largura da sidebar de canais, arrastavel pelo usuario e persistida —
+  // pedido do dono pra poder dar mais espaco ao video sem depender de um
+  // valor fixo. Ver ChannelSidebar.tsx (`widthPx`) e ResizeHandle.tsx.
+  const [sidebarWidth, setSidebarWidth] = usePersistedSize(
+    'concord:sidebarWidth',
+    SIDEBAR_DEFAULT_WIDTH,
+    SIDEBAR_MIN_WIDTH,
+    SIDEBAR_MAX_WIDTH,
+  );
 
   const handleLogout = React.useCallback(async () => {
     try {
@@ -59,6 +77,15 @@ export function RoomShell(props: {
         activeTextChannelSlug={openTextChannel?.slug}
         onSelectTextChannel={handleSelectTextChannel}
         onLogout={handleLogout}
+        widthPx={sidebarWidth}
+      />
+      <ResizeHandle
+        orientation="vertical"
+        value={sidebarWidth}
+        min={SIDEBAR_MIN_WIDTH}
+        max={SIDEBAR_MAX_WIDTH}
+        onChange={setSidebarWidth}
+        label="Redimensionar lista de canais"
       />
       <div className={styles.main}>
         {/* PageClientImpl fica sempre montado — so escondido via CSS quando o

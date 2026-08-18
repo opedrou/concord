@@ -8,6 +8,9 @@ export interface CurrentUser {
   id: number;
   username: string;
   isAdmin: boolean;
+  // Aditivo (correção do bug do F5 na foto de perfil) — já vem versionada
+  // (?v=...), pronta pra usar direto num <img src>. Ver app/api/auth/me.
+  avatarUrl: string | null;
 }
 
 /** 'voice' = canal com sala no LiveKit (como ja existia). 'text' = canal `#` com historico de mensagens (ONDA A). */

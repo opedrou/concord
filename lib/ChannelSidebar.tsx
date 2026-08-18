@@ -4,7 +4,9 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchChannels, type Channel, type CurrentUser } from '@/lib/api-client';
 import { usePresencePolling } from '@/lib/usePresencePolling';
-import { HashIcon, SpeakerIcon } from '@/lib/icons';
+import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
+import { Avatar } from '@/lib/Avatar';
+import { HashIcon, SpeakerIcon, MicIcon, HeadphonesIcon, SettingsIcon } from '@/lib/icons';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -20,6 +22,12 @@ export interface ChannelSidebarProps {
    * sobreposto sem desmontar a chamada de voz em andamento (ver RoomShell.tsx).
    */
   onSelectTextChannel?: (channel: Channel) => void;
+  /**
+   * Largura em px, quando o container em volta (RoomShell) controla o
+   * redimensionamento pelo usuario. Sem isso cai no valor fixo do CSS
+   * module (usado na home, onde a sidebar nao e arrastavel).
+   */
+  widthPx?: number;
 }
 
 /**
@@ -32,7 +40,9 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   const [channels, setChannels] = React.useState<Channel[]>([]);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
   const { presence, applyOptimisticJoin } = usePresencePolling();
+  const avatarMap = useMembersAvatarMap();
   const router = useRouter();
+  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -93,7 +103,16 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   const voiceChannels = channels.filter((c) => c.type === 'voice');
 
   return (
-    <nav className={styles.sidebar} aria-label="Canais">
+    <nav
+      className={styles.sidebar}
+      aria-label="Canais"
+      // Variavel CSS, nao a propriedade `width` direta: inline style sempre
+      // vence qualquer regra de classe, e isso quebraria o media query de
+      // tela estreita (que precisa forcar width:100%, ver
+      // ChannelSidebar.module.css). Passando por variavel, quem decide o
+      // valor final continua sendo a cascata normal do CSS.
+      style={props.widthPx ? ({ '--sidebar-width': `${props.widthPx}px` } as React.CSSProperties) : undefined}
+    >
       {loadError && <p className={styles.error}>Nao foi possivel carregar os canais.</p>}
 
       {!loadError && channels.length === 0 && (
@@ -151,11 +170,25 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                     </span>
                     {occupants.length > 0 && (
                       <ul className={styles.occupantList}>
-                        {occupants.map((p) => (
-                          <li key={p.identity} className={styles.occupant}>
-                            {p.name || p.identity}
-                          </li>
-                        ))}
+                        {occupants.map((p) => {
+                          // Casa por `name` (username limpo), nunca por
+                          // `identity` — a identity carrega o sufixo
+                          // aleatorio `${username}__${randomString(4)}` (ver
+                          // connection-details/route.ts), que nunca bate com
+                          // as chaves de avatarMap (indexado por username).
+                          const cleanName = p.name || p.identity;
+                          return (
+                            <li key={p.identity} className={styles.occupant}>
+                              <Avatar
+                                username={cleanName}
+                                avatarUrl={avatarMap[cleanName] ?? null}
+                                size={20}
+                                className={styles.occupantAvatar}
+                              />
+                              <span className={styles.occupantName}>{cleanName}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </button>
@@ -166,24 +199,86 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
         </div>
       )}
 
+      {/* Rodape estilo Discord: foto redonda + bolinha de status, nome em
+          cima e "Online" embaixo, icones de mic/fone/engrenagem a direita.
+          Mic e fone aqui sao so indicadores visuais (ver relatorio: esta
+          sidebar tambem renderiza fora de uma call, sem Room por perto pra
+          ter estado real de mute/deafen) — a engrenagem e o unico botao de
+          verdade, abre o menu com Perfil/Admin/Sair. */}
       <div className={styles.userBar}>
         {props.user ? (
           <>
-            <span className={styles.userName} title={props.user.username}>
-              {props.user.username}
-            </span>
+            <div className={styles.userIdentity}>
+              <span className={styles.avatarWrap}>
+                <Avatar
+                  username={props.user.username}
+                  avatarUrl={avatarMap[props.user.username] ?? null}
+                  size={32}
+                />
+                <span className={styles.statusDot} aria-hidden="true" />
+              </span>
+              <span className={styles.userText}>
+                <span className={styles.userName} title={props.user.username}>
+                  {props.user.username}
+                </span>
+                <span className={styles.userStatus}>Online</span>
+              </span>
+            </div>
             <div className={styles.userActions}>
-              <a href="/profile" className={styles.userAction}>
-                Perfil
-              </a>
-              {props.user.isAdmin && (
-                <a href="/admin" className={styles.userAction}>
-                  Admin
-                </a>
-              )}
-              <button type="button" className={styles.userAction} onClick={props.onLogout}>
-                Sair
-              </button>
+              <span className={styles.userIcon} aria-hidden="true">
+                <MicIcon size={16} />
+              </span>
+              <span className={styles.userIcon} aria-hidden="true">
+                <HeadphonesIcon size={16} />
+              </span>
+              <div className={styles.accountMenuWrap}>
+                <button
+                  type="button"
+                  className={styles.userIconButton}
+                  aria-haspopup="menu"
+                  aria-expanded={accountMenuOpen}
+                  aria-label="Configuracoes da conta"
+                  onClick={() => setAccountMenuOpen((v) => !v)}
+                >
+                  <SettingsIcon size={16} />
+                </button>
+                {accountMenuOpen && (
+                  <>
+                    <div className={styles.menuBackdrop} onClick={() => setAccountMenuOpen(false)} />
+                    <div className={styles.accountMenu} role="menu">
+                      <a
+                        href="/profile"
+                        role="menuitem"
+                        className={styles.accountMenuItem}
+                        onClick={() => setAccountMenuOpen(false)}
+                      >
+                        Perfil
+                      </a>
+                      {props.user.isAdmin && (
+                        <a
+                          href="/admin"
+                          role="menuitem"
+                          className={styles.accountMenuItem}
+                          onClick={() => setAccountMenuOpen(false)}
+                        >
+                          Admin
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles.accountMenuItem}
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          props.onLogout?.();
+                        }}
+                      >
+                        Sair
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </>
         ) : (

@@ -1,0 +1,66 @@
+/* Alca de arraste entre paineis (sidebar de canais / faixa de participantes
+   / area de video). So a faixa fina reage a hover — o resto e transparente
+   pra nao roubar espaco visual das duas paginas dos vizinhos. */
+
+.handle {
+  position: relative;
+  flex-shrink: 0;
+  background: transparent;
+  touch-action: none;
+  z-index: 5;
+}
+
+.handle:hover,
+.handle:focus-visible {
+  background-color: var(--lk-accent-bg, rgba(255, 255, 255, 0.15));
+}
+
+.handle:focus-visible {
+  outline: none;
+}
+
+.vertical {
+  width: 6px;
+  cursor: col-resize;
+  margin: 0 -3px;
+}
+
+.horizontal {
+  height: 6px;
+  cursor: row-resize;
+  margin: -3px 0;
+}
+
+.grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  background-color: var(--lk-border-color, rgba(255, 255, 255, 0.2));
+  pointer-events: none;
+}
+
+.vertical .grip {
+  width: 3px;
+  height: 2.5rem;
+  transform: translate(-50%, -50%);
+}
+
+.horizontal .grip {
+  width: 2.5rem;
+  height: 3px;
+  transform: translate(-50%, -50%);
+}
+
+.handle:hover .grip,
+.handle:focus-visible .grip {
+  background-color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+/* Tela estreita: o layout degrada pra empilhado (ver ChannelSidebar/CallStage
+   modules) e arrastar deixa de fazer sentido — a alca some. */
+@media (max-width: 640px) {
+  .handle {
+    display: none;
+  }
+}

@@ -123,3 +123,23 @@ export function deleteAvatarFileIfExists(filename: string | null | undefined): v
 export function resolveAvatarPath(filename: string): string {
   return path.join(AVATARS_DIR, path.basename(filename));
 }
+
+/**
+ * Monta a URL pública do avatar já com cache-busting embutido.
+ *
+ * Bug corrigido aqui: a URL de GET /api/avatars/:id era estável (derivada só
+ * do id do usuário), então o navegador continuava servindo a foto antiga do
+ * cache HTTP depois de uma troca — só um F5 força revalidação porque reload
+ * manda `Cache-Control: max-age=0` na requisição, ignorando o cache normal.
+ * Em vez de desligar o cache (o que bateria no servidor a cada tile
+ * renderizado numa call), a URL agora carrega `?v=<nome do arquivo>` como
+ * query string: `avatar_path` já é um `randomUUID()` novo a cada upload (ver
+ * `saveAvatarFile`), então ele já é, por construção, um token de versão
+ * único — não precisou de coluna nova no banco. Como a URL muda sempre que o
+ * conteúdo muda, dá pra cachear a resposta de forma agressiva e imutável do
+ * lado do cliente sem risco de mostrar foto desatualizada.
+ */
+export function avatarUrlFor(userId: number, avatarPath: string | null): string | null {
+  if (!avatarPath) return null;
+  return `/api/avatars/${userId}?v=${encodeURIComponent(avatarPath)}`;
+}

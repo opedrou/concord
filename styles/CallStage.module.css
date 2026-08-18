@@ -29,10 +29,26 @@
   justify-content: center;
 }
 
+/* Modo foco (screen share ativo): video a esquerda ocupando o maximo de
+   espaco possivel, participantes numa COLUNA vertical a direita — estilo
+   Discord com transmissao (era fileira horizontal no topo antes, sobrava
+   area preta enorme do lado, era a reclamacao original). A largura da
+   coluna e controlada em JS (ver CallStage.tsx, `stripWidth`) e arrastavel
+   pela <ResizeHandle> entre os dois. */
+.focusWrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
 .focusMain {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  display: flex;
 }
 
 .focusMain > :global(.lk-participant-tile) {
@@ -42,19 +58,26 @@
 
 .focusStrip {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: var(--lk-grid-gap, 0.5rem);
-  overflow-x: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--lk-grid-gap, 0.5rem);
   flex-shrink: 0;
 }
 
+/* Cada tile na coluna mantem proporcao de video em vez de altura fixa — cresce
+   e encolhe junto com a largura da coluna quando ela e redimensionada. */
 .focusStrip > :global(.lk-participant-tile) {
-  width: 10rem;
-  height: 6rem;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  height: auto;
   flex-shrink: 0;
 }
 
+/* Tela estreita: nao ha espaco pra coluna lateral nem pra alca de arraste
+   (ela ja some sozinha, ver ResizeHandle.module.css) — degrada pra uma tira
+   horizontal no rodape, largura fixa, igual layout anterior. */
 @media (max-width: 640px) {
   .focusWrapper {
     flex-direction: column-reverse;
@@ -62,11 +85,15 @@
 
   .focusStrip {
     flex-direction: row;
+    width: 100% !important;
     max-height: 5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .focusStrip > :global(.lk-participant-tile) {
     width: 7rem;
     height: 4rem;
+    aspect-ratio: auto;
   }
 }

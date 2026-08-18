@@ -10,6 +10,7 @@
 //   401: { error: 'not_authenticated' }
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api-auth';
+import { avatarUrlFor } from '@/lib/avatars';
 import { DbUser, getDb } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -29,7 +30,9 @@ export async function GET(request: NextRequest) {
     username: row.username,
     // URL da rota que serve o arquivo, não o caminho em disco — o cliente
     // nunca precisa (nem deve) saber onde/como o avatar está guardado.
-    avatarUrl: row.avatar_path ? `/api/avatars/${row.id}` : null,
+    // Versionada (?v=<avatar_path>) pra não prender quem busca essa lista
+    // numa foto velha por causa do cache HTTP agressivo da rota de avatar.
+    avatarUrl: avatarUrlFor(row.id, row.avatar_path),
   }));
 
   return NextResponse.json(members);
