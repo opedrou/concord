@@ -330,7 +330,19 @@ function VideoConferenceComponent(props: {
       const chosenEncoding = encodingFor(loadQualityPref());
       return original(
         enabled,
-        { audio: true, contentHint: 'motion', systemAudio: 'include', ...options },
+        {
+          // echoCancellation: true pede pro navegador cancelar, no audio de
+          // tela/sistema capturado, o que ele mesmo ja esta tocando pelos
+          // alto-falantes — sem isso, quem compartilha audio do sistema
+          // reenvia pra sala o audio da PROPRIA call que esta ouvindo,
+          // criando um eco pra quem falou (Chrome/Edge suportam essa
+          // constraint em getDisplayMedia; onde nao suportam, e ignorada e
+          // o comportamento fica igual a antes).
+          audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+          contentHint: 'motion',
+          systemAudio: 'include',
+          ...options,
+        },
         { videoEncoding: chosenEncoding, ...publishOptions },
       ).then((publication) => {
         if (enabled) {
