@@ -11,6 +11,7 @@ import { encodingFor, loadQualityPref } from '@/lib/screenShareQuality';
 import { buildAudioCaptureConstraints } from '@/lib/noiseSuppression';
 import { levelToDenoiseModel, loadNoiseLevelPref } from '@/lib/denoise';
 import { MicProcessorBinder } from '@/lib/MicProcessorBinder';
+import { CallStateBinder } from '@/lib/CallStateBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
 import preJoinStyles from '@/styles/PreJoinUsername.module.css';
@@ -309,10 +310,8 @@ function VideoConferenceComponent(props: {
           'Pra levar áudio junto: escolha compartilhar uma ABA (não janela nem tela inteira) e marque "Compartilhar áudio da guia/aba" na caixinha do navegador.',
           {
             id: 'screen-share-audio-hint',
-            duration: 8000,
+            duration: 6000,
             icon: <Volume2Icon size={18} />,
-            position: 'top-center',
-            className: 'lk-button',
           },
         );
       }
@@ -337,10 +336,8 @@ function VideoConferenceComponent(props: {
               'Compartilhamento de tela iniciado SEM áudio. No Chrome/Linux só existe áudio de aba (janela/tela cheia não têm); Firefox não suporta áudio de tela. Alternativa pra som de jogo: escolha o dispositivo "Monitor of ..." no seletor de microfone.',
               {
                 id: 'screen-share-no-audio',
-                duration: 10000,
+                duration: 6000,
                 icon: <AlertTriangleIcon size={18} />,
-                position: 'top-center',
-                className: 'lk-button',
               },
             );
           }
@@ -359,7 +356,7 @@ function VideoConferenceComponent(props: {
             if (e instanceof DeviceUnsupportedError) {
               toast.error(
                 `Você está tentando entrar numa reunião criptografada, mas seu navegador não suporta isso. Atualize para a versão mais recente e tente de novo.`,
-                { duration: 10000, position: 'top-center' },
+                { duration: 6000 },
               );
               console.error(e);
             } else {
@@ -386,15 +383,13 @@ function VideoConferenceComponent(props: {
   const handleError = React.useCallback((error: Error) => {
     console.error(error);
     toast.error(`Erro inesperado, veja o console para detalhes: ${error.message}`, {
-      duration: 8000,
-      position: 'top-center',
+      duration: 6000,
     });
   }, []);
   const handleEncryptionError = React.useCallback((error: Error) => {
     console.error(error);
     toast.error(`Erro de criptografia inesperado, veja o console para detalhes: ${error.message}`, {
-      duration: 8000,
-      position: 'top-center',
+      duration: 6000,
     });
   }, []);
   // Erro especifico de dispositivo (camera/mic/saida de audio) — mensagem
@@ -409,7 +404,6 @@ function VideoConferenceComponent(props: {
     toast.error(deviceErrorMessage(kind, error), {
       id: `device-error-${kind ?? 'unknown'}-${error.name}`,
       duration: 6000,
-      position: 'top-center',
     });
   }, []);
   // A CallControlBar reporta erro de dispositivo por fonte (mic/camera/tela).
@@ -466,8 +460,6 @@ function VideoConferenceComponent(props: {
               id: 'no-camera-on-join',
               duration: 6000,
               icon: <VideoIcon size={18} />,
-              position: 'top-center',
-              className: 'lk-button',
             });
           }
         }
@@ -479,12 +471,14 @@ function VideoConferenceComponent(props: {
           } else {
             // Falta de microfone e mais serio (ninguem ouve a pessoa), mas
             // ainda assim nao bloqueia — ela entra so ouvindo.
-            toast.error('Nenhum microfone encontrado. Você vai entrar só ouvindo, sem poder falar.', {
-              id: 'no-mic-on-join',
-              duration: 8000,
-              icon: <MicOffIcon size={18} />,
-              position: 'top-center',
-            });
+            toast.error(
+              'Nenhum microfone encontrado. Você vai entrar só ouvindo, sem poder falar.',
+              {
+                id: 'no-mic-on-join',
+                duration: 6000,
+                icon: <MicOffIcon size={18} />,
+              },
+            );
           }
         }
       });
@@ -579,7 +573,14 @@ function VideoConferenceComponent(props: {
             depender do painel de configuracoes estar aberto. Ver
             lib/MicProcessorContext.tsx. */}
         <MicProcessorBinder />
-        <CallStage chatMessageFormatter={formatChatMessageLinks} onDeviceError={handleDeviceError} />
+        {/* Tambem sem UI: publica mudo/camera/tela/falando pro CallStateContext,
+            que a ChannelSidebar le de fora da arvore da call. Ver
+            lib/CallStateContext.tsx. */}
+        <CallStateBinder />
+        <CallStage
+          chatMessageFormatter={formatChatMessageLinks}
+          onDeviceError={handleDeviceError}
+        />
         <DebugMode />
         <RecordingIndicator />
       </RoomContext.Provider>
