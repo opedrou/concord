@@ -76,68 +76,89 @@
   font-weight: 500;
 }
 
-/* So a foto, agrupada em linha (bug 4 do relatorio) — aproveita a largura da
-   sidebar melhor que uma lista vertical de avatar+nome por linha, e o `wrap`
-   deixa continuar legivel mesmo com muita gente no canal. */
+/* Uma linha por pessoa, estilo Discord: foto redonda + nome + estado a
+   direita. Antes era uma fileira horizontal so de avatares, com o nome
+   escondido num tooltip — aproveitava melhor a largura, mas escondia
+   justamente a informacao pela qual se olha a lista. O recuo a esquerda
+   alinha com o texto do nome do canal, nao com o icone dele. */
 .occupantList {
   list-style: none;
   margin: 0;
-  padding: 0.125rem 0 0.375rem 1.625rem;
+  padding: 0.125rem 0.375rem 0.375rem 1.625rem;
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0.375rem;
+  flex-direction: column;
+  gap: 0.0625rem;
 }
 
 .occupant {
-  position: relative;
-  display: inline-flex;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.375rem;
+  border-radius: 0.25rem;
+  min-width: 0;
+}
+
+.occupant:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Wrapper do avatar: existe so pra ancorar o anel de "falando". O anel e
+   `box-shadow` e nao `border`/`outline` porque nenhum dos dois participa do
+   layout aqui — a linha nao pode saltar 4px quando alguem comeca a falar. */
+.occupantAvatarWrap {
+  display: flex;
+  flex-shrink: 0;
   border-radius: 50%;
-  /* Focavel por teclado (tabIndex=0 no JSX) — e o que faz o nome aparecer no
-     foco, nao so no hover do mouse (ver .occupantTooltip abaixo). */
-  cursor: default;
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow 0.12s ease-in-out;
 }
 
-.occupant:focus-visible {
-  outline: 2px solid var(--lk-accent-bg);
-  outline-offset: 2px;
+.occupantSpeaking {
+  box-shadow: 0 0 0 2px #23a55a;
 }
 
-.occupantAvatar {
+.occupantName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.65));
+  /* Nome longo encurta em vez de empurrar os icones pra fora da sidebar, que
+     e estreita e ainda por cima arrastavel. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.occupantBadges {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   flex-shrink: 0;
 }
 
-/* Nome no hover (mouse) E no foco (teclado/toque) — `:hover` sozinho nao
-   existe em touch, entao tocar no avatar foca o elemento (tabIndex=0) e
-   `:focus-visible`/`:focus` cobrem esse caso tambem. O nome continua
-   acessivel pra leitor de tela o tempo todo via `aria-label` no <li> (ver
-   ChannelSidebar.tsx) — isso aqui e so a copia visual, `aria-hidden`. */
-.occupantTooltip {
-  position: absolute;
-  bottom: calc(100% + 0.375rem);
-  left: 50%;
-  transform: translateX(-50%) translateY(2px);
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  background: var(--lk-bg3, #111);
-  color: var(--lk-fg);
-  font-size: 0.75rem;
-  font-weight: 500;
-  white-space: nowrap;
-  box-shadow: var(--lk-box-shadow);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.12s ease-in-out,
-    transform 0.12s ease-in-out;
-  z-index: 30;
+.occupantIcon {
+  display: flex;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.55));
 }
 
-.occupant:hover .occupantTooltip,
-.occupant:focus .occupantTooltip,
-.occupant:focus-visible .occupantTooltip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+/* Mudo em vermelho: e o unico estado que diz "esta pessoa nao vai te
+   responder", entao merece destaque que camera ligada nao merece. */
+.occupantIconMuted {
+  color: var(--lk-danger, #f91f31);
+}
+
+/* Badge de compartilhamento de tela. Texto, nao icone — "LIVE" e lido de
+   relance e nao se confunde com o icone de camera ao lado. */
+.liveBadge {
+  padding: 0 0.25rem;
+  border-radius: 0.1875rem;
+  background: var(--lk-danger, #f91f31);
+  color: #fff;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
 }
 
 .empty,

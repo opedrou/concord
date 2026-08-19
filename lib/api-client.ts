@@ -28,6 +28,13 @@ export interface Channel {
 export interface PresenceParticipant {
   identity: string;
   name: string;
+  /** Sem microfone publicado, ou publicado e mudo — pra quem olha a lista os
+   * dois casos significam a mesma coisa. Ver /api/channels/presence. */
+  muted: boolean;
+  /** Camera ligada agora. */
+  camera: boolean;
+  /** Compartilhando tela agora (o badge LIVE da sidebar). */
+  screenShare: boolean;
 }
 
 interface PresenceChannelEntry {

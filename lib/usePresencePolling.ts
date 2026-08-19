@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { fetchPresence, type PresenceMap } from '@/lib/api-client';
+import { fetchPresence, type PresenceMap, type PresenceParticipant } from '@/lib/api-client';
 
 // Intervalo de polling: rapido o suficiente pra sidebar parecer "viva" (Discord
 // atualiza quase em tempo real via websocket), mas sem massacrar o SFU/servidor
@@ -61,7 +61,17 @@ export function usePresencePolling() {
         }
         const current = next[channelId] ?? [];
         if (!current.some((p) => p.identity === participant.identity)) {
-          next[channelId] = [...current, participant];
+          // Estado otimista: assume mudo e sem video ate o primeiro poll (ou o
+          // CallStateBinder, se for o canal em que voce esta) dizer o
+          // contrario. Errar pra "mudo" e o lado seguro — some sozinho num
+          // instante, enquanto mostrar alguem falando sem estar seria pior.
+          const optimistic: PresenceParticipant = {
+            ...participant,
+            muted: true,
+            camera: false,
+            screenShare: false,
+          };
+          next[channelId] = [...current, optimistic];
         } else {
           next[channelId] = current;
         }

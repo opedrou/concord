@@ -6,8 +6,9 @@ import { fetchChannels, type Channel, type CurrentUser } from '@/lib/api-client'
 import { usePresencePolling } from '@/lib/usePresencePolling';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { Avatar } from '@/lib/Avatar';
-import { HashIcon, SpeakerIcon, SettingsIcon } from '@/lib/icons';
+import { HashIcon, SpeakerIcon, SettingsIcon, MicOffIcon, VideoIcon } from '@/lib/icons';
 import { SettingsPanel } from '@/lib/SettingsPanel';
+import { useCallState } from '@/lib/CallStateContext';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -41,6 +42,9 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   const [channels, setChannels] = React.useState<Channel[]>([]);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
   const { presence, applyOptimisticJoin } = usePresencePolling();
+  // Estado ao vivo do canal em que voce esta (null fora de uma call, ex.:
+  // home e canais de texto). Ver lib/CallStateContext.tsx.
+  const callState = useCallState();
   const avatarMap = useMembersAvatarMap();
   const router = useRouter();
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
@@ -120,7 +124,11 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
       // tela estreita (que precisa forcar width:100%, ver
       // ChannelSidebar.module.css). Passando por variavel, quem decide o
       // valor final continua sendo a cascata normal do CSS.
-      style={props.widthPx ? ({ '--sidebar-width': `${props.widthPx}px` } as React.CSSProperties) : undefined}
+      style={
+        props.widthPx
+          ? ({ '--sidebar-width': `${props.widthPx}px` } as React.CSSProperties)
+          : undefined
+      }
     >
       {loadError && <p className={styles.error}>Nao foi possivel carregar os canais.</p>}
 
@@ -165,6 +173,11 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
             {voiceChannels.map((channel) => {
               const occupants = presence[channel.slug] ?? [];
               const isActive = channel.slug === props.activeChannelSlug;
+              // So o canal em que voce esta de fato conectado tem estado ao
+              // vivo; nos demais, `undefined` faz cada linha cair no dado do
+              // polling.
+              const liveByIdentity =
+                callState?.slug === channel.slug ? callState.byIdentity : undefined;
 
               // Defesa extra contra o bug da pessoa duplicada (ver
               // PageClientImpl.tsx e HANDOFF secao 9): mesmo com o
@@ -197,14 +210,10 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                       {channel.name}
                     </span>
                   </button>
-                  {/* FORA do <button> do canal de proposito: <button> nao
-                      pode conter conteudo interativo (cada avatar precisa
-                      ser focavel pro nome aparecer no foco por teclado — ver
-                      abaixo), e um <li> dentro de <button> ja nao seria HTML
-                      valido. So a foto aparece; o nome mostra no hover E no
-                      foco por teclado/toque via CSS (ver
-                      ChannelSidebar.module.css .occupantTooltip) — nao so
-                      `:hover`, que nao existe em touch. */}
+                  {/* FORA do <button> do canal de proposito: um <ul>/<li>
+                      dentro de <button> nao seria HTML valido. Uma linha por
+                      pessoa, estilo Discord: foto redonda + nome + os icones
+                      de estado a direita. */}
                   {dedupedOccupants.length > 0 && (
                     <ul className={styles.occupantList} aria-label={`Pessoas em ${channel.name}`}>
                       {dedupedOccupants.map((p) => {
@@ -214,25 +223,68 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                         // connection-details/route.ts), que nunca bate com
                         // as chaves de avatarMap (indexado por username).
                         const cleanName = p.name || p.identity;
+                        // Estado ao vivo (do CallStateBinder) vence o do
+                        // polling, mas SO no canal em que voce esta — nos
+                        // outros nao existe informacao ao vivo nenhuma. Ver
+                        // lib/CallStateContext.tsx.
+                        const live = liveByIdentity?.[p.identity];
+                        const muted = live ? live.muted : p.muted;
+                        const camera = live ? live.camera : p.camera;
+                        const screenShare = live ? live.screenShare : p.screenShare;
+                        const speaking = live?.speaking ?? false;
+
                         return (
-                          <li
-                            key={p.identity}
-                            className={styles.occupant}
-                            tabIndex={0}
-                            title={cleanName}
-                            aria-label={cleanName}
-                          >
-                            <Avatar
-                              username={cleanName}
-                              avatarUrl={avatarMap[cleanName] ?? null}
-                              size={22}
-                              className={styles.occupantAvatar}
-                            />
-                            {/* Copia visual do aria-label de cima, so pro
-                                tooltip CSS — nao deve ser lida de novo pelo
-                                leitor de tela. */}
-                            <span className={styles.occupantTooltip} aria-hidden="true">
+                          <li key={p.identity} className={styles.occupant}>
+                            <span
+                              className={`${styles.occupantAvatarWrap} ${
+                                speaking ? styles.occupantSpeaking : ''
+                              }`}
+                            >
+                              <Avatar
+                                username={cleanName}
+                                avatarUrl={avatarMap[cleanName] ?? null}
+                                size={24}
+                              />
+                            </span>
+                            <span className={styles.occupantName} title={cleanName}>
                               {cleanName}
+                            </span>
+                            {/* Icones so aparecem quando ha o que dizer: nada
+                                de icone "ligado" permanente competindo com o
+                                nome. Mudo e o unico estado negativo mostrado —
+                                microfone aberto e o normal e nao precisa de
+                                simbolo. */}
+                            {/* Os icones de lib/icons.tsx sao sempre
+                                `aria-hidden` por construcao; o texto
+                                acessivel vai no elemento que os envolve —
+                                convencao documentada no topo daquele
+                                arquivo. */}
+                            <span className={styles.occupantBadges}>
+                              {screenShare && (
+                                <span className={styles.liveBadge} title="Compartilhando tela">
+                                  LIVE
+                                </span>
+                              )}
+                              {camera && (
+                                <span
+                                  className={styles.occupantIcon}
+                                  role="img"
+                                  aria-label="Camera ligada"
+                                  title="Camera ligada"
+                                >
+                                  <VideoIcon size={14} />
+                                </span>
+                              )}
+                              {muted && (
+                                <span
+                                  className={`${styles.occupantIcon} ${styles.occupantIconMuted}`}
+                                  role="img"
+                                  aria-label="Microfone mudo"
+                                  title="Microfone mudo"
+                                >
+                                  <MicOffIcon size={14} />
+                                </span>
+                              )}
                             </span>
                           </li>
                         );
@@ -293,7 +345,10 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                 </button>
                 {accountMenuOpen && (
                   <>
-                    <div className={styles.menuBackdrop} onClick={() => setAccountMenuOpen(false)} />
+                    <div
+                      className={styles.menuBackdrop}
+                      onClick={() => setAccountMenuOpen(false)}
+                    />
                     <SettingsPanel
                       isAdmin={props.user.isAdmin}
                       onLogout={props.onLogout}
