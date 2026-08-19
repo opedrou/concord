@@ -11,13 +11,13 @@ export function RecordingIndicator() {
     if (isRecording !== wasRecording) {
       setWasRecording(isRecording);
       if (isRecording) {
-        toast('This meeting is being recorded', {
-          duration: 3000,
+        // Posicao e tema base vem do AppToaster; aqui so o vermelho, que e
+        // especifico deste aviso.
+        toast('Esta reuniao esta sendo gravada', {
+          duration: 6000,
           icon: <VideoIcon size={18} />,
-          position: 'top-center',
-          className: 'lk-button',
           style: {
-            backgroundColor: 'var(--lk-danger3)',
+            background: 'var(--lk-danger3)',
             color: 'var(--lk-fg)',
           },
         });

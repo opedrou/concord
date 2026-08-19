@@ -1,0 +1,62 @@
+/* Visual dos avisos (ver lib/AppToaster.tsx).
+
+   O react-hot-toast injeta o proprio CSS por goober, em runtime, DEPOIS das
+   folhas da app — e o default dele e claro (`background: #fff; color:
+   #363636`). Num app inteiramente escuro isso aparecia como cartao branco no
+   meio da tela. Passar `className` do @livekit/components-styles (o que se
+   fazia antes) nao resolvia: a classe do goober vence no cascade, e de quebra
+   `.lk-button` traz `white-space: nowrap` + `inline-flex`, que quebram texto
+   longo. A saida e o `style` inline do toastOptions (ver AppToaster.tsx) pro
+   fundo/cor, e este modulo pro resto do layout. */
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+/* O icone que o react-hot-toast passa (o nosso, ou o de erro/sucesso dele).
+   `flex-shrink: 0` pra nao ser esmagado por mensagem longa, e o alinhamento
+   no topo — nao centralizado — porque estes avisos costumam ter 2-3 linhas e
+   um icone centralizado verticalmente ficaria solto no meio do bloco. */
+.icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+/* Botao de fechar. Discreto por padrao e so ganha contraste no hover — ele
+   nao deve competir com o texto do aviso, que e o que importa. */
+.close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  margin: -0.15rem -0.15rem 0 0;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.55));
+  cursor: pointer;
+  line-height: 0;
+}
+
+.close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lk-fg, #fff);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
