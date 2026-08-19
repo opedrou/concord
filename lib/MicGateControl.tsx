@@ -25,10 +25,12 @@ import styles from '../styles/MicGateControl.module.css';
  * republicaria a faixa a cada vez e piscaria o icone de mutado pra todo
  * mundo — foi isso que o dono pediu pra evitar.
  *
- * O componente fica SEMPRE montado na barra de controle (mesmo padrao do
+ * O componente fica SEMPRE montado (mesmo padrao do
  * `NoiseSuppressionControl`): o processor precisa continuar aplicado ao
- * microfone o tempo todo, independente do popover de ajuste estar aberto —
- * só a UI (medidor + slider) é condicional a `props.open`.
+ * microfone o tempo todo, independente do popover de configuracoes de audio
+ * estar aberto — por isso o popover que o contem (ver CallControlBar.tsx) é
+ * escondido por CSS, nunca desmontado, e `props.open` liga/desliga apenas o
+ * redesenho do medidor ao vivo.
  */
 export function MicGateControl(props: { open: boolean }) {
   const room = useRoomContext();
@@ -128,7 +130,7 @@ export function MicGateControl(props: { open: boolean }) {
   }, []);
 
   // Liga/desliga o callback de nivel ao vivo do processor de acordo com o
-  // popover estar aberto — e assim que o "para de medir quando o painel
+  // popover de configuracoes de audio estar aberto — e assim que o "para de medir quando o painel
   // esta fechado" e cumprido: o loop de audio do gate (setInterval em
   // micGate.ts) continua rodando SEMPRE, porque e o que faz o gate
   // funcionar; o que liga/desliga aqui e so o redesenho do medidor visual,
@@ -138,6 +140,8 @@ export function MicGateControl(props: { open: boolean }) {
     if (!props.open || !processor) return undefined;
 
     processor.onLevel = ({ levelDb }) => {
+      // Fracao 0..1 do nivel atual -> ate onde a camada acesa do medidor vai
+      // (o CSS traduz isso em clip-path; ver MicGateControl.module.css).
       const frac = dbToMeterFraction(levelDb);
       if (trackFillRef.current) {
         trackFillRef.current.style.setProperty('--mic-gate-level', `${(frac * 100).toFixed(1)}%`);
@@ -176,8 +180,14 @@ export function MicGateControl(props: { open: boolean }) {
         ref={trackWrapperRef}
         style={{ '--mic-gate-threshold': `${thresholdPct}%` } as React.CSSProperties}
       >
-        <div className={styles.meterGradient} />
-        <div className={styles.meterMask} ref={trackFillRef} />
+        {/* Duas camadas com o MESMO gradiente (âmbar antes do limiar, verde
+            depois), uma apagada e outra acesa — igual ao Discord: a trilha
+            inteira aparece em tom escuro, e o pedaço correspondente ao nível
+            ao vivo do microfone acende por cima. Assim dá pra ler ao mesmo
+            tempo ONDE está o limiar (troca de cor) e QUANTO o mic está
+            captando agora (até onde vai o tom aceso). */}
+        <div className={styles.meterDim} />
+        <div className={styles.meterActive} ref={trackFillRef} />
         <input
           id="mic-gate-threshold"
           className={styles.rangeInput}

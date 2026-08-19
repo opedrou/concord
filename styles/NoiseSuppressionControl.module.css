@@ -9,19 +9,38 @@
   align-items: center;
 }
 
+.panel {
+  width: 100%;
+}
+
 .toggleButton {
   font-size: 0.8rem;
   white-space: nowrap;
+  gap: 0.4rem;
+}
+
+/* No popover o botao ocupa a largura toda e o texto pode quebrar em duas
+   linhas — nada de esticar a barra. */
+.panel .toggleButton {
+  white-space: normal;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .label {
   display: none;
 }
 
-@media (min-width: 900px) {
-  .label {
-    display: inline;
-  }
+/* Dentro do popover de configuracoes de audio o rotulo completo sempre
+   aparece: la ele explica qual camada de reducao de ruido o navegador
+   realmente aplicou. Na barra ele fica escondido (ver .label) porque o texto
+   longo — "Reducao de ruido: indisponivel neste navegador" — esticava o botao
+   e desalinhava a fileira inteira. */
+.labelAlways {
+  display: inline;
+  white-space: normal;
+  text-align: left;
 }
 
 .hint {
@@ -40,4 +59,14 @@
   color: var(--lk-fg);
   font-size: 0.75rem;
   box-shadow: var(--lk-box-shadow);
+}
+
+/* No popover o aviso de dispositivo "Monitor of..." vira texto normal embaixo
+   do botao — flutuar por cima de um popover que ja esta flutuando so cria
+   camada sobre camada. */
+.panel .hint {
+  position: static;
+  transform: none;
+  margin-top: 0.4rem;
+  max-width: 100%;
 }

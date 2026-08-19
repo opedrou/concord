@@ -1,15 +1,31 @@
 /* Barra de controle propria (ver lib/CallControlBar.tsx). A classe
    'lk-control-bar' ja da o essencial (flex, padding, borda superior); aqui so
-   ajustamos o que e novo: permitir quebra de linha no celular e posicionar o
-   popover de qualidade de transmissao. */
+   ajustamos o que e novo: manter a fileira centrada e do mesmo tamanho mesmo
+   quebrando linha no celular, e posicionar os popovers (qualidade de
+   transmissao e configuracoes de audio). Nenhum popover pode participar do
+   fluxo da barra — foi isso que fez o painel de sensibilidade estourar a
+   largura e desalinhar os outros botoes. */
 
 .bar {
+  display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   row-gap: 0.5rem;
 }
 
-.screenShareGroup {
+.screenShareGroup,
+.settingsGroup {
   position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.settingsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .popoverBackdrop {
@@ -19,7 +35,8 @@
   background: transparent;
 }
 
-.qualityPopover {
+.qualityPopover,
+.audioSettingsPopover {
   position: absolute;
   bottom: calc(100% + 0.5rem);
   right: 0;
@@ -31,8 +48,28 @@
   box-shadow: var(--lk-box-shadow);
 }
 
+.audioSettingsPopover {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  width: max-content;
+  max-width: min(20rem, 90vw);
+}
+
+/* O popover de audio continua MONTADO com a gaveta fechada (o gate e a
+   reducao de ruido precisam seguir aplicados na track) — some so visualmente,
+   sem ocupar espaco nem receber foco. */
+.hidden {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .qualityPopover {
+    right: -2.5rem;
+  }
+
+  .audioSettingsPopover {
     right: -2.5rem;
   }
 }

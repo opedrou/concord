@@ -12,7 +12,7 @@ import {
   TrackToggle,
   useMaybeLayoutContext,
 } from '@livekit/components-react';
-import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
+import { ChevronDownIcon, ChevronRightIcon, SettingsIcon } from '@/lib/icons';
 import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
 import { MicGateControl } from '@/lib/MicGateControl';
 import { NoiseSuppressionControl } from '@/lib/NoiseSuppressionControl';
@@ -38,20 +38,11 @@ export function CallControlBar(props: {
 }) {
   const layoutContext = useMaybeLayoutContext();
   const [qualityOpen, setQualityOpen] = React.useState(false);
-  const [sensitivityOpen, setSensitivityOpen] = React.useState(false);
+  const [audioSettingsOpen, setAudioSettingsOpen] = React.useState(false);
 
   return (
     <div className={`lk-control-bar ${styles.bar}`}>
-      {/* Sensibilidade de entrada escondida atrás do chevron do PRÓPRIO
-          grupo do microfone — mesmo padrão do chevron de qualidade dentro do
-          grupo de tela, logo abaixo. A escolha de colocar cada ajuste junto
-          do botão que ele afeta (em vez de um popover de áudio único e
-          genérico, ou de outro botão solto na barra) é proposital: quem quer
-          mexer na sensibilidade já está olhando pro botão do microfone. A
-          redução de ruído (`NoiseSuppressionControl`) fica de fora desse
-          popover porque já é 1 clique só (liga/desliga), sem parâmetro pra
-          ajustar — não ganha nada virando aba de um popover. */}
-      <div className={`lk-button-group ${styles.micGroup}`}>
+      <div className="lk-button-group">
         <TrackToggle
           source={Track.Source.Microphone}
           onDeviceError={(e) => props.onDeviceError?.({ source: Track.Source.Microphone, error: e })}
@@ -59,37 +50,7 @@ export function CallControlBar(props: {
         <div className="lk-button-group-menu">
           <MediaDeviceMenu kind="audioinput" />
         </div>
-        <div className="lk-button-group-menu">
-          <button
-            type="button"
-            className="lk-button"
-            onClick={() => setSensitivityOpen((v) => !v)}
-            aria-expanded={sensitivityOpen}
-            aria-label="Sensibilidade de entrada do microfone"
-            title="Sensibilidade de entrada do microfone"
-          >
-            {sensitivityOpen ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-          </button>
-        </div>
-        {sensitivityOpen && (
-          <>
-            <div className={styles.popoverBackdrop} onClick={() => setSensitivityOpen(false)} />
-            <div className={styles.sensitivityPopover}>
-              <MicGateControl open={sensitivityOpen} />
-            </div>
-          </>
-        )}
       </div>
-
-      {/* O processor de gate precisa continuar aplicado ao microfone mesmo
-          com o popover fechado (é o que faz o gate funcionar o tempo todo) —
-          por isso `MicGateControl` também é montado aqui, sempre, só que sem
-          UI visível (`open=false` desliga apenas o redesenho do medidor).
-          Evita montar/desmontar o processor (e reabrir a cadeia Web Audio)
-          toda vez que a pessoa abre e fecha o popover. */}
-      {!sensitivityOpen && <MicGateControl open={false} />}
-
-      <NoiseSuppressionControl />
 
       <div className="lk-button-group">
         <TrackToggle
@@ -138,14 +99,52 @@ export function CallControlBar(props: {
         <ChatIcon />
       </ChatToggle>
 
+      {/* Ajustes de áudio (sensibilidade de entrada + redução de ruído)
+          escondidos atrás do botão de engrenagem. Antes a sensibilidade tinha
+          chevron próprio dentro do grupo do microfone e a redução de ruído era
+          um botão com rótulo longo ("Redução de ruído: indisponível neste
+          navegador") — os dois juntos estouravam a largura da barra e
+          empurravam o resto dos controles pra fora do lugar. Aqui a barra
+          volta a ser só botões do mesmo tamanho, e quem quer mexer nos
+          parâmetros abre a engrenagem.
+
+          O popover fica SEMPRE montado (só escondido por CSS quando fechado):
+          tanto o gate quanto a redução de ruído aplicam processamento na track
+          de microfone o tempo todo, e desmontá-los a cada abre/fecha
+          reabriria a cadeia Web Audio / reaplicaria constraints à toa. O
+          `open` só controla o redesenho do medidor ao vivo. */}
+      <div className={styles.settingsGroup}>
+        <button
+          type="button"
+          className={`lk-button ${styles.settingsButton}`}
+          onClick={() => setAudioSettingsOpen((v) => !v)}
+          aria-expanded={audioSettingsOpen}
+          aria-label="Configurações de áudio"
+          title="Configurações de áudio"
+        >
+          <SettingsIcon size={18} />
+        </button>
+        {audioSettingsOpen && (
+          <div className={styles.popoverBackdrop} onClick={() => setAudioSettingsOpen(false)} />
+        )}
+        <div
+          className={`${styles.audioSettingsPopover} ${audioSettingsOpen ? '' : styles.hidden}`}
+          role="group"
+          aria-label="Configurações de áudio"
+        >
+          <MicGateControl open={audioSettingsOpen} />
+          <NoiseSuppressionControl showLabel />
+        </div>
+      </div>
+
       {SHOW_SETTINGS_MENU && (
         <button
           type="button"
           className="lk-button"
           onClick={() => layoutContext?.widget.dispatch?.({ msg: 'toggle_settings' })}
-          aria-label="Configurações"
+          aria-label="Dispositivos"
         >
-          Configurações
+          Dispositivos
         </button>
       )}
 

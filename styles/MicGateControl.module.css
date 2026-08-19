@@ -22,44 +22,58 @@
   white-space: nowrap;
 }
 
-/* O medidor: uma trilha com duas cores (abaixo/acima do limiar, como no
-   "Input Sensitivity" do Discord) mais uma mascara que cobre a parte ainda
-   nao alcancada pelo nivel ao vivo do microfone. A "bolinha" que define o
+/* O medidor, no estilo "Input Sensitivity" do Discord: uma trilha fina com
+   duas faixas de cor separadas pelo limiar (âmbar = nao passa, verde = passa)
+   e DOIS TONS em cada faixa — o tom escuro e a trilha em repouso, o tom aceso
+   avanca ate o nivel que o microfone esta captando agora. A "bolinha" do
    limiar e o thumb do <input type=range> por cima, invisivel exceto pelo
-   proprio thumb. */
+   proprio thumb.
+
+   --mic-gate-threshold (onde as cores trocam) vem do wrapper React via style
+   inline; --mic-gate-level (ate onde o tom aceso vai) e escrito direto no
+   .meterActive pelo JS a cada tick, sem re-render (ver MicGateControl.tsx). */
 .meter {
   position: relative;
+  /* Altura da AREA CLICAVEL, nao da trilha — a trilha visivel e fina (como no
+     Discord) mas arrastar uma linha de 4px com o mouse e ruim; o input cobre
+     essa altura toda. */
   height: 1.15rem;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--lk-bg4, #2a2a2a);
 }
 
-.meterGradient {
+.meterDim,
+.meterActive {
   position: absolute;
-  inset: 0;
-  /* Corte duro no ponto do limiar: cinza (nao passa) antes, verde (passa)
-     depois. --mic-gate-threshold vem do wrapper React via style inline. */
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0.3rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  /* Corte duro no ponto do limiar: ambar (nao passa) antes, verde (passa)
+     depois. As duas camadas usam a MESMA geometria — o que muda e so o tom. */
   background: linear-gradient(
     to right,
-    var(--lk-fg4, #7a7a7a) 0%,
-    var(--lk-fg4, #7a7a7a) var(--mic-gate-threshold, 12%),
-    var(--lk-accent-bg, #1fd57c) var(--mic-gate-threshold, 12%),
-    var(--lk-accent-bg, #1fd57c) 100%
+    var(--mic-gate-below) 0%,
+    var(--mic-gate-below) var(--mic-gate-threshold, 12%),
+    var(--mic-gate-above) var(--mic-gate-threshold, 12%),
+    var(--mic-gate-above) 100%
   );
 }
 
-/* Cobre da direita ate o nivel ao vivo mais recente — o que sobra visivel a
-   esquerda da mascara e o "quanto o microfone esta captando agora". Atualizada
-   via ref direto no JS (sem re-render do React a cada tick — ver
-   MicGateControl.tsx), so enquanto o popover esta aberto. */
-.meterMask {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  left: var(--mic-gate-level, 0%);
-  background: var(--lk-bg4, #2a2a2a);
+.meterDim {
+  --mic-gate-below: #6b4a17;
+  --mic-gate-above: #2c6045;
+}
+
+/* Camada acesa: mesmo gradiente em tom vivo, revelada da esquerda ate o nivel
+   ao vivo. clip-path (e nao width) pra que o gradiente continue calculado
+   sobre a largura TOTAL — com width o ponto de troca de cor andaria junto com
+   o nivel, que e exatamente o que nao pode acontecer. */
+.meterActive {
+  --mic-gate-below: #faa61a;
+  --mic-gate-above: #3ba55d;
+  clip-path: inset(0 calc(100% - var(--mic-gate-level, 0%)) 0 0);
+  transition: clip-path 60ms linear;
 }
 
 .rangeInput {
@@ -81,7 +95,7 @@
 }
 
 /* Trilha totalmente transparente — quem desenha a trilha visivel sao os dois
-   divs abaixo dela (.meterGradient/.meterMask); o input so contribui com o
+   divs abaixo dela (.meterDim/.meterActive); o input so contribui com o
    thumb arrastavel. */
 .rangeInput::-webkit-slider-runnable-track {
   background: transparent;
@@ -90,13 +104,12 @@
 
 .rangeInput::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 0.9rem;
-  height: 1.5rem;
-  margin-top: -0.2rem;
-  border-radius: 3px;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
   background: #fff;
-  border: 1px solid var(--lk-border-color, #000);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   cursor: grab;
 }
 
@@ -106,12 +119,12 @@
 }
 
 .rangeInput::-moz-range-thumb {
-  width: 0.9rem;
-  height: 1.5rem;
-  border-radius: 3px;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
   background: #fff;
-  border: 1px solid var(--lk-border-color, #000);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   cursor: grab;
 }
 
@@ -142,10 +155,12 @@
      dificil com dedo; a trilha inteira ja e clicavel gracas ao input cobrir
      100% da altura do medidor, isso so engorda o alvo do thumb. */
   .rangeInput::-webkit-slider-thumb {
-    width: 1.1rem;
+    width: 1.05rem;
+    height: 1.05rem;
   }
 
   .rangeInput::-moz-range-thumb {
-    width: 1.1rem;
+    width: 1.05rem;
+    height: 1.05rem;
   }
 }

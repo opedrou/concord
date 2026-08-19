@@ -36,7 +36,7 @@ import styles from '../styles/NoiseSuppressionControl.module.css';
  * `track.getSettings()`), nunca so o que foi pedido — importante pra nao
  * anunciar "ativado" quando o navegador ignorou a constraint.
  */
-export function NoiseSuppressionControl() {
+export function NoiseSuppressionControl(props: { showLabel?: boolean } = {}) {
   const room = useRoomContext();
   const { microphoneTrack } = useLocalParticipant();
   const [enabled, setEnabled] = React.useState(loadNoiseSuppressionPref);
@@ -98,7 +98,7 @@ export function NoiseSuppressionControl() {
   }, []);
 
   return (
-    <div className={styles.wrapper}>
+    <div className={`${styles.wrapper} ${props.showLabel ? styles.panel : ''}`}>
       <button
         type="button"
         className={`lk-button ${styles.toggleButton}`}
@@ -107,7 +107,9 @@ export function NoiseSuppressionControl() {
         title={`Redução de ruído: ${tierLabel(tier)}`}
       >
         {enabled ? <MicIcon size={18} /> : <MicOffIcon size={18} />}
-        <span className={styles.label}>{tierLabel(tier)}</span>
+        <span className={props.showLabel ? styles.labelAlways : styles.label}>
+          {tierLabel(tier)}
+        </span>
       </button>
       {monitorDeviceHint && enabled && (
         <p className={styles.hint}>
