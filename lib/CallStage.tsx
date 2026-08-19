@@ -22,6 +22,8 @@ import { CallParticipantTile } from '@/lib/CallParticipantTile';
 import { TileErrorBoundary } from '@/lib/TileErrorBoundary';
 import { ParticipantVolumeCard, useScreenShareAudioIdentities } from '@/lib/ParticipantAudioPanel';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
+import { useFullscreen } from '@/lib/FullscreenContext';
+import { CollapseIcon, ExpandIcon, CloseIcon } from '@/lib/icons';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ResizeHandle } from '@/lib/ResizeHandle';
 import { usePersistedSize } from '@/lib/usePersistedSize';
@@ -88,7 +90,9 @@ export function CallStage(props: {
     { updateOnlyOn: [RoomEvent.ActiveSpeakersChanged], onlySubscribed: false },
   );
 
-  const screenShareTracks = tracks.filter(isTrackReference).filter((t) => t.source === Track.Source.ScreenShare);
+  const screenShareTracks = tracks
+    .filter(isTrackReference)
+    .filter((t) => t.source === Track.Source.ScreenShare);
 
   const pinned = usePinnedTracks(layoutContext);
   const focusTrack = pinned?.[0];
@@ -105,13 +109,17 @@ export function CallStage(props: {
       autoFocusedRef.current = firstSubscribed;
     } else if (
       autoFocusedRef.current &&
-      !screenShareTracks.some((t) => t.publication.trackSid === autoFocusedRef.current?.publication?.trackSid)
+      !screenShareTracks.some(
+        (t) => t.publication.trackSid === autoFocusedRef.current?.publication?.trackSid,
+      )
     ) {
       layoutContext.pin.dispatch?.({ msg: 'clear_pin' });
       autoFocusedRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenShareTracks.map((t) => `${t.publication.trackSid}_${t.publication.isSubscribed}`).join()]);
+  }, [
+    screenShareTracks.map((t) => `${t.publication.trackSid}_${t.publication.isSubscribed}`).join(),
+  ]);
 
   const otherTracks = tracks.filter((t) => !isSameTrackRef(t, focusTrack));
 
@@ -140,8 +148,85 @@ export function CallStage(props: {
     [],
   );
 
+  // --- Tela cheia ---------------------------------------------------------
+  //
+  // O estado mora no RoomShell (ver lib/FullscreenContext.tsx) porque a
+  // sidebar, que precisa sumir, esta acima deste componente. QUAL track esta
+  // em tela cheia continua sendo o `pin` do LayoutContext — a mesma coisa que
+  // o auto-foco de screen share ja usava.
+  const fullscreen = useFullscreen();
+  const theater = fullscreen?.mode === 'theater';
+  const stageRef = React.useRef<HTMLDivElement | null>(null);
+
+  const handleExpand = React.useCallback(
+    (trackReference: TrackReferenceOrPlaceholder) => {
+      layoutContext.pin.dispatch?.({ msg: 'set_pin', trackReference });
+      fullscreen?.enterTheater();
+    },
+    [layoutContext, fullscreen],
+  );
+
+  // Controles somem sozinhos no teatro e voltam ao mover o mouse, como num
+  // player de video. Fora do teatro nunca escondem.
+  const [controlsVisible, setControlsVisible] = React.useState(true);
+  React.useEffect(() => {
+    if (!theater) {
+      setControlsVisible(true);
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    const reveal = () => {
+      setControlsVisible(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setControlsVisible(false), 2500);
+    };
+    reveal();
+    window.addEventListener('pointermove', reveal);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointermove', reveal);
+    };
+  }, [theater]);
+
+  // Atalhos. Precisam ficar AQUI e nao no <KeyboardShortcuts />: aquele
+  // componente e montado fora do LayoutContext e nao enxerga o pin.
+  React.useEffect(() => {
+    if (!fullscreen) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      // `F` e `Esc` nao tem modificador (os atalhos antigos do projeto tem, e
+      // por isso nunca precisaram deste guard) — sem isso, digitar "f" no chat
+      // jogaria a call em tela cheia.
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      ) {
+        return;
+      }
+      if (event.key === 'f' || event.key === 'F') {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        event.preventDefault();
+        fullscreen.toggleTheater();
+      } else if (event.key === 'Escape' && fullscreen.mode === 'theater') {
+        // Se o fullscreen nativo estiver ativo, o navegador consome o Esc
+        // antes de chegar aqui — este caso e so o teatro puro.
+        event.preventDefault();
+        fullscreen.exit();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [fullscreen]);
+
   return (
-    <div className={`lk-video-conference ${styles.stage}`}>
+    <div
+      ref={stageRef}
+      className={`lk-video-conference ${styles.stage}`}
+      data-fullscreen={theater ? 'true' : undefined}
+      data-controls-hidden={theater && !controlsVisible ? 'true' : undefined}
+    >
       <LayoutContextProvider value={layoutContext} onWidgetChange={setWidgetState}>
         <div className={`lk-video-conference-inner ${styles.inner}`}>
           {focusTrack ? (
@@ -152,6 +237,7 @@ export function CallStage(props: {
                     trackRef={focusTrack}
                     avatarMap={avatarMap}
                     onOpenVolume={handleOpenVolume}
+                    onExpand={theater ? undefined : () => handleExpand(focusTrack)}
                   />
                 </TileErrorBoundary>
               </div>
@@ -177,6 +263,7 @@ export function CallStage(props: {
                           trackRef={t}
                           avatarMap={avatarMap}
                           onOpenVolume={handleOpenVolume}
+                          onExpand={() => handleExpand(t)}
                         />
                       </TileErrorBoundary>
                     ))}
@@ -193,10 +280,39 @@ export function CallStage(props: {
                       trackRef={t}
                       avatarMap={avatarMap}
                       onOpenVolume={handleOpenVolume}
+                      onExpand={() => handleExpand(t)}
                     />
                   </TileErrorBoundary>
                 ))}
               </div>
+            </div>
+          )}
+          {theater && fullscreen && (
+            /* Etapa 2 e saida. So aparece no teatro — fora dele o caminho e o
+               botao de expandir do proprio tile. */
+            <div className={styles.fullscreenControls}>
+              <button
+                type="button"
+                className={styles.fullscreenButton}
+                onClick={() => fullscreen.toggleNative(stageRef.current)}
+                aria-label={
+                  fullscreen.native ? 'Sair da tela cheia do navegador' : 'Tela cheia do navegador'
+                }
+                title={
+                  fullscreen.native ? 'Sair da tela cheia do navegador' : 'Tela cheia do navegador'
+                }
+              >
+                {fullscreen.native ? <CollapseIcon size={16} /> : <ExpandIcon size={16} />}
+              </button>
+              <button
+                type="button"
+                className={styles.fullscreenButton}
+                onClick={() => fullscreen.exit()}
+                aria-label="Voltar ao layout normal"
+                title="Voltar ao layout normal (Esc)"
+              >
+                <CloseIcon size={16} />
+              </button>
             </div>
           )}
           <CallControlBar onDeviceError={props.onDeviceError} />

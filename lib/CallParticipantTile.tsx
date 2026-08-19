@@ -15,6 +15,7 @@ import {
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { Avatar } from '@/lib/Avatar';
+import { ExpandIcon } from '@/lib/icons';
 import { useSpeakingIndicator } from '@/lib/useSpeakingIndicator';
 import styles from '../styles/CallParticipantTile.module.css';
 
@@ -38,8 +39,11 @@ export function CallParticipantTile(props: {
   trackRef: TrackReferenceOrPlaceholder;
   avatarMap: Record<string, string | null>;
   onOpenVolume: (participant: RemoteParticipant, anchor: { x: number; y: number }) => void;
+  /** Coloca ESTA transmissao em tela cheia. Ausente = sem botao (ex.: o tile
+   * que ja esta em tela cheia nao precisa oferecer o proprio botao). */
+  onExpand?: () => void;
 }) {
-  const { trackRef, avatarMap, onOpenVolume } = props;
+  const { trackRef, avatarMap, onOpenVolume, onExpand } = props;
   const isCameraSource = trackRef.source === Track.Source.Camera;
 
   const handleClick = React.useCallback(
@@ -71,10 +75,7 @@ export function CallParticipantTile(props: {
   // servidor. Sobrescrevemos o atributo (o CSS do LiveKit continua sendo quem
   // desenha a borda, so trocamos a fonte do dado). Se o caminho local falhar,
   // o proprio hook cai no isSpeaking do servidor — nunca fica sem indicador.
-  const micTracks = useParticipantTracks(
-    [Track.Source.Microphone],
-    trackRef.participant.identity,
-  );
+  const micTracks = useParticipantTracks([Track.Source.Microphone], trackRef.participant.identity);
   const { isSpeaking, source: speakingSource } = useSpeakingIndicator(
     trackRef.participant,
     micTracks[0],
@@ -127,6 +128,22 @@ export function CallParticipantTile(props: {
         />
       </div>
       <FocusToggle trackRef={trackRef} />
+      {onExpand && (
+        <button
+          type="button"
+          className={styles.expandButton}
+          // OBRIGATORIO: o tile inteiro tem onClick (abre o card de volume por
+          // participante). Sem isso, expandir abriria o card junto.
+          onClick={(event) => {
+            event.stopPropagation();
+            onExpand();
+          }}
+          aria-label="Ver em tela cheia"
+          title="Ver em tela cheia"
+        >
+          <ExpandIcon size={16} />
+        </button>
+      )}
     </div>
   );
 }

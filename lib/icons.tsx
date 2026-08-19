@@ -232,3 +232,40 @@ export function SettingsIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+/** Monitor — usado pra "esta compartilhando tela". Proprio, e nao o
+ * `ScreenShareIcon` do @livekit/components-react, pra manter a familia visual
+ * deste arquivo (stroke currentColor, viewBox 24, mesma espessura). */
+export function ScreenShareIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <rect x="2" y="4" width="20" height="13" rx="2" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+    </svg>
+  );
+}
+
+/** Setas pra fora — "expandir / tela cheia". */
+export function ExpandIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M9 3H3v6" />
+      <path d="M15 3h6v6" />
+      <path d="M9 21H3v-6" />
+      <path d="M15 21h6v-6" />
+    </svg>
+  );
+}
+
+/** Setas pra dentro — "sair da tela cheia". */
+export function CollapseIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M3 9h6V3" />
+      <path d="M21 9h-6V3" />
+      <path d="M3 15h6v6" />
+      <path d="M21 15h-6v6" />
+    </svg>
+  );
+}

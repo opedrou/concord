@@ -97,3 +97,102 @@
     aspect-ratio: auto;
   }
 }
+
+/* --- Modo teatro (ver lib/FullscreenContext.tsx) -------------------------
+   A transmissao em foco ocupa a janela inteira; faixa de participantes, alcas
+   e barra de controles somem. A sidebar some no RoomShell, que e quem a
+   renderiza. */
+
+.stage[data-fullscreen='true'] {
+  /* Ancora os controles flutuantes e a barra de controles, que saem do fluxo
+     no teatro. So aqui, e nao no `.stage` base, pra nao alterar o
+     posicionamento de nada no layout normal. */
+  position: relative;
+}
+
+/* Os wrappers do LiveKit dimensionam com
+   `height: calc(100% - var(--lk-control-bar-height))` pra reservar espaco pra
+   barra. No teatro a barra flutua POR CIMA do video, entao esse espaco nao
+   deve mais ser reservado — senao sobra uma faixa vazia embaixo.
+
+   NAO zerar `--lk-control-bar-height` pra conseguir isso: a mesma variavel
+   define `height`/`max-height` da PROPRIA `.lk-control-bar`, e zera-la
+   esmagava a barra de 64px pra 24px, deixando os botoes cortados espiando na
+   borda de baixo. Sobrescrever a altura dos wrappers direto resolve os dois. */
+.stage[data-fullscreen='true'] :global(.lk-focus-layout-wrapper),
+.stage[data-fullscreen='true'] :global(.lk-grid-layout-wrapper) {
+  height: 100%;
+}
+
+.stage[data-fullscreen='true'] .focusStrip {
+  display: none;
+}
+
+/* Alca entre o video e a faixa: sem faixa, nao ha o que redimensionar. */
+.stage[data-fullscreen='true'] :global(.lk-focus-layout-wrapper) > [role='separator'] {
+  display: none;
+}
+
+/* A barra de controles sai do fluxo e flutua sobre o video, aparecendo ao
+   mover o mouse — como num player. Sai do fluxo (e nao `display: none`) pra
+   nao desmontar os botoes: desmontar derrubaria o estado de hover/foco e
+   remontaria os controles de midia a cada movimento do mouse. */
+.stage[data-fullscreen='true'] :global(.lk-control-bar) {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border-top: none;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  transition:
+    opacity 0.2s ease-in-out,
+    transform 0.2s ease-in-out;
+}
+
+/* Escondida: alem de opacity, sai de vista por translate. So opacity ja
+   bastaria, mas qualquer sombra/gradiente residual de sub-pixel apareceria
+   como faixa na borda — o translate garante que nao sobra nada espiando. */
+.stage[data-controls-hidden='true'] :global(.lk-control-bar) {
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
+
+.stage[data-controls-hidden='true'] .fullscreenControls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Some junto com a barra de controles, pelo mesmo gesto (mouse parado). */
+.fullscreenControls {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 21;
+  display: flex;
+  gap: 0.375rem;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.fullscreenButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: none;
+  border-radius: var(--lk-border-radius, 0.5rem);
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--lk-fg, #fff);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.fullscreenButton:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.fullscreenButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 1px;
+}

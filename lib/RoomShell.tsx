@@ -11,7 +11,9 @@ import { ResizeHandle } from '@/lib/ResizeHandle';
 import { usePersistedSize } from '@/lib/usePersistedSize';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { MicProcessorProvider } from '@/lib/MicProcessorContext';
-import { logout, type Channel } from '@/lib/api-client';
+import { CallStateProvider } from './CallStateContext';
+import { FullscreenProvider, useFullscreen } from './FullscreenContext';
+import { logout, type Channel, type CurrentUser } from '@/lib/api-client';
 import styles from '../styles/RoomShell.module.css';
 
 // Limites da sidebar de canais na tela de call — largura em px, persistida
@@ -76,61 +78,102 @@ export function RoomShell(props: {
     // (dentro do PageClientImpl) estao em ramos IRMAOS da arvore, e este e o
     // ancestral comum mais proximo. Ver lib/MicProcessorContext.tsx.
     <MicProcessorProvider>
-      <div className={styles.shell} data-lk-theme="default">
-        <ChannelSidebar
-          user={user}
-          activeChannelSlug={props.roomName}
-          activeTextChannelSlug={openTextChannel?.slug}
-          onSelectTextChannel={handleSelectTextChannel}
-          onLogout={handleLogout}
-          widthPx={sidebarWidth}
-        />
-        <ResizeHandle
-          orientation="vertical"
-          value={sidebarWidth}
-          min={SIDEBAR_MIN_WIDTH}
-          max={SIDEBAR_MAX_WIDTH}
-          onChange={setSidebarWidth}
-          label="Redimensionar lista de canais"
-        />
-        <div className={styles.main}>
-          {/* PageClientImpl fica sempre montado — so escondido via CSS quando o
-            painel de texto esta aberto — pra chamada nunca ser interrompida. */}
-          <div
-            className={styles.callLayer}
-            style={{ display: openTextChannel ? 'none' : 'block' }}
-            aria-hidden={openTextChannel ? true : undefined}
-          >
-            <PageClientImpl
-              roomName={props.roomName}
-              region={props.region}
-              hq={props.hq}
-              codec={props.codec}
-              singlePeerConnection={props.singlePeerConnection}
-              username={user?.username}
+      {/* Mesmo motivo do MicProcessorProvider, para outro dado: a sidebar
+          precisa do estado ao vivo de mudo/camera/tela, que so existe dentro
+          do RoomContext. Ver lib/CallStateContext.tsx. */}
+      <CallStateProvider>
+        {/* Precisa envolver a sidebar: no modo teatro ela some, e o estado
+            nasce dentro do CallStage. Ver lib/FullscreenContext.tsx. */}
+        <FullscreenProvider>
+          <div className={styles.shell} data-lk-theme="default">
+            <SidebarSlot
+              user={user}
+              activeChannelSlug={props.roomName}
+              activeTextChannelSlug={openTextChannel?.slug}
+              onSelectTextChannel={handleSelectTextChannel}
+              onLogout={handleLogout}
+              width={sidebarWidth}
+              onWidthChange={setSidebarWidth}
             />
-          </div>
-          {openTextChannel && (
-            <div className={styles.textLayer}>
-              <p className={styles.callBanner}>
-                Chamada de voz continua em andamento em segundo plano. Feche este canal de texto pra
-                voltar pra ela.
-              </p>
-              <TextChannelPanel
-                channelId={openTextChannel.id}
-                channelName={openTextChannel.name}
-                currentUser={user}
-                onClose={closeTextChannel}
-              />
+            <div className={styles.main}>
+              {/* PageClientImpl fica sempre montado — so escondido via CSS quando o
+              painel de texto esta aberto — pra chamada nunca ser interrompida. */}
+              <div
+                className={styles.callLayer}
+                style={{ display: openTextChannel ? 'none' : 'block' }}
+                aria-hidden={openTextChannel ? true : undefined}
+              >
+                <PageClientImpl
+                  roomName={props.roomName}
+                  region={props.region}
+                  hq={props.hq}
+                  codec={props.codec}
+                  singlePeerConnection={props.singlePeerConnection}
+                  username={user?.username}
+                />
+              </div>
+              {openTextChannel && (
+                <div className={styles.textLayer}>
+                  <p className={styles.callBanner}>
+                    Chamada de voz continua em andamento em segundo plano. Feche este canal de texto
+                    pra voltar pra ela.
+                  </p>
+                  <TextChannelPanel
+                    channelId={openTextChannel.id}
+                    channelName={openTextChannel.name}
+                    currentUser={user}
+                    onClose={closeTextChannel}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
-          tela de call ela so competia por espaco com os controles de video
-          (reclamacao original). Por isso so aparece quando o painel de texto
-          esta aberto por cima da chamada, nunca durante a call em si. */}
-        {openTextChannel && <MembersPanel />}
-      </div>
+            {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
+            tela de call ela so competia por espaco com os controles de video
+            (reclamacao original). Por isso so aparece quando o painel de texto
+            esta aberto por cima da chamada, nunca durante a call em si. */}
+            {openTextChannel && <MembersPanel />}
+          </div>
+        </FullscreenProvider>
+      </CallStateProvider>
     </MicProcessorProvider>
+  );
+}
+
+/** Sidebar + alca de redimensionamento. Existe como componente separado
+ * porque precisa CONSUMIR o FullscreenProvider, e quem renderiza o provider
+ * (o RoomShell) nao pode consumi-lo no mesmo componente. No modo teatro
+ * desmonta — a sidebar e a alca somem junto com todo o resto da UI. */
+function SidebarSlot(props: {
+  user: CurrentUser | null;
+  activeChannelSlug: string;
+  activeTextChannelSlug?: string;
+  onSelectTextChannel: (channel: Channel) => void;
+  onLogout: () => void;
+  width: number;
+  onWidthChange: (value: number) => void;
+}) {
+  const fullscreen = useFullscreen();
+  if (fullscreen?.mode === 'theater') {
+    return null;
+  }
+  return (
+    <>
+      <ChannelSidebar
+        user={props.user}
+        activeChannelSlug={props.activeChannelSlug}
+        activeTextChannelSlug={props.activeTextChannelSlug}
+        onSelectTextChannel={props.onSelectTextChannel}
+        onLogout={props.onLogout}
+        widthPx={props.width}
+      />
+      <ResizeHandle
+        orientation="vertical"
+        value={props.width}
+        min={SIDEBAR_MIN_WIDTH}
+        max={SIDEBAR_MAX_WIDTH}
+        onChange={props.onWidthChange}
+        label="Redimensionar lista de canais"
+      />
+    </>
   );
 }
