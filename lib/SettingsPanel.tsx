@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { useMicProcessor } from './MicProcessorContext';
 import { NOISE_LEVELS, noiseLevelDescription, noiseLevelLabel, type NoiseLevel } from './denoise';
 import { GATE_MAX, GATE_MIN, dbToMeterFraction, markGateThresholdTouched } from './micProcessor';
@@ -28,7 +29,24 @@ export function SettingsPanel(props: {
 }) {
   const mic = useMicProcessor();
 
-  return (
+  // PORTAL: o painel e renderizado no <body>, nao no lugar em que aparece na
+  // arvore (dentro da .sidebar). A .sidebar tem `overflow-y: auto`, e por spec
+  // isso torna o `overflow-x` dela `auto` tambem — qualquer coisa mais larga
+  // que a sidebar corre risco de recorte ali dentro. O `position: fixed`
+  // sozinho protege enquanto nenhum ancestral criar containing block (um
+  // `transform`/`filter`/`contain` a mais em qualquer pai da sidebar quebraria
+  // o painel em silencio, sem erro de build). Portalizando, a questao deixa de
+  // existir por construcao.
+  //
+  // O <body> carrega `data-lk-theme="default"` (app/layout.tsx), entao as
+  // variaveis --lk-* continuam resolvendo aqui.
+  const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    // Só depois da montagem: no SSR nao existe `document`.
+    setPortalTarget(document.body);
+  }, []);
+
+  const panel = (
     <div className={styles.panel} role="dialog" aria-label="Configurações">
       <header className={styles.header}>
         <SettingsIcon size={15} />
@@ -77,6 +95,11 @@ export function SettingsPanel(props: {
       </section>
     </div>
   );
+
+  // Antes do efeito de montagem rodar, renderiza no lugar (comportamento
+  // antigo) em vez de nao renderizar nada — o painel so abre por clique, entao
+  // na pratica o alvo ja existe, mas isso evita um frame vazio.
+  return portalTarget ? createPortal(panel, portalTarget) : panel;
 }
 
 type Mic = NonNullable<ReturnType<typeof useMicProcessor>>;

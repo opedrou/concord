@@ -22,7 +22,7 @@
   /* Largura fixa em vez de acompanhar a sidebar: a sidebar e arrastavel (ver
      RoomShell) e pode ficar estreita demais pro medidor e pros quatro botoes
      do seletor. `max-width` cobre o caso oposto, tela pequena. */
-  width: 19rem;
+  width: 20rem;
   max-width: calc(100vw - 1.5rem);
   padding: 0.85rem;
   border-radius: var(--lk-border-radius);
@@ -33,6 +33,16 @@
      estourar pra fora da viewport. */
   max-height: min(32rem, calc(100vh - 6rem));
   overflow-y: auto;
+  /* EXPLICITO de proposito. `overflow-y: auto` sozinho faz o `overflow-x`
+     computar pra `auto` tambem (spec), e ai o proprio painel virava o clipper
+     do proprio conteudo: qualquer coisa 1px mais larga que a content box era
+     recortada na direita, com barra de rolagem horizontal invisivel (overlay
+     scrollbars). Era essa a causa do painel "cortado". */
+  overflow-x: hidden;
+  /* Reserva o espaco da barra de rolagem vertical o tempo todo. Sem isso, a
+     largura util encolhia ~15px no momento em que a barra aparecia — e o
+     painel e alto o bastante pra ela aparecer quase sempre. */
+  scrollbar-gutter: stable;
 }
 
 .header {
@@ -86,7 +96,11 @@
    tem a mesma largura e a fileira nao dança quando o rotulo muda. */
 .segmented {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* `minmax(0, 1fr)`, nao `1fr`: `1fr` e `minmax(auto, 1fr)`, ou seja cada
+     coluna tem piso de min-content — a palavra inteira ("Desligada",
+     "Navegador"). Com isso a fileira nao conseguia encolher e estourava a
+     largura do painel. Com o piso zerado ela acompanha o container. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2px;
   padding: 2px;
   border-radius: 0.375rem;
@@ -94,14 +108,20 @@
 }
 
 .segment {
-  padding: 0.35rem 0.2rem;
+  padding: 0.35rem 0.15rem;
   border: none;
   border-radius: 0.25rem;
   background: transparent;
   color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   line-height: 1.2;
   cursor: pointer;
+  /* Rotulo e uma palavra so; sem isso "Desligada" quebraria em duas linhas
+     quando a coluna aperta, e as quatro pilulas ficariam de alturas
+     diferentes. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .segment:hover {
