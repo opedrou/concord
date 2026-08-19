@@ -47,8 +47,13 @@ export type NoiseLevel = 'off' | 'browser' | 'rnnoise' | 'gtcrn';
 
 export const NOISE_LEVEL_STORAGE_KEY = 'concord-denoise-model';
 
-/** Padrao: RNNoise. Barata (1-3% de CPU) e com anos de rodagem em producao no
- * Jitsi Meet. GTCRN e melhor mas mais pesada — fica como escolha explicita. */
+/** Padrao: RNNoise. Barata e com anos de rodagem em producao no Jitsi Meet.
+ *
+ * Custo medido (Chrome/Linux, i7 de 12 nucleos, thread "Realtime AudioWorklet"
+ * isolada via /proc, descontado o piso de 0,97% do grafo Web Audio do gate):
+ * RNNoise 1,7% de um nucleo, GTCRN 4,6% — ou seja 2,7x, nao a ordem de
+ * grandeza que se supunha. Os dois sao viaveis; GTCRN fica como escolha
+ * explicita por ser mais recente e ter menos rodagem, nao por custo. */
 export const DEFAULT_NOISE_LEVEL: NoiseLevel = 'rnnoise';
 
 export const NOISE_LEVELS: NoiseLevel[] = ['off', 'browser', 'rnnoise', 'gtcrn'];
@@ -101,9 +106,9 @@ export function noiseLevelDescription(level: NoiseLevel): string {
     case 'browser':
       return 'Supressão nativa do navegador. Boa para ruído constante (ventoinha, chiado), não pega teclado.';
     case 'rnnoise':
-      return 'Rede neural leve. Remove teclado, mouse e batidas na mesa. Custa 1–3% de CPU.';
+      return 'Rede neural leve. Remove teclado, mouse e batidas na mesa. Custa ~2% de um núcleo.';
     case 'gtcrn':
-      return 'Rede neural mais forte, melhor resultado e mais CPU. Se a máquina engasgar, volte para RNNoise.';
+      return 'Rede neural mais forte, melhor resultado. Custa ~5% de um núcleo — 2,7x a RNNoise.';
     case 'off':
     default:
       return 'Nenhum processamento — o microfone vai cru para a chamada.';
