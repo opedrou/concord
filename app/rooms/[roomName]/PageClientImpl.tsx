@@ -9,7 +9,7 @@ import { CallStage } from '@/lib/CallStage';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
 import { encodingFor, loadQualityPref } from '@/lib/screenShareQuality';
 import { buildAudioCaptureConstraints } from '@/lib/noiseSuppression';
-import { levelToDenoiseModel, loadNoiseLevelPref } from '@/lib/denoise';
+import { createAudioContextForDenoise, levelToDenoiseModel, loadNoiseLevelPref } from '@/lib/denoise';
 import { MicProcessorBinder } from '@/lib/MicProcessorBinder';
 import { CallStateBinder } from '@/lib/CallStateBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
@@ -275,7 +275,15 @@ function VideoConferenceComponent(props: {
       // Sem audioContext, RemoteAudioTrack.setVolume cai em `el.volume` do
       // <audio>, que o navegador clampa em 1.0 e o boost nao tem efeito.
       // Com webAudioMix a track usa um GainNode, cujo gain aceita > 1.
-      webAudioMix: true,
+      //
+      // Passamos nosso proprio AudioContext em vez de deixar o LiveKit criar
+      // um com a taxa "nativa" do SO: forcamos 48kHz aqui (ver
+      // createAudioContextForDenoise em lib/denoise.ts) porque a saida de
+      // audio Bluetooth no Windows costuma travar em 44.1kHz, o que deixava a
+      // reducao de ruido neural (RNNoise/GTCRN) sempre indisponivel pra quem
+      // usa fone Bluetooth. O navegador reamostra isso na borda sem custo
+      // perceptivel.
+      webAudioMix: { audioContext: createAudioContextForDenoise() ?? new AudioContext() },
       e2ee: keyProvider && worker && e2eeEnabled ? { keyProvider, worker } : undefined,
       singlePeerConnection: props.options.singlePeerConnection,
     };
