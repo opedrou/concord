@@ -19,6 +19,7 @@ administração e uma tela de chamada recomposta do zero.
 | **Presença** | Você vê quem está dentro de cada canal **sem precisar entrar**. |
 | **Canais de texto** | Histórico persistente, entrega em tempo real por SSE. |
 | **Compartilhamento de tela** | 1080p30 por padrão, com qualidade selecionável e áudio quando o navegador permite. |
+| **Redução de ruído** | Escala de 4 níveis: desligada, navegador (nativo), RNNoise, máxima (GTCRN). |
 | **Áudio por pessoa** | Volume individual (voz e áudio de tela separados) com curva perceptual, e "mutar só pra mim". |
 | **Perfil** | Foto de perfil e troca da própria senha. |
 | **Admin** | Gerenciar pessoas e canais pela UI. |
@@ -189,13 +190,17 @@ lib/
   CallParticipantTile.tsx                     tela de chamada
   ChannelSidebar.tsx, MembersPanel.tsx,
   TextChannelPanel.tsx                        navegação e texto
-  ParticipantAudioPanel.tsx,
-  noiseSuppression.ts, useSpeakingIndicator.ts  áudio
+  ParticipantAudioPanel.tsx, micProcessor.ts,
+  denoise.ts, noiseSuppression.ts,
+  MicProcessorContext.tsx, MicProcessorBinder.tsx,
+  SettingsPanel.tsx, useSpeakingIndicator.ts  áudio
+  screenShareQuality.ts, ScreenShareQualityControl.tsx  qualidade de tela
+  icons.tsx                                   ícones SVG
 ```
 
-### Duas decisões que valem conhecer antes de mexer
+### Três decisões que valem conhecer antes de mexer
 
-**A tela de chamada não usa `<VideoConference>`.** Ela é composta à mão
+**1. A tela de chamada não usa `<VideoConference>`.** Ela é composta à mão
 (`CallStage` + `CallControlBar` + `CallParticipantTile`) porque aquele
 componente não permite customizar o tile do participante nem injetar controles
 na barra — e precisávamos das duas coisas. Só é usada API pública da biblioteca.
@@ -206,9 +211,18 @@ de graça dentro do `<VideoConference>`; ao compor à mão, virou responsabilida
 nossa. **Se ele sumir, ninguém ouve ninguém** — e nenhum teste de tipo ou build
 vai acusar isso.
 
-**`webAudioMix: true` nas `RoomOptions` não é enfeite.** Sem `audioContext`, o
+**2. `webAudioMix: true` nas `RoomOptions` não é enfeite.** Sem `audioContext`, o
 `setVolume` cai no `volume` do elemento `<audio>`, que o navegador limita a
 1.0 — e o volume por participante deixa de passar de 100%.
+
+**3. Separação de contexto + binder headless + UI burra do processador de áudio.**
+O processador (gate + denoise) não pode morrer quando o painel de configurações
+fecha. Por isso ele vive em três peças: `MicProcessorContext.tsx` mantém o
+estado (provider em `RoomShell`, acima de tudo), `MicProcessorBinder.tsx` é
+headless e dono do processador (dentro de `RoomContext`, onde pode chamar
+`useLocalParticipant()`), e `SettingsPanel.tsx` é UI pura e livre para montar/
+desmontar. Não mover lógica de áudio para dentro do painel — o binder é que
+segura o processador.
 
 ---
 
@@ -216,10 +230,15 @@ vai acusar isso.
 
 - **Uma réplica só.** O barramento de mensagens do chat é em memória; escalar
   para múltiplas réplicas quebra a entrega em tempo real.
-- **Supressão de ruído é só a do navegador** (`noiseSuppression`,
-  `echoCancellation`, `autoGainControl`, `voiceIsolation`). O
-  `@livekit/krisp-noise-filter` está nas dependências mas **só funciona no
-  LiveKit Cloud** — numa instância self-hosted ele se desliga sozinho.
+- **Redução de ruído não foi validada de ouvido.** Os quatro níveis
+  (desligada / navegador / RNNoise / máxima) rodam e o custo de CPU está medido
+  — RNNoise 1,7% de um núcleo, GTCRN 4,6% — mas ninguém verificou ainda se o
+  barulho de teclado de fato some. Só dá para julgar com um segundo dispositivo
+  na call: o app não tem retorno do próprio microfone.
+- **`@livekit/krisp-noise-filter` ainda está nas dependências e ninguém o
+  importa.** Ele **só funciona no LiveKit Cloud** — numa instância self-hosted
+  se desliga sozinho, e foi por isso que a redução de ruído virou modelo próprio
+  em WASM. Candidato a remoção.
 - **Áudio no compartilhamento de tela depende do navegador**, não do código:
   Chrome/Edge no Windows compartilham sistema ou aba; Chrome no Linux **só
   aba**; Firefox não suporta. O app avisa quando a faixa de áudio não foi

@@ -15,7 +15,7 @@ No Coolify, na aba **Storages** da aplicação:
 - Tipo: **Volume Mount** (volume nomeado gerenciado pelo Docker — **não** use
   "Directory Mount"/bind mount de um caminho do host).
 - Destination Path (dentro do container): **`/data`**
-- Nome: qualquer um, ex. `call-selfhost-data`
+- Nome: qualquer um, ex. `concord-data`
 
 Por que volume nomeado e não bind mount de diretório do host: o Dockerfile já
 cria `/data` na imagem com dono `nextjs:nodejs` (o container roda como
@@ -66,7 +66,7 @@ participantes e `/api/channels` pra cadastrar os canais de voz.
 ## 4. Deploy
 
 Sem mudança em relação ao que já estava documentado no `HANDOFF.md`: fonte
-continua sendo o repo privado `call-selfhost`, Base Directory `/`, Dockerfile
+continua sendo o repo privado `concord`, Base Directory `/`, Dockerfile
 Location `/Dockerfile`, porta do container `3000`.
 
 Depois de configurar volume + `SESSION_SECRET` (+ `ADMIN_USERNAME`/
