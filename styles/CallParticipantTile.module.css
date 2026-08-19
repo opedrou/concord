@@ -25,3 +25,64 @@
      (que pode ser <img> ou <div> de iniciais) precisa do proprio tamanho. */
   padding: 10%;
 }
+
+/* Anel de "esta falando": acelera o APAGAR.
+
+   A regra base do @livekit/components-styles e
+   `.lk-participant-tile::after { transition-delay: .5s; transition-duration: .4s }`,
+   e ela vale so na volta pra `data-lk-speaking=false` — acender tem regra
+   propria (`[data-lk-speaking=true]:not([data-lk-source=screen_share])::after`)
+   com `delay: 0s; duration: .2s`. O apagar lento e anti-flicker deliberado da
+   lib, mas empilhava com o nosso: 150ms de holdMs (useSpeakingIndicator) +
+   500ms de delay + 400ms de fade = ~1,05s pro anel sumir, o que fazia a call
+   parecer travada. Aqui fica ~0,3s, e o holdMs passa a ser o unico
+   anti-flicker — que basta, porque e exatamente pra isso que ele existe (ver
+   DEFAULT_HOLD_MS em lib/useSpeakingIndicator.ts). Se voltar a piscar entre
+   palavras, o parametro a subir e o holdMs, nao estes tempos.
+
+   CLASSE DOBRADA DE PROPOSITO: `.tile::after` sozinho tem a MESMA
+   especificidade de `.lk-participant-tile::after`, entao quem ganha
+   dependeria da ordem de injecao das folhas de estilo — fragil e silencioso
+   se mudar. `.tile.tile` sobe a especificidade e vence de forma
+   deterministica. */
+.tile.tile::after {
+  transition-delay: 0s;
+  transition-duration: 0.15s;
+}
+
+/* Botao "ver em tela cheia". Fica ao lado do <FocusToggle> do LiveKit, que o
+   CSS da lib posiciona em `top: .25rem; right: .25rem` com `opacity: 0` ate o
+   hover do tile — aqui so replicamos esse comportamento deslocado pra
+   esquerda, pros dois nao se sobreporem. */
+.expandButton {
+  position: absolute;
+  top: 0.25rem;
+  right: 2.25rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  border: none;
+  border-radius: var(--lk-border-radius, 0.5rem);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--lk-fg, #fff);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  line-height: 0;
+}
+
+.tile:hover .expandButton,
+.expandButton:focus-visible {
+  opacity: 1;
+}
+
+.expandButton:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.expandButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 1px;
+}
