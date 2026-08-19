@@ -1,0 +1,151 @@
+/* Sensibilidade de entrada do microfone — mesma familia visual dos outros
+   popovers da barra de controle (ver ScreenShareQualityControl.module.css):
+   nada de position fixed/z-index proprios, quem posiciona e o container pai
+   (CallControlBar.tsx). */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 15rem;
+  max-width: 100%;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--lk-fg, #fff);
+}
+
+.labelText {
+  white-space: nowrap;
+}
+
+/* O medidor: uma trilha com duas cores (abaixo/acima do limiar, como no
+   "Input Sensitivity" do Discord) mais uma mascara que cobre a parte ainda
+   nao alcancada pelo nivel ao vivo do microfone. A "bolinha" que define o
+   limiar e o thumb do <input type=range> por cima, invisivel exceto pelo
+   proprio thumb. */
+.meter {
+  position: relative;
+  height: 1.15rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--lk-bg4, #2a2a2a);
+}
+
+.meterGradient {
+  position: absolute;
+  inset: 0;
+  /* Corte duro no ponto do limiar: cinza (nao passa) antes, verde (passa)
+     depois. --mic-gate-threshold vem do wrapper React via style inline. */
+  background: linear-gradient(
+    to right,
+    var(--lk-fg4, #7a7a7a) 0%,
+    var(--lk-fg4, #7a7a7a) var(--mic-gate-threshold, 12%),
+    var(--lk-accent-bg, #1fd57c) var(--mic-gate-threshold, 12%),
+    var(--lk-accent-bg, #1fd57c) 100%
+  );
+}
+
+/* Cobre da direita ate o nivel ao vivo mais recente — o que sobra visivel a
+   esquerda da mascara e o "quanto o microfone esta captando agora". Atualizada
+   via ref direto no JS (sem re-render do React a cada tick — ver
+   MicGateControl.tsx), so enquanto o popover esta aberto. */
+.meterMask {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: var(--mic-gate-level, 0%);
+  background: var(--lk-bg4, #2a2a2a);
+}
+
+.rangeInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rangeInput:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* Trilha totalmente transparente — quem desenha a trilha visivel sao os dois
+   divs abaixo dela (.meterGradient/.meterMask); o input so contribui com o
+   thumb arrastavel. */
+.rangeInput::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+}
+
+.rangeInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.9rem;
+  height: 1.5rem;
+  margin-top: -0.2rem;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid var(--lk-border-color, #000);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+}
+
+.rangeInput::-moz-range-track {
+  background: transparent;
+  height: 100%;
+}
+
+.rangeInput::-moz-range-thumb {
+  width: 0.9rem;
+  height: 1.5rem;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid var(--lk-border-color, #000);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--lk-fg4, #b0b0b0);
+}
+
+.warning {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--lk-danger, #f5a524);
+}
+
+@media (max-width: 640px) {
+  .wrapper {
+    width: 12rem;
+  }
+
+  .labelText {
+    display: none;
+  }
+
+  /* Area de toque maior no celular — arrastar um thumb de 1px de trilha e
+     dificil com dedo; a trilha inteira ja e clicavel gracas ao input cobrir
+     100% da altura do medidor, isso so engorda o alvo do thumb. */
+  .rangeInput::-webkit-slider-thumb {
+    width: 1.1rem;
+  }
+
+  .rangeInput::-moz-range-thumb {
+    width: 1.1rem;
+  }
+}

@@ -5,6 +5,7 @@ import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { RoomEvent, Track } from 'livekit-client';
 import {
   buildAudioCaptureConstraints,
+  isMonitorDevice,
   loadNoiseSuppressionPref,
   NoiseSuppressionTier,
   readAppliedTier,
@@ -59,7 +60,7 @@ export function NoiseSuppressionControl() {
     // Dispositivo tipo "Monitor of ..." (PipeWire, workaround do HANDOFF pra
     // levar audio de jogo pelo canal de voz) — reducao de ruido agressiva
     // mutila esse audio. So avisamos, a pessoa decide desligar.
-    setMonitorDeviceHint(/monitor of/i.test(mst.label ?? ''));
+    setMonitorDeviceHint(isMonitorDevice(mst.label));
   }, []);
 
   // Aplica a preferencia atual sempre que a track de microfone (re)aparece —

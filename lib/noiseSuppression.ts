@@ -89,6 +89,17 @@ export function buildAudioCaptureConstraints(enabled: boolean): AudioCaptureOpti
   } as AudioCaptureOptions;
 }
 
+/**
+ * Detecta o device "Monitor of ..." do PipeWire (workaround do HANDOFF secao
+ * 4 pra levar audio de jogo pelo canal de voz no Linux). Compartilhado com
+ * `lib/micGate.ts`: tanto a reducao de ruido quanto o gate de sensibilidade
+ * destroem esse audio se aplicados com força — os dois precisam da mesma
+ * deteccao, entao ela mora aqui, num lugar so.
+ */
+export function isMonitorDevice(label: string | undefined | null): boolean {
+  return /monitor of/i.test(label ?? '');
+}
+
 export type NoiseSuppressionTier = 'advanced' | 'browser' | 'unavailable' | 'off';
 
 /** Le o que o navegador REALMENTE aplicou na track (nao o que pedimos). */
