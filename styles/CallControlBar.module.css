@@ -15,17 +15,10 @@
   row-gap: 0.5rem;
 }
 
-.screenShareGroup,
-.settingsGroup {
+.screenShareGroup {
   position: relative;
   display: flex;
   align-items: center;
-}
-
-.settingsButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .popoverBackdrop {
@@ -35,8 +28,7 @@
   background: transparent;
 }
 
-.qualityPopover,
-.audioSettingsPopover {
+.qualityPopover {
   position: absolute;
   bottom: calc(100% + 0.5rem);
   right: 0;
@@ -48,28 +40,8 @@
   box-shadow: var(--lk-box-shadow);
 }
 
-.audioSettingsPopover {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
-  width: max-content;
-  max-width: min(20rem, 90vw);
-}
-
-/* O popover de audio continua MONTADO com a gaveta fechada (o gate e a
-   reducao de ruido precisam seguir aplicados na track) — some so visualmente,
-   sem ocupar espaco nem receber foco. */
-.hidden {
-  display: none;
-}
-
 @media (max-width: 640px) {
   .qualityPopover {
-    right: -2.5rem;
-  }
-
-  .audioSettingsPopover {
     right: -2.5rem;
   }
 }

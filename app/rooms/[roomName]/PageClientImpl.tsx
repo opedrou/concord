@@ -8,7 +8,9 @@ import { AlertTriangleIcon, MicOffIcon, Volume2Icon, VideoIcon } from '@/lib/ico
 import { CallStage } from '@/lib/CallStage';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
 import { encodingFor, loadQualityPref } from '@/lib/screenShareQuality';
-import { buildAudioCaptureConstraints, loadNoiseSuppressionPref } from '@/lib/noiseSuppression';
+import { buildAudioCaptureConstraints } from '@/lib/noiseSuppression';
+import { levelToDenoiseModel, loadNoiseLevelPref } from '@/lib/denoise';
+import { MicProcessorBinder } from '@/lib/MicProcessorBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
 import preJoinStyles from '@/styles/PreJoinUsername.module.css';
@@ -247,6 +249,10 @@ function VideoConferenceComponent(props: {
       red: !e2eeEnabled,
       videoCodec,
     };
+    // Nivel de reducao de ruido salvo, so pro estado INICIAL da captura. A
+    // partir daqui quem manda e o <MicProcessorBinder />.
+    const initialNoiseLevel = loadNoiseLevelPref();
+    const initialDenoiseModel = levelToDenoiseModel(initialNoiseLevel);
     return {
       videoCaptureDefaults: videoCaptureDefaults,
       publishDefaults: publishDefaults,
@@ -256,10 +262,11 @@ function VideoConferenceComponent(props: {
         // antes so o deviceId ia pro getUserMedia, ou seja nada disso estava
         // ligado explicitamente (o navegador aplica os proprios defaults, que
         // variam). A preferencia e lida 1x aqui pro estado inicial da track;
-        // o <NoiseSuppressionControl /> reaplica em runtime via
-        // applyConstraints quando a pessoa liga/desliga, sem precisar
-        // reconectar. Ver lib/noiseSuppression.ts pro racional das camadas.
-        ...buildAudioCaptureConstraints(loadNoiseSuppressionPref()),
+        // o <MicProcessorBinder /> reaplica em runtime via applyConstraints
+        // quando a pessoa muda o nivel no painel, sem precisar reconectar.
+        // Ver lib/noiseSuppression.ts pro racional das camadas nativas e
+        // lib/denoise.ts pra camada neural.
+        ...buildAudioCaptureConstraints(initialNoiseLevel !== 'off', initialDenoiseModel !== 'off'),
       },
       adaptiveStream: true,
       dynacast: true,
@@ -566,6 +573,12 @@ function VideoConferenceComponent(props: {
     <div className="lk-room-container">
       <RoomContext.Provider value={room}>
         <KeyboardShortcuts />
+        {/* Sem UI: e o dono do processamento do microfone (reducao de ruido +
+            gate). Precisa estar AQUI DENTRO pra ter acesso aos hooks do
+            LiveKit, e precisa estar sempre montado pra o processamento nao
+            depender do painel de configuracoes estar aberto. Ver
+            lib/MicProcessorContext.tsx. */}
+        <MicProcessorBinder />
         <CallStage chatMessageFormatter={formatChatMessageLinks} onDeviceError={handleDeviceError} />
         <DebugMode />
         <RecordingIndicator />

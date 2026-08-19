@@ -1,22 +1,40 @@
 import type { AudioProcessorOptions, Room, TrackProcessor } from 'livekit-client';
 import { Track } from 'livekit-client';
+import {
+  createDenoiseNode,
+  isAudioWorkletSupported,
+  isSampleRateSupported,
+  type DenoiseModel,
+  type DenoiseNode,
+} from './denoise';
 
 // ---------------------------------------------------------------------------
-// Sensibilidade de entrada do microfone (noise gate) — estilo "Input
-// Sensitivity" do Discord.
+// Processamento do microfone antes de publicar: reducao de ruido neural +
+// sensibilidade de entrada (noise gate), estilo "Input Sensitivity" do Discord.
 // ---------------------------------------------------------------------------
 //
-// O jeito ERRADO seria ligar/desligar a track (`setMicrophoneEnabled`)
-// conforme o nivel de audio: isso republica a track a cada vez, dispara
-// renegociacao e faz o icone de "mutado" piscar pra todo mundo na sala. O
-// caminho certo é processar o audio ANTES de publicar, via
+// O jeito ERRADO de fazer o gate seria ligar/desligar a track
+// (`setMicrophoneEnabled`) conforme o nivel de audio: isso republica a track a
+// cada vez, dispara renegociacao e faz o icone de "mutado" piscar pra todo
+// mundo na sala. O caminho certo é processar o audio ANTES de publicar, via
 // `LocalAudioTrack.setProcessor()` (API `@experimental` mas publica — ver
 // node_modules/livekit-client/dist/src/track/processor/types.d.ts). A cadeia
 // e Web Audio pura:
 //
-//   MediaStreamSource -> AnalyserNode (mede o nivel) -> GainNode (aplica o
-//   gate) -> MediaStreamDestination (vira a track processada, publicada no
-//   lugar da original)
+//   MediaStreamSource
+//     -> [no de denoise]  (RNNoise/GTCRN em WASM, opcional — ver lib/denoise.ts)
+//     -> AnalyserNode     (mede o nivel)
+//     -> GainNode         (aplica o gate)
+//     -> MediaStreamDestination (vira a track processada, publicada no lugar
+//        da original)
+//
+// O denoise vem ANTES do analyser de proposito: assim o gate decide em cima do
+// audio JA LIMPO. Sem isso, um clique de teclado sozinho abre o gate — que era
+// exatamente um dos sintomas do problema original.
+//
+// Por que gate e denoise moram no MESMO processor: o LiveKit aceita um unico
+// `TrackProcessor` por track, entao nao dá pra ter um objeto pra cada. Um dono
+// so, uma cadeia so.
 //
 // O AudioContext usado é o que o proprio `setProcessor` passa em
 // `opts.audioContext` — NAO criamos um novo. Esse é o mesmo AudioContext que
@@ -84,7 +102,7 @@ const RELEASE_RAMP_MS = 220;
 // pra rodar o tempo todo, independente do painel estar aberto ou fechado —
 // ISSO aqui precisa continuar rodando sempre (é o gate em si funcionando).
 // O que para quando o painel fecha e so o REDESENHO do medidor visual (ver
-// MicGateControl.tsx), nao essa analise.
+// SettingsPanel.tsx), nao essa analise.
 const TICK_MS = 30;
 
 /** Converte o valor do slider (0-100) pro limiar de FECHAMENTO em dBFS. */
@@ -128,7 +146,7 @@ export function saveGateThresholdPref(value: number) {
 /** Marca (numa chave separada) que essa preferencia ja foi definida por uma
  * escolha explicita da pessoa nesse navegador — usado so pra decidir se
  * vale a pena forcar o gate desligado automaticamente no caso do device
- * "Monitor of ..." (ver MicGateControl.tsx): so forcamos na PRIMEIRA vez,
+ * "Monitor of ..." (ver MicProcessorBinder.tsx): so forcamos na PRIMEIRA vez,
  * nunca por cima de uma escolha que a pessoa ja fez antes. */
 const GATE_TOUCHED_KEY = 'concord-mic-gate-touched';
 export function hasGateThresholdBeenSetExplicitly(): boolean {
@@ -154,22 +172,36 @@ export interface MicGateLiveState {
   open: boolean;
 }
 
+/** Por que a camada neural nao esta ativa, quando nao esta. */
+export type DenoiseStatus =
+  | 'active'
+  | 'off'
+  | 'loading'
+  /** Navegador sem AudioWorklet. */
+  | 'unsupported'
+  /** AudioContext do LiveKit nao esta a 48kHz (ver lib/denoise.ts). */
+  | 'wrong-sample-rate'
+  /** WASM ou worklet falharam ao carregar/instanciar. */
+  | 'failed';
+
 /**
- * `TrackProcessor` de audio que implementa o gate. Cadeia de nós Web Audio:
+ * `TrackProcessor` de audio que implementa denoise + gate. Cadeia de nós Web
+ * Audio:
  *
  *   source (MediaStreamSource da track crua)
- *     -> analyser (só mede, não altera o sinal — fica em paralelo/série
- *        antes do gain, tanto faz pra medição já que não altera amplitude)
+ *     -> denoise (RNNoise/GTCRN, opcional — pode ser trocado em runtime)
+ *     -> analyser (só mede, não altera o sinal)
  *     -> gain (o gate propriamente dito: ataca rápido, solta devagar)
  *     -> destination (MediaStreamDestination — o `.stream` dela vira
  *        `processedTrack`, que o LiveKit publica no lugar da track crua)
  *
- * `threshold` (0-100, mesma escala do slider) pode ser trocado em runtime
- * via `setThreshold` sem reconstruir a cadeia — só muda o número que o loop
- * de decisão compara.
+ * `threshold` (0-100, mesma escala do slider) e o modelo de denoise podem ser
+ * trocados em runtime, via `setThreshold`/`setDenoise`, sem reconstruir a
+ * cadeia inteira — `destNode` em particular NUNCA e recriado, porque trocar
+ * ele trocaria a `processedTrack` e forçaria republicação da faixa.
  */
-export class MicGateProcessor implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {
-  readonly name = 'concord-mic-gate';
+export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {
+  readonly name = 'concord-mic-processor';
   processedTrack?: MediaStreamTrack;
 
   private threshold: number;
@@ -178,6 +210,15 @@ export class MicGateProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
   private analyser?: AnalyserNode;
   private gainNode?: GainNode;
   private destNode?: MediaStreamAudioDestinationNode;
+
+  private denoiseModel: DenoiseModel;
+  private denoise?: DenoiseNode;
+  private denoiseStatus: DenoiseStatus = 'off';
+  // Contador de geracao pra resolver corrida: `setDenoise` e assincrono (carrega
+  // WASM), e a pessoa pode trocar o seletor tres vezes em um segundo. Quando uma
+  // carga termina e a geracao mudou, o nó recem-criado e descartado em vez de
+  // entrar na cadeia.
+  private denoiseGeneration = 0;
   // `Float32Array<ArrayBuffer>` explicito, nao so `Float32Array`: a partir do
   // TS 5.7 o tipo virou generico sobre o buffer e o default e
   // `ArrayBufferLike`, que inclui `SharedArrayBuffer`. O
@@ -191,17 +232,115 @@ export class MicGateProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
   private closing = false;
 
   /** Callback opcional, chamado a cada tick com o estado atual — é assim que
-   * a UI (MicGateControl) le o nivel ao vivo sem precisar de um segundo
+   * a UI (SettingsPanel) le o nivel ao vivo sem precisar de um segundo
    * AnalyserNode/loop proprio. Setar/limpar é barato, então a UI só o define
    * enquanto o popover está aberto. */
   onLevel?: (state: MicGateLiveState) => void;
 
-  constructor(initialThreshold: number) {
+  /** Chamado sempre que o status da camada neural muda — é como a UI mostra
+   * "carregando", "indisponível neste navegador" ou o fallback silencioso
+   * depois de uma falha, sem ficar consultando. */
+  onDenoiseStatus?: (status: DenoiseStatus) => void;
+
+  constructor(initialThreshold: number, initialDenoise: DenoiseModel) {
     this.threshold = initialThreshold;
+    this.denoiseModel = initialDenoise;
   }
 
   setThreshold(value: number) {
     this.threshold = Math.min(GATE_MAX, Math.max(GATE_MIN, value));
+  }
+
+  getDenoiseStatus(): DenoiseStatus {
+    return this.denoiseStatus;
+  }
+
+  private setDenoiseStatus(status: DenoiseStatus) {
+    if (this.denoiseStatus === status) return;
+    this.denoiseStatus = status;
+    this.onDenoiseStatus?.(status);
+  }
+
+  /**
+   * Troca (ou remove) o modelo de reducao de ruido em runtime. Reconecta
+   * apenas o trecho `source -> ? -> analyser`; o resto da cadeia fica de pé,
+   * então não há corte de áudio nem republicação da track.
+   *
+   * Falha aqui NUNCA propaga: se o WASM não carregar, a cadeia volta a ligar
+   * `source` direto no `analyser` e a pessoa continua sendo ouvida, só sem a
+   * camada neural.
+   */
+  async setDenoise(model: DenoiseModel): Promise<void> {
+    this.denoiseModel = model;
+    const generation = ++this.denoiseGeneration;
+
+    // Sem cadeia montada ainda (setDenoise antes do init): guarda a escolha,
+    // o init aplica.
+    if (!this.audioContext || !this.sourceNode || !this.analyser) {
+      return;
+    }
+
+    this.detachDenoise();
+
+    if (model === 'off') {
+      this.sourceNode.connect(this.analyser);
+      this.setDenoiseStatus('off');
+      return;
+    }
+    if (!isAudioWorkletSupported()) {
+      this.sourceNode.connect(this.analyser);
+      this.setDenoiseStatus('unsupported');
+      return;
+    }
+    if (!isSampleRateSupported(this.audioContext)) {
+      this.sourceNode.connect(this.analyser);
+      this.setDenoiseStatus('wrong-sample-rate');
+      return;
+    }
+
+    // Enquanto o WASM carrega (primeira ativação; depois vem do cache), o áudio
+    // segue passando cru em vez de ficar mudo esperando.
+    this.sourceNode.connect(this.analyser);
+    this.setDenoiseStatus('loading');
+
+    let created: DenoiseNode;
+    try {
+      created = await createDenoiseNode(this.audioContext, model);
+    } catch {
+      if (generation === this.denoiseGeneration) {
+        this.setDenoiseStatus('failed');
+      }
+      return;
+    }
+
+    // A pessoa trocou de modelo (ou o processor morreu) enquanto carregava —
+    // joga fora o nó recém-criado em vez de plugar um modelo que já não é o
+    // escolhido.
+    if (generation !== this.denoiseGeneration || !this.sourceNode || !this.analyser) {
+      created.destroy();
+      return;
+    }
+
+    this.sourceNode.disconnect(this.analyser);
+    this.sourceNode.connect(created.node);
+    created.node.connect(this.analyser);
+    this.denoise = created;
+    this.setDenoiseStatus('active');
+  }
+
+  /** Tira o nó de denoise da cadeia e libera a instância WASM do worklet.
+   * Deixa `source` desconectado — quem chama religa como precisar. */
+  private detachDenoise() {
+    this.sourceNode?.disconnect();
+    if (this.denoise) {
+      try {
+        this.denoise.node.disconnect();
+      } catch {
+        // Já desconectado — limpeza redundante, não é erro.
+      }
+      this.denoise.destroy();
+      this.denoise = undefined;
+    }
   }
 
   async init(opts: AudioProcessorOptions): Promise<void> {
@@ -224,13 +363,18 @@ export class MicGateProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
 
     this.destNode = ctx.createMediaStreamDestination();
 
-    this.sourceNode.connect(this.analyser);
     this.analyser.connect(this.gainNode);
     this.gainNode.connect(this.destNode);
 
     this.processedTrack = this.destNode.stream.getAudioTracks()[0];
 
     this.tickHandle = setInterval(() => this.tick(), TICK_MS);
+
+    // Fecha a cadeia ligando `source` no `analyser` — com ou sem denoise no
+    // meio, conforme o modelo escolhido. Deliberadamente sem `await`: o publish
+    // da track não pode ficar esperando o download do WASM, e enquanto ele não
+    // chega o áudio já passa cru (ver setDenoise).
+    void this.setDenoise(this.denoiseModel);
   }
 
   async restart(opts: AudioProcessorOptions): Promise<void> {
@@ -325,6 +469,11 @@ export class MicGateProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
       clearInterval(this.tickHandle);
       this.tickHandle = undefined;
     }
+    // Invalida qualquer carga de denoise em voo: se o WASM chegar depois daqui,
+    // o nó criado é descartado em vez de ser plugado numa cadeia morta.
+    this.denoiseGeneration++;
+    this.detachDenoise();
+    this.denoiseStatus = 'off';
     try {
       this.sourceNode?.disconnect();
       this.analyser?.disconnect();

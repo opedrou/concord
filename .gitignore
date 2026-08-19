@@ -42,3 +42,10 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# worklets + wasm da reducao de ruido — copiados de node_modules pelo
+# `prebuild`/`predev` (scripts/copy-noise-suppressor.mjs), nunca editados a mao
+/public/noise-suppressor/
+
+# notas de contexto da sessao de implementacao — local, nao vai pro repo
+/CONTEXTO-REDUCAO-RUIDO.md

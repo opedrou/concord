@@ -12,10 +12,8 @@ import {
   TrackToggle,
   useMaybeLayoutContext,
 } from '@livekit/components-react';
-import { ChevronDownIcon, ChevronRightIcon, SettingsIcon } from '@/lib/icons';
+import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
-import { MicGateControl } from '@/lib/MicGateControl';
-import { NoiseSuppressionControl } from '@/lib/NoiseSuppressionControl';
 import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
 import styles from '../styles/CallControlBar.module.css';
 
@@ -38,7 +36,6 @@ export function CallControlBar(props: {
 }) {
   const layoutContext = useMaybeLayoutContext();
   const [qualityOpen, setQualityOpen] = React.useState(false);
-  const [audioSettingsOpen, setAudioSettingsOpen] = React.useState(false);
 
   return (
     <div className={`lk-control-bar ${styles.bar}`}>
@@ -99,43 +96,11 @@ export function CallControlBar(props: {
         <ChatIcon />
       </ChatToggle>
 
-      {/* Ajustes de áudio (sensibilidade de entrada + redução de ruído)
-          escondidos atrás do botão de engrenagem. Antes a sensibilidade tinha
-          chevron próprio dentro do grupo do microfone e a redução de ruído era
-          um botão com rótulo longo ("Redução de ruído: indisponível neste
-          navegador") — os dois juntos estouravam a largura da barra e
-          empurravam o resto dos controles pra fora do lugar. Aqui a barra
-          volta a ser só botões do mesmo tamanho, e quem quer mexer nos
-          parâmetros abre a engrenagem.
-
-          O popover fica SEMPRE montado (só escondido por CSS quando fechado):
-          tanto o gate quanto a redução de ruído aplicam processamento na track
-          de microfone o tempo todo, e desmontá-los a cada abre/fecha
-          reabriria a cadeia Web Audio / reaplicaria constraints à toa. O
-          `open` só controla o redesenho do medidor ao vivo. */}
-      <div className={styles.settingsGroup}>
-        <button
-          type="button"
-          className={`lk-button ${styles.settingsButton}`}
-          onClick={() => setAudioSettingsOpen((v) => !v)}
-          aria-expanded={audioSettingsOpen}
-          aria-label="Configurações de áudio"
-          title="Configurações de áudio"
-        >
-          <SettingsIcon size={18} />
-        </button>
-        {audioSettingsOpen && (
-          <div className={styles.popoverBackdrop} onClick={() => setAudioSettingsOpen(false)} />
-        )}
-        <div
-          className={`${styles.audioSettingsPopover} ${audioSettingsOpen ? '' : styles.hidden}`}
-          role="group"
-          aria-label="Configurações de áudio"
-        >
-          <MicGateControl open={audioSettingsOpen} />
-          <NoiseSuppressionControl showLabel />
-        </div>
-      </div>
+      {/* As configuracoes de audio (sensibilidade de entrada + reducao de
+          ruido) NAO ficam mais aqui: viraram uma secao do painel unico aberto
+          pela engrenagem da ChannelSidebar (ver lib/SettingsPanel.tsx). Havia
+          duas engrenagens no app, uma em cada canto, e o dono pediu uma so.
+          A barra volta a ser so botoes de acao da chamada. */}
 
       {SHOW_SETTINGS_MENU && (
         <button

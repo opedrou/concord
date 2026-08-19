@@ -11,8 +11,16 @@ import { SESSION_COOKIE_NAME, verifySession } from '@/lib/session';
 // Rotas de API fazem sua própria checagem de auth (com acesso ao banco, no
 // runtime Node) e ficam de fora do middleware. /login e assets estáticos
 // também.
+//
+// `noise-suppressor` são os worklets e binários WASM da redução de ruído
+// (public/, copiados por scripts/copy-noise-suppressor.mjs). Ficam de fora por
+// dois motivos: rodar verificação de sessão a cada fetch de um .wasm de 200KB
+// não serve pra nada, e se a sessão expirasse no meio de uma chamada o
+// `audioWorklet.addModule()` receberia o HTML da tela de login em vez do
+// script — falha confusa de diagnosticar. São assets públicos, sem nada
+// sensível.
 export const config = {
-  matcher: ['/((?!api|login|_next|images|fonts|favicon.ico).*)'],
+  matcher: ['/((?!api|login|_next|images|fonts|noise-suppressor|favicon.ico).*)'],
 };
 
 export async function middleware(request: NextRequest) {

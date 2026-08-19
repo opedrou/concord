@@ -7,6 +7,7 @@ import { usePresencePolling } from '@/lib/usePresencePolling';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { Avatar } from '@/lib/Avatar';
 import { HashIcon, SpeakerIcon, SettingsIcon } from '@/lib/icons';
+import { SettingsPanel } from '@/lib/SettingsPanel';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -271,20 +272,21 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               </span>
             </div>
             <div className={styles.userActions}>
-              {/* Aqui havia icones de microfone e fone puramente decorativos.
-                  Foram removidos de proposito: esta sidebar renderiza FORA da
-                  arvore do RoomContext (e irma do PageClientImpl, nao
-                  descendente), entao nao ha estado de track pra ler nem pra
-                  alterar sem reestruturar os providers. Botao que parece
-                  clicavel e nao muta nada e pior que botao nenhum. O controle
-                  de microfone de verdade esta na ControlBar da call. */}
+              {/* Esta sidebar renderiza FORA da arvore do RoomContext (e irma
+                  do PageClientImpl, nao descendente), entao nao da pra ler
+                  estado de track aqui com os hooks do LiveKit. O
+                  <SettingsPanel /> contorna isso lendo o
+                  MicProcessorContext, que fica ACIMA das duas arvores (ver
+                  RoomShell) e e alimentado pelo <MicProcessorBinder />. Ligar
+                  e desligar o proprio microfone continua sendo na ControlBar
+                  da call — aqui so ficam as configuracoes. */}
               <div className={styles.accountMenuWrap}>
                 <button
                   type="button"
                   className={styles.userIconButton}
-                  aria-haspopup="menu"
+                  aria-haspopup="dialog"
                   aria-expanded={accountMenuOpen}
-                  aria-label="Configuracoes da conta"
+                  aria-label="Configuracoes"
                   onClick={() => setAccountMenuOpen((v) => !v)}
                 >
                   <SettingsIcon size={16} />
@@ -292,37 +294,11 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                 {accountMenuOpen && (
                   <>
                     <div className={styles.menuBackdrop} onClick={() => setAccountMenuOpen(false)} />
-                    <div className={styles.accountMenu} role="menu">
-                      <a
-                        href="/profile"
-                        role="menuitem"
-                        className={styles.accountMenuItem}
-                        onClick={() => setAccountMenuOpen(false)}
-                      >
-                        Perfil
-                      </a>
-                      {props.user.isAdmin && (
-                        <a
-                          href="/admin"
-                          role="menuitem"
-                          className={styles.accountMenuItem}
-                          onClick={() => setAccountMenuOpen(false)}
-                        >
-                          Admin
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={styles.accountMenuItem}
-                        onClick={() => {
-                          setAccountMenuOpen(false);
-                          props.onLogout?.();
-                        }}
-                      >
-                        Sair
-                      </button>
-                    </div>
+                    <SettingsPanel
+                      isAdmin={props.user.isAdmin}
+                      onLogout={props.onLogout}
+                      onNavigate={() => setAccountMenuOpen(false)}
+                    />
                   </>
                 )}
               </div>

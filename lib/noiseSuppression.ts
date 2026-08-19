@@ -1,30 +1,8 @@
 import type { AudioCaptureOptions } from 'livekit-client';
 
-// Preferencia do usuario (liga/desliga a camada de reducao de ruido como um
-// todo). Persistida pra sobreviver a reload/troca de canal.
-export const NOISE_SUPPRESSION_STORAGE_KEY = 'concord-noise-suppression-enabled';
-
-export function loadNoiseSuppressionPref(): boolean {
-  if (typeof window === 'undefined') {
-    return true;
-  }
-  try {
-    const raw = window.localStorage.getItem(NOISE_SUPPRESSION_STORAGE_KEY);
-    // Sem valor salvo ainda = default ligado (a maioria quer o mic mais limpo).
-    return raw === null ? true : raw === '1';
-  } catch {
-    return true;
-  }
-}
-
-export function saveNoiseSuppressionPref(enabled: boolean) {
-  try {
-    window.localStorage.setItem(NOISE_SUPPRESSION_STORAGE_KEY, enabled ? '1' : '0');
-  } catch {
-    // localStorage pode falhar (modo privado, quota etc) — a preferencia so
-    // vale pra sessao atual, sem quebrar nada.
-  }
-}
+// A preferencia de reducao de ruido nao mora mais aqui: virou uma escala unica
+// (desligada / navegador / RNNoise / GTCRN), persistida em lib/denoise.ts como
+// `NoiseLevel`. Este arquivo cuida so das camadas NATIVAS do navegador.
 
 /**
  * `voiceIsolation` e um MediaTrackConstraint mais recente (spec
@@ -51,12 +29,13 @@ export interface SupportedNoiseConstraints {
 /**
  * O que o NAVEGADOR diz que suporta — nao significa que vai ser aplicado de
  * fato (por isso a UI le `getSettings()` de volta em vez de confiar nisso
- * sozinho). `@livekit/track-processors` (0.7.0, ja no package.json) foi
- * conferido e so tem processadores de VIDEO (blur/virtual background via
- * mediapipe) — nao existe camada de audio nele. Krisp
- * (`@livekit/krisp-noise-filter`) so funciona no LiveKit Cloud, nao
- * self-hosted (ver HANDOFF secao 3). Por isso a "camada avancada" aqui e o
- * `voiceIsolation` nativo do navegador, nao um processador WASM proprio.
+ * sozinho).
+ *
+ * Estas sao as camadas NATIVAS, boas pra ruido estacionario (ventoinha,
+ * chiado) e inuteis contra teclado. A camada que resolve teclado é a neural,
+ * em lib/denoise.ts — WASM proprio servido do nosso /public, ja que
+ * `@livekit/krisp-noise-filter` so funciona no LiveKit Cloud e
+ * `@livekit/track-processors` (0.7.0) so tem processadores de VIDEO.
  */
 export function getSupportedNoiseConstraints(): SupportedNoiseConstraints {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getSupportedConstraints) {
@@ -71,8 +50,21 @@ export function getSupportedNoiseConstraints(): SupportedNoiseConstraints {
   };
 }
 
-/** Constraints de audio a pedir na captura, de acordo com a preferencia do usuario. */
-export function buildAudioCaptureConstraints(enabled: boolean): AudioCaptureOptions {
+/**
+ * Constraints de audio a pedir na captura.
+ *
+ * `neuralActive` = a camada de rede neural (RNNoise/GTCRN, ver lib/denoise.ts)
+ * esta processando a track. Nesse caso a supressao do NAVEGADOR e desligada de
+ * proposito: filtrar duas vezes o mesmo sinal produz artefato metalico, e o
+ * modelo neural ja faz um trabalho melhor que a camada nativa. O que continua
+ * ligado é `echoCancellation` e `autoGainControl` — nenhum dos dois modelos faz
+ * cancelamento de eco nem controle de ganho, então essas duas ainda são
+ * responsabilidade do navegador.
+ */
+export function buildAudioCaptureConstraints(
+  enabled: boolean,
+  neuralActive = false,
+): AudioCaptureOptions {
   if (!enabled) {
     // Desligado explicitamente — nao pede nenhuma das constraints. Importante
     // pro workaround de audio de jogo do HANDOFF (capturar "Monitor of ..."
@@ -82,8 +74,8 @@ export function buildAudioCaptureConstraints(enabled: boolean): AudioCaptureOpti
   }
   const supported = getSupportedNoiseConstraints();
   return {
-    noiseSuppression: supported.noiseSuppression ? true : undefined,
-    voiceIsolation: supported.voiceIsolation ? true : undefined,
+    noiseSuppression: neuralActive ? false : supported.noiseSuppression ? true : undefined,
+    voiceIsolation: neuralActive ? false : supported.voiceIsolation ? true : undefined,
     echoCancellation: supported.echoCancellation ? true : undefined,
     autoGainControl: supported.autoGainControl ? true : undefined,
   } as AudioCaptureOptions;
@@ -92,7 +84,7 @@ export function buildAudioCaptureConstraints(enabled: boolean): AudioCaptureOpti
 /**
  * Detecta o device "Monitor of ..." do PipeWire (workaround do HANDOFF secao
  * 4 pra levar audio de jogo pelo canal de voz no Linux). Compartilhado com
- * `lib/micGate.ts`: tanto a reducao de ruido quanto o gate de sensibilidade
+ * `lib/micProcessor.ts`: tanto a reducao de ruido quanto o gate de sensibilidade
  * destroem esse audio se aplicados com força — os dois precisam da mesma
  * deteccao, entao ela mora aqui, num lugar so.
  */
@@ -117,16 +109,17 @@ export function readAppliedTier(mst: MediaStreamTrack, enabled: boolean): NoiseS
   return 'unavailable';
 }
 
+/** Rotulo curto da camada nativa — quem monta a frase em volta e a UI. */
 export function tierLabel(tier: NoiseSuppressionTier): string {
   switch (tier) {
     case 'advanced':
-      return 'Redução de ruído: avançada (isolamento de voz do navegador)';
+      return 'isolamento de voz do navegador';
     case 'browser':
-      return 'Redução de ruído: navegador';
+      return 'supressão do navegador';
     case 'unavailable':
-      return 'Redução de ruído: indisponível neste navegador';
+      return 'indisponível neste navegador';
     case 'off':
     default:
-      return 'Redução de ruído: desligada';
+      return 'desligada';
   }
 }

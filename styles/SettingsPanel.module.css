@@ -1,0 +1,308 @@
+/* Painel unico de configuracoes (audio + conta), aberto pela engrenagem da
+   ChannelSidebar. Substitui o antigo .accountMenu de la e o popover de audio
+   da CallControlBar — herda o visual dos dois: mesma familia de cores dos
+   popovers do app, e o medidor do gate vem intacto do antigo
+   MicGateControl.module.css.
+
+   POSICIONAMENTO: `fixed`, ancorado na viewport, NAO `absolute` dentro da
+   sidebar. A `.sidebar` tem `overflow-y: auto`, e por spec isso torna o
+   `overflow-x` dela `auto` tambem — um popover absoluto de 19rem seria
+   recortado na borda direita de uma sidebar de 18rem. O menu antigo cabia
+   (8rem, `right: 0`); este nao cabe. Como o backdrop ja e fixed e cobre a tela
+   inteira, o painel se comporta como um dialogo de canto. */
+.panel {
+  position: fixed;
+  /* Logo acima da barra de usuario da sidebar (~3rem de altura), no canto. */
+  bottom: 3.25rem;
+  left: 0.75rem;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  /* Largura fixa em vez de acompanhar a sidebar: a sidebar e arrastavel (ver
+     RoomShell) e pode ficar estreita demais pro medidor e pros quatro botoes
+     do seletor. `max-width` cobre o caso oposto, tela pequena. */
+  width: 19rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.85rem;
+  border-radius: var(--lk-border-radius);
+  background: var(--lk-bg3, var(--lk-bg2));
+  border: 1px solid var(--lk-border-color);
+  box-shadow: var(--lk-box-shadow);
+  /* Painel mais alto que a tela em telas baixas — rola por dentro em vez de
+     estourar pra fora da viewport. */
+  max-height: min(32rem, calc(100vh - 6rem));
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--lk-border-color);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--lk-fg, #fff);
+}
+
+/* Seletor de nivel: quatro botoes colados, escala do mais leve pro mais forte.
+   Grid de quatro colunas iguais em vez de flex — assim "Desligada" e "RNNoise"
+   tem a mesma largura e a fileira nao dança quando o rotulo muda. */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 0.375rem;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.segment {
+  padding: 0.35rem 0.2rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+  font-size: 0.7rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.segment:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--lk-fg);
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
+.segmentActive {
+  background: var(--lk-accent-bg, #1f6feb);
+  color: var(--lk-accent-fg, #fff);
+}
+
+.segmentActive:hover {
+  background: var(--lk-accent-bg, #1f6feb);
+  color: var(--lk-accent-fg, #fff);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--lk-fg4, #b0b0b0);
+}
+
+.status {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.warning {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--lk-danger, #f5a524);
+}
+
+/* --- Medidor do gate: vindo intacto do antigo MicGateControl.module.css --- */
+
+/* No estilo "Input Sensitivity" do Discord: uma trilha fina com duas faixas de
+   cor separadas pelo limiar (âmbar = nao passa, verde = passa) e DOIS TONS em
+   cada faixa — o tom escuro e a trilha em repouso, o tom aceso avanca ate o
+   nivel que o microfone esta captando agora. A "bolinha" do limiar e o thumb
+   do <input type=range> por cima, invisivel exceto pelo proprio thumb.
+
+   --mic-gate-threshold (onde as cores trocam) vem do React via style inline;
+   --mic-gate-level (ate onde o tom aceso vai) e escrito direto no .meterActive
+   pelo JS a cada tick, sem re-render (ver SettingsPanel.tsx). */
+.meter {
+  position: relative;
+  /* Altura da AREA CLICAVEL, nao da trilha — a trilha visivel e fina (como no
+     Discord) mas arrastar uma linha de 4px com o mouse e ruim; o input cobre
+     essa altura toda. */
+  height: 1.15rem;
+}
+
+.meterDim,
+.meterActive {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0.3rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  /* Corte duro no ponto do limiar: ambar (nao passa) antes, verde (passa)
+     depois. As duas camadas usam a MESMA geometria — o que muda e so o tom. */
+  background: linear-gradient(
+    to right,
+    var(--mic-gate-below) 0%,
+    var(--mic-gate-below) var(--mic-gate-threshold, 12%),
+    var(--mic-gate-above) var(--mic-gate-threshold, 12%),
+    var(--mic-gate-above) 100%
+  );
+}
+
+.meterDim {
+  --mic-gate-below: #6b4a17;
+  --mic-gate-above: #2c6045;
+}
+
+/* Camada acesa: mesmo gradiente em tom vivo, revelada da esquerda ate o nivel
+   ao vivo. clip-path (e nao width) pra que o gradiente continue calculado
+   sobre a largura TOTAL — com width o ponto de troca de cor andaria junto com
+   o nivel, que e exatamente o que nao pode acontecer. */
+.meterActive {
+  --mic-gate-below: #faa61a;
+  --mic-gate-above: #3ba55d;
+  clip-path: inset(0 calc(100% - var(--mic-gate-level, 0%)) 0 0);
+  transition: clip-path 60ms linear;
+}
+
+.rangeInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rangeInput:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* Trilha totalmente transparente — quem desenha a trilha visivel sao os dois
+   divs abaixo dela (.meterDim/.meterActive); o input so contribui com o thumb
+   arrastavel. */
+.rangeInput::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+}
+
+.rangeInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+
+.rangeInput::-moz-range-track {
+  background: transparent;
+  height: 100%;
+}
+
+.rangeInput::-moz-range-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+
+/* --- Secao de conta: os itens que antes eram o .accountMenu da sidebar --- */
+
+.accountLinks {
+  display: flex;
+  flex-direction: column;
+}
+
+.accountItem {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.6rem;
+  color: var(--lk-fg);
+  font-size: 0.85rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.accountItem:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.accountItem:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
+@media (max-width: 640px) {
+  /* No celular a sidebar vira uma tira no TOPO (ver ChannelSidebar.module.css),
+     entao "acima da barra de usuario" nao quer dizer nada. Vira uma folha
+     ancorada embaixo, ocupando a largura util. */
+  .panel {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
+  }
+
+  /* Area de toque maior no celular — arrastar um thumb pequeno com dedo e
+     dificil; a trilha inteira ja e clicavel porque o input cobre 100% da
+     altura do medidor, isso so engorda o alvo do thumb. */
+  .rangeInput::-webkit-slider-thumb {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  .rangeInput::-moz-range-thumb {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+}

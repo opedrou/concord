@@ -8,7 +8,9 @@ import { Track } from 'livekit-client';
 // self-hosted como esta o filtro nunca carrega de verdade, e a UI ficava
 // oferecendo um botao que nao faz nada. Removido daqui; a reducao de ruido
 // de verdade (constraints nativas do navegador, com fallback automatico) fica
-// no <NoiseSuppressionControl /> renderizado ao lado do <VideoConference>.
+// no painel de configuracoes da sidebar (lib/SettingsPanel.tsx), que oferece
+// tanto as constraints nativas quanto uma camada neural propria em WASM
+// (lib/denoise.ts) — essa sim funciona self-hosted.
 export function MicrophoneSettings() {
   return (
     <div

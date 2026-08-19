@@ -10,6 +10,7 @@ import { TextChannelPanel } from '@/lib/TextChannelPanel';
 import { ResizeHandle } from '@/lib/ResizeHandle';
 import { usePersistedSize } from '@/lib/usePersistedSize';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { MicProcessorProvider } from '@/lib/MicProcessorContext';
 import { logout, type Channel } from '@/lib/api-client';
 import styles from '../styles/RoomShell.module.css';
 
@@ -70,60 +71,66 @@ export function RoomShell(props: {
   }
 
   return (
-    <div className={styles.shell} data-lk-theme="default">
-      <ChannelSidebar
-        user={user}
-        activeChannelSlug={props.roomName}
-        activeTextChannelSlug={openTextChannel?.slug}
-        onSelectTextChannel={handleSelectTextChannel}
-        onLogout={handleLogout}
-        widthPx={sidebarWidth}
-      />
-      <ResizeHandle
-        orientation="vertical"
-        value={sidebarWidth}
-        min={SIDEBAR_MIN_WIDTH}
-        max={SIDEBAR_MAX_WIDTH}
-        onChange={setSidebarWidth}
-        label="Redimensionar lista de canais"
-      />
-      <div className={styles.main}>
-        {/* PageClientImpl fica sempre montado — so escondido via CSS quando o
+    // O provider precisa envolver a sidebar E a chamada: o painel de
+    // configuracoes (dentro da sidebar) e o dono do processamento de audio
+    // (dentro do PageClientImpl) estao em ramos IRMAOS da arvore, e este e o
+    // ancestral comum mais proximo. Ver lib/MicProcessorContext.tsx.
+    <MicProcessorProvider>
+      <div className={styles.shell} data-lk-theme="default">
+        <ChannelSidebar
+          user={user}
+          activeChannelSlug={props.roomName}
+          activeTextChannelSlug={openTextChannel?.slug}
+          onSelectTextChannel={handleSelectTextChannel}
+          onLogout={handleLogout}
+          widthPx={sidebarWidth}
+        />
+        <ResizeHandle
+          orientation="vertical"
+          value={sidebarWidth}
+          min={SIDEBAR_MIN_WIDTH}
+          max={SIDEBAR_MAX_WIDTH}
+          onChange={setSidebarWidth}
+          label="Redimensionar lista de canais"
+        />
+        <div className={styles.main}>
+          {/* PageClientImpl fica sempre montado — so escondido via CSS quando o
             painel de texto esta aberto — pra chamada nunca ser interrompida. */}
-        <div
-          className={styles.callLayer}
-          style={{ display: openTextChannel ? 'none' : 'block' }}
-          aria-hidden={openTextChannel ? true : undefined}
-        >
-          <PageClientImpl
-            roomName={props.roomName}
-            region={props.region}
-            hq={props.hq}
-            codec={props.codec}
-            singlePeerConnection={props.singlePeerConnection}
-            username={user?.username}
-          />
-        </div>
-        {openTextChannel && (
-          <div className={styles.textLayer}>
-            <p className={styles.callBanner}>
-              Chamada de voz continua em andamento em segundo plano. Feche este canal de texto pra
-              voltar pra ela.
-            </p>
-            <TextChannelPanel
-              channelId={openTextChannel.id}
-              channelName={openTextChannel.name}
-              currentUser={user}
-              onClose={closeTextChannel}
+          <div
+            className={styles.callLayer}
+            style={{ display: openTextChannel ? 'none' : 'block' }}
+            aria-hidden={openTextChannel ? true : undefined}
+          >
+            <PageClientImpl
+              roomName={props.roomName}
+              region={props.region}
+              hq={props.hq}
+              codec={props.codec}
+              singlePeerConnection={props.singlePeerConnection}
+              username={user?.username}
             />
           </div>
-        )}
-      </div>
-      {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
+          {openTextChannel && (
+            <div className={styles.textLayer}>
+              <p className={styles.callBanner}>
+                Chamada de voz continua em andamento em segundo plano. Feche este canal de texto pra
+                voltar pra ela.
+              </p>
+              <TextChannelPanel
+                channelId={openTextChannel.id}
+                channelName={openTextChannel.name}
+                currentUser={user}
+                onClose={closeTextChannel}
+              />
+            </div>
+          )}
+        </div>
+        {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
           tela de call ela so competia por espaco com os controles de video
           (reclamacao original). Por isso so aparece quando o painel de texto
           esta aberto por cima da chamada, nunca durante a call em si. */}
-      {openTextChannel && <MembersPanel />}
-    </div>
+        {openTextChannel && <MembersPanel />}
+      </div>
+    </MicProcessorProvider>
   );
 }
