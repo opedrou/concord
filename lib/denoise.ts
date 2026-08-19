@@ -118,40 +118,15 @@ export function noiseLevelDescription(level: NoiseLevel): string {
 /**
  * Os dois modelos assumem 48kHz — nao ha reamostragem interna neles, e o
  * `RnnoiseWorkletNode` documenta isso explicitamente ("Assumes sample rate to
- * be 48kHz"). Por isso o AudioContext que o LiveKit usa (`webAudioMix`, ver
- * PageClientImpl) e criado aqui com `{ sampleRate: REQUIRED_SAMPLE_RATE }` em
- * vez de deixar o navegador escolher: se o dispositivo de saida do SO estiver
- * em outra taxa (ex.: Bluetooth, que no Windows costuma travar em 44.1kHz —
- * ver HANDOFF), e o navegador quem reamostra de forma nativa na borda, sem
- * custo de reamostragem manual em JS. `isSampleRateSupported` fica so como
- * ultima linha de defesa pro raro navegador que ignora a opcao.
+ * be 48kHz"). O AudioContext vem pronto do LiveKit (`webAudioMix: true`, ver
+ * PageClientImpl), entao nao escolhemos a taxa: se o SO entregar 44.1kHz, a
+ * camada neural fica indisponivel e caimos nas nativas. Reamostrar na mao
+ * custaria latencia e qualidade pra salvar um caso raro em desktop.
  */
 export const REQUIRED_SAMPLE_RATE = 48000;
 
 export function isSampleRateSupported(ctx: BaseAudioContext): boolean {
   return ctx.sampleRate === REQUIRED_SAMPLE_RATE;
-}
-
-/**
- * Cria o AudioContext usado pelo `webAudioMix` do LiveKit, forcando 48kHz.
- * Alguns navegadores/dispositivos podem rejeitar a opcao `sampleRate`
- * (NotSupportedError) — nesse caso caimos pro AudioContext default do SO,
- * que e o mesmo comportamento de antes.
- */
-export function createAudioContextForDenoise(): AudioContext | undefined {
-  const AudioContextCtor =
-    typeof window === 'undefined'
-      ? undefined
-      : window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextCtor) {
-    return undefined;
-  }
-  try {
-    return new AudioContextCtor({ sampleRate: REQUIRED_SAMPLE_RATE, latencyHint: 'interactive' });
-  } catch {
-    return new AudioContextCtor({ latencyHint: 'interactive' });
-  }
 }
 
 /** AudioWorklet e obrigatorio pros dois modelos. */
