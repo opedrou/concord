@@ -15,14 +15,15 @@ import {
   deleteSound,
   fetchSounds,
   uploadSound,
-  type CurrentUser,
   type Sound,
 } from '@/lib/api-client';
 import { useSoundboard } from '@/lib/soundboardEvents';
+import { playSfx } from '@/lib/sfx';
 import { MAX_SOUND_BYTES } from '@/lib/uploadLimits';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { CloseIcon, Volume2Icon } from '@/lib/icons';
 import styles from '../styles/Soundboard.module.css';
+import settingsStyles from '../styles/SettingsWindow.module.css';
 
 export function Soundboard() {
   const [open, setOpen] = React.useState(false);
@@ -76,6 +77,82 @@ function LastPlayed({ event }: { event: { by: string; name: string; at: number }
 }
 
 function SoundboardPanel(props: { onPlay: (sound: Sound) => void; onClose: () => void }) {
+  const [sounds, setSounds] = React.useState<Sound[] | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchSounds()
+      .then((list) => {
+        if (!cancelled) setSounds(list);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(apiErrorMessage(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className={styles.panel} role="dialog" aria-label="Soundboard">
+      <header className={styles.header}>
+        <span className={styles.title}>Soundboard</span>
+        <button type="button" className="lk-button" onClick={props.onClose} aria-label="Fechar">
+          <CloseIcon size={14} />
+        </button>
+      </header>
+
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+
+      {sounds === null && !error && <p className={styles.hint}>Carregando…</p>}
+
+      {sounds !== null && sounds.length === 0 && (
+        <p className={styles.hint}>
+          Nenhum som ainda. Suba um em Configurações &rsaquo; Soundboard — todo mundo vai poder
+          tocar.
+        </p>
+      )}
+
+      {sounds !== null && sounds.length > 0 && (
+        <div className={styles.grid}>
+          {sounds.map((sound) => (
+            <button
+              key={sound.id}
+              type="button"
+              className={styles.soundButton}
+              onClick={() => props.onPlay(sound)}
+              title={`Tocar ${sound.name} pra todo mundo`}
+            >
+              {sound.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Subir e apagar moram na janela de configuracoes: aqui e o lugar de
+          TOCAR no meio do jogo, e gerenciar biblioteca no meio de uma call
+          competitiva nao e o caso de uso. */}
+      <p className={styles.hint}>Adicionar ou apagar sons: Configurações &rsaquo; Soundboard.</p>
+    </div>
+  );
+}
+
+/**
+ * Seção "Soundboard" da janela de configurações: gerenciar a biblioteca.
+ *
+ * Separada do painel da barra de controles de propósito — lá é AÇÃO (tocar
+ * pra todo mundo, no meio do jogo), aqui é CONFIGURAÇÃO (subir, ouvir só pra
+ * si, apagar). Mesma divisão do volume: card no tile durante a call, lista
+ * completa na janela.
+ *
+ * Não precisa do RoomContext: mexer na biblioteca é só HTTP.
+ */
+export function SoundboardSettings() {
   const { user } = useCurrentUser({ redirectToLogin: false });
   const [sounds, setSounds] = React.useState<Sound[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -100,8 +177,6 @@ function SoundboardPanel(props: { onPlay: (sound: Sound) => void; onClose: () =>
     const file = files?.[0];
     if (!file) return;
     setError(null);
-    // Checagem local só pra dar erro rápido; quem decide de verdade é o
-    // servidor, que valida tamanho e formato pelos magic bytes.
     if (file.size > MAX_SOUND_BYTES) {
       setError('Som grande demais — o limite é 1 MB.');
       return;
@@ -127,57 +202,54 @@ function SoundboardPanel(props: { onPlay: (sound: Sound) => void; onClose: () =>
     }
   }, []);
 
-  const canDelete = (sound: Sound, current: CurrentUser | null) =>
-    !!current && (current.isAdmin || sound.uploadedBy === current.id);
-
   return (
-    <div className={styles.panel} role="dialog" aria-label="Soundboard">
-      <header className={styles.header}>
-        <span className={styles.title}>Soundboard</span>
-        <button type="button" className="lk-button" onClick={props.onClose} aria-label="Fechar">
-          <CloseIcon size={14} />
-        </button>
-      </header>
+    <div className={settingsStyles.field}>
+      <span className={settingsStyles.fieldLabel}>Biblioteca compartilhada</span>
+      <p className={settingsStyles.hint}>
+        O que você sobe fica disponível pro grupo inteiro tocar — não é uma coleção sua. Áudio de
+        até 1 MB (um efeito de 1 a 3 segundos).
+      </p>
 
       {error && (
-        <p className={styles.error} role="alert">
+        <p className={settingsStyles.warning} role="alert">
           {error}
         </p>
       )}
 
-      {sounds === null && !error && <p className={styles.hint}>Carregando…</p>}
+      {sounds === null && !error && <p className={settingsStyles.hint}>Carregando…</p>}
 
       {sounds !== null && sounds.length === 0 && (
-        <p className={styles.hint}>Nenhum som ainda. Suba um — todo mundo vai poder tocar.</p>
+        <p className={settingsStyles.hint}>Nenhum som ainda.</p>
       )}
 
-      {sounds !== null && sounds.length > 0 && (
-        <div className={styles.grid}>
-          {sounds.map((sound) => (
-            <div key={sound.id} className={styles.item}>
+      {sounds?.map((sound) => {
+        const canDelete = !!user && (user.isAdmin || sound.uploadedBy === user.id);
+        return (
+          <div key={sound.id} className={styles.settingsRow}>
+            <span className={styles.settingsName}>{sound.name}</span>
+            {/* Toca só pra você: aqui é o lugar de conferir o som antes de
+                soltar pro grupo, não de tocar pro grupo. */}
+            <button
+              type="button"
+              className="lk-button"
+              onClick={() => playSfx(sound.url, { gain: 1 })}
+              title="Ouvir só pra você"
+            >
+              Ouvir
+            </button>
+            {canDelete && (
               <button
                 type="button"
-                className={styles.soundButton}
-                onClick={() => props.onPlay(sound)}
-                title={`Tocar ${sound.name} pra todo mundo`}
+                className="lk-button"
+                onClick={() => handleDelete(sound)}
+                title="Apagar da biblioteca — vale pra todo mundo"
               >
-                {sound.name}
+                Apagar
               </button>
-              {canDelete(sound, user) && (
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  onClick={() => handleDelete(sound)}
-                  aria-label={`Apagar ${sound.name}`}
-                  title="Apagar da biblioteca (vale pra todo mundo)"
-                >
-                  <CloseIcon size={12} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })}
 
       <input
         ref={fileInputRef}
@@ -197,9 +269,10 @@ function SoundboardPanel(props: { onPlay: (sound: Sound) => void; onClose: () =>
       >
         {busy ? 'Enviando…' : 'Adicionar som'}
       </button>
-      <p className={styles.hint}>
-        Áudio de até 1 MB. Quem sobe compartilha com o grupo inteiro. Cada pessoa pode calar a
-        soundboard de quem quiser sem perder a voz — é só clicar no tile dela.
+
+      <p className={settingsStyles.hint}>
+        Pra calar a soundboard de uma pessoa específica sem perder a voz dela, use o controle
+        &quot;Soundboard&quot; dela na seção Mixer.
       </p>
     </div>
   );

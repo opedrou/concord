@@ -134,3 +134,22 @@
   font-size: 0.7rem;
   color: var(--lk-danger, #f5a524);
 }
+
+/* Linha da biblioteca na janela de configuracoes (SoundboardSettings) — lista
+   vertical com acoes, diferente da grade de botoes da barra de controles. */
+.settingsRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.12));
+}
+
+.settingsName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

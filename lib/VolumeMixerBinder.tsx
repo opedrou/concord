@@ -13,10 +13,11 @@
 // valesse. Aqui a aplicação é contínua e não depende de nenhuma UI estar viva.
 
 import * as React from 'react';
-import { RoomEvent } from 'livekit-client';
+import { ConnectionState, RoomEvent } from 'livekit-client';
 import { useRoomContext } from '@livekit/components-react';
 import { useVolumeMixer } from './VolumeMixerContext';
 import { LIVEKIT_SOURCE, effectiveGain } from './participantVolumes';
+import { FOCUS_ATTRIBUTE, MUTED_ATTRIBUTE, encodeFocus, encodeMuted } from './audibility';
 
 /** As fontes que são track do LiveKit. A soundboard é tocada localmente. */
 const APPLIED_SOURCES = ['mic', 'screenShareAudio'] as const;
@@ -81,6 +82,39 @@ export function VolumeMixerBinder() {
       }
     };
   }, [room, applyAll]);
+
+  // Anuncia o modo foco pra sala: é assim que as outras pessoas descobrem que
+  // você está em foco e se continuam sendo ouvidas (ver lib/focusBroadcast.ts).
+  // Sem debounce curto isso viraria uma escrita de sinalização por clique de
+  // checkbox.
+  const focusPayload = mixer ? encodeFocus(mixer.focus.enabled, mixer.focus.allowed) : '';
+  const mutedPayload = mixer ? encodeMuted(mixer.mutedNames) : '';
+  React.useEffect(() => {
+    if (!room) {
+      return;
+    }
+    const publish = () => {
+      if (room.state !== ConnectionState.Connected) {
+        return;
+      }
+      // `setAttributes` faz merge — não atropela o `concord.watching` que o
+      // contador de espectadores escreve.
+      room.localParticipant
+        .setAttributes({ [FOCUS_ATTRIBUTE]: focusPayload, [MUTED_ATTRIBUTE]: mutedPayload })
+        .catch(() => {
+          // Sem o grant `canUpdateOwnMetadata` cai aqui. O foco continua
+          // funcionando pra quem ligou (o mute é local); só ninguém fica sabendo.
+        });
+    };
+    const timer = setTimeout(publish, 300);
+    room.on(RoomEvent.Connected, publish);
+    room.on(RoomEvent.Reconnected, publish);
+    return () => {
+      clearTimeout(timer);
+      room.off(RoomEvent.Connected, publish);
+      room.off(RoomEvent.Reconnected, publish);
+    };
+  }, [room, focusPayload, mutedPayload]);
 
   // Dispositivo de saída. `switchActiveDevice` já trata o caso `webAudioMix`
   // (chama `audioContext.setSinkId` quando o elemento de áudio não suporta),

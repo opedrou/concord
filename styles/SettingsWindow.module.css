@@ -5,10 +5,12 @@
 
 .layout {
   display: grid;
-  grid-template-columns: 11rem minmax(0, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 2rem;
   align-items: start;
-  min-height: 20rem;
+  /* Ocupa a altura toda da janela (que agora e tela cheia) pra nav ficar
+     colada no topo em vez de flutuar no meio. */
+  min-height: 100%;
 }
 
 /* --- Navegação de seções --------------------------------------------------- */
@@ -68,6 +70,10 @@
   flex-direction: column;
   gap: 1.1rem;
   min-width: 0;
+  /* Coluna de leitura. Sem teto, numa tela larga os rotulos ficariam num canto
+     e os valores no outro, e as frases de ajuda viravam linhas de 200
+     caracteres. */
+  max-width: 46rem;
 }
 
 .field {

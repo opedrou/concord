@@ -15,8 +15,9 @@ import {
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { Avatar } from '@/lib/Avatar';
-import { ExpandIcon, EyeIcon, EyeOffIcon } from '@/lib/icons';
+import { ExpandIcon, EyeIcon, EyeOffIcon, VolumeXIcon } from '@/lib/icons';
 import { useSpeakingIndicator } from '@/lib/useSpeakingIndicator';
+import type { FocusRing } from '@/lib/audibility';
 import styles from '../styles/CallParticipantTile.module.css';
 
 /**
@@ -67,8 +68,23 @@ export function CallParticipantTile(props: {
   viewers?: number;
   /** O modo foco esta calando a voz desta pessoa (so pra mim). */
   focusMuted?: boolean;
+  /** ESTA pessoa esta em modo foco — e se eu continuo sendo ouvido por ela.
+   * Ver lib/focusBroadcast.ts. */
+  focusRing?: FocusRing;
+  /** Esta pessoa mutou VOCE individualmente — vale fora do modo foco. */
+  mutedMe?: boolean;
 }) {
-  const { trackRef, avatarMap, onOpenVolume, onExpand, watch, viewers, focusMuted } = props;
+  const {
+    trackRef,
+    avatarMap,
+    onOpenVolume,
+    onExpand,
+    watch,
+    viewers,
+    focusMuted,
+    focusRing,
+    mutedMe,
+  } = props;
   const isCameraSource = trackRef.source === Track.Source.Camera;
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -111,6 +127,14 @@ export function CallParticipantTile(props: {
   // SFU parou de mandar bytes e `publication.track` e undefined. Renderizar o
   // <VideoTrack> ai daria um <video> preto por cima do quadro congelado.
   const stoppedWatching = !!watch && !watch.watching;
+  // Mute individual e modo foco tem causas diferentes mas a MESMA consequencia
+  // pra quem olha: essa pessoa nao esta te ouvindo. Um distintivo so, com o
+  // motivo no tooltip — dois icones dizendo a mesma coisa seria ruido.
+  const notHearingMe = !!mutedMe || focusRing === 'excluded';
+  const notHearingLabel = mutedMe
+    ? 'Não está te ouvindo — mutou você'
+    : 'Não está te ouvindo — modo foco ligado';
+
   const hasLiveVideo =
     !stoppedWatching &&
     isTrackReference(trackRef) &&
@@ -140,6 +164,10 @@ export function CallParticipantTile(props: {
       // Apaga o tile de quem o modo foco silenciou — sem isso a pessoa fala,
       // o anel de "falando" nem acende, e parece bug em vez de escolha.
       data-lk-focus-muted={focusMuted ? 'true' : undefined}
+      // Anel roxo: 'listening' = esta em foco e AINDA me ouve; 'excluded' =
+      // esta em foco e nao me ouve. Desenhado num ::before proprio pra conviver
+      // com o anel de "falando" da lib, que usa ::after.
+      data-concord-focus={focusRing}
       className={`${elementProps.className ?? ''} ${styles.tile} ${
         focusMuted ? styles.focusMuted : ''
       }`}
@@ -203,6 +231,20 @@ export function CallParticipantTile(props: {
             >
               <EyeIcon size={13} />
               {viewers}
+            </span>
+          )}
+          {/* "Nao te ouve". Icone de ALTO-FALANTE cortado, nao de microfone:
+              microfone cortado ja significa outra coisa no tile (a pessoa esta
+              muda). Aqui o mic dela pode estar aberto — o que nao acontece e a
+              SUA voz chegar nela. */}
+          {isCameraSource && notHearingMe && (
+            <span
+              className={styles.notHearingBadge}
+              role="img"
+              aria-label={notHearingLabel}
+              title={notHearingLabel}
+            >
+              <VolumeXIcon size={13} />
             </span>
           )}
         </div>

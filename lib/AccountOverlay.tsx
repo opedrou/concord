@@ -27,10 +27,13 @@ import styles from '../styles/AccountOverlay.module.css';
  */
 export function AccountOverlay(props: {
   title: string;
-  /** Aviso opcional no topo — usado pra lembrar que a chamada continua tocando. */
-  note?: React.ReactNode;
-  /** `narrow` pro perfil (formulario de uma coluna), `wide` pro admin (tabelas). */
-  size?: 'narrow' | 'wide';
+  /**
+   * `narrow` pro perfil (formulario de uma coluna), `wide` (padrao) pra
+   * conteudo com tabela, `large` pras configuracoes — que tem navegacao
+   * lateral mais conteudo e nao cabem nos 900px do padrao sem ficar
+   * apertadas.
+   */
+  size?: 'narrow' | 'wide' | 'large';
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -55,7 +58,9 @@ export function AccountOverlay(props: {
   const overlay = (
     <div className={styles.backdrop} onClick={onClose}>
       <div
-        className={`${styles.window} ${props.size === 'narrow' ? styles.windowNarrow : ''}`}
+        className={`${styles.window} ${props.size === 'narrow' ? styles.windowNarrow : ''} ${
+          props.size === 'large' ? styles.windowLarge : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-label={props.title}
@@ -74,7 +79,6 @@ export function AccountOverlay(props: {
             <CloseIcon size={16} />
           </button>
         </header>
-        {props.note && <p className={styles.callNote}>{props.note}</p>}
         <div className={styles.body}>{props.children}</div>
       </div>
     </div>

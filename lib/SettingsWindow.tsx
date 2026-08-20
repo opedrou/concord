@@ -26,15 +26,22 @@ import { MasterVolumeControl, MixerParticipantList } from '@/lib/MixerSection';
 import { ProfileClientImpl } from '@/app/profile/ProfileClientImpl';
 import { AdminDashboard } from '@/app/admin/AdminDashboard';
 import { JoinLeaveSoundsSettings } from '@/lib/JoinLeaveSounds';
+import { FocusModeSettings } from '@/lib/FocusModeControl';
+import { SoundboardSettings } from '@/lib/Soundboard';
 import styles from '../styles/SettingsWindow.module.css';
 
-export type SettingsSection = 'profile' | 'voice' | 'mixer' | 'notifications' | 'admin';
+export type SettingsSection =
+  | 'profile'
+  | 'voice'
+  | 'mixer'
+  | 'focus'
+  | 'soundboard'
+  | 'notifications'
+  | 'admin';
 
 interface SectionDef {
   id: SettingsSection;
   label: string;
-  /** Admin precisa da janela larga (tabelas de gente e canais). */
-  wide?: boolean;
   adminOnly?: boolean;
 }
 
@@ -42,16 +49,16 @@ const SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Perfil' },
   { id: 'voice', label: 'Voz e vídeo' },
   { id: 'mixer', label: 'Mixer' },
+  { id: 'focus', label: 'Modo foco' },
+  { id: 'soundboard', label: 'Soundboard' },
   { id: 'notifications', label: 'Notificações' },
-  { id: 'admin', label: 'Admin', wide: true, adminOnly: true },
+  { id: 'admin', label: 'Admin', adminOnly: true },
 ];
 
 export function SettingsWindow(props: {
   username: string;
   isAdmin: boolean;
   initialSection: SettingsSection;
-  /** Verdadeiro quando há uma chamada de voz montada por baixo. */
-  inCall: boolean;
   onClose: () => void;
   onLogout?: () => void;
 }) {
@@ -60,12 +67,7 @@ export function SettingsWindow(props: {
   const current = visible.find((s) => s.id === section) ?? visible[0];
 
   return (
-    <AccountOverlay
-      title="Configurações"
-      size={current.wide ? undefined : 'narrow'}
-      note={props.inCall ? CALL_STILL_RUNNING : undefined}
-      onClose={props.onClose}
-    >
+    <AccountOverlay title="Configurações" size="large" onClose={props.onClose}>
       <div className={styles.layout}>
         <nav className={styles.nav} aria-label="Seções das configurações">
           {visible.map((s) => (
@@ -105,6 +107,8 @@ export function SettingsWindow(props: {
               <MixerParticipantList />
             </>
           )}
+          {current.id === 'focus' && <FocusModeSettings />}
+          {current.id === 'soundboard' && <SoundboardSettings />}
           {current.id === 'notifications' && <JoinLeaveSoundsSettings />}
           {current.id === 'admin' && (
             <AdminDashboard currentUsername={props.username} onClose={props.onClose} />
@@ -114,6 +118,3 @@ export function SettingsWindow(props: {
     </AccountOverlay>
   );
 }
-
-const CALL_STILL_RUNNING =
-  'A chamada de voz continua em andamento por baixo — fechar esta janela volta pra ela.';

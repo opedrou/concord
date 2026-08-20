@@ -60,6 +60,9 @@ export interface VolumeMixerValue {
   setFocusAllowed: (names: ReadonlySet<string>) => void;
   /** A pergunta que o binder, os tiles e a soundboard fazem. */
   isFocusMuted: (name: string) => boolean;
+  /** Quem eu mutei individualmente (so a VOZ). Anunciado pra sala pelo binder,
+   * pra pessoa saber que nao esta sendo ouvida — ver lib/audibility.ts. */
+  mutedNames: ReadonlySet<string>;
 
   outputDeviceId: string | null;
   setOutputDeviceId: (deviceId: string | null) => void;
@@ -172,6 +175,16 @@ export function VolumeMixerProvider({ children }: { children: React.ReactNode })
     [focus],
   );
 
+  const mutedNames = React.useMemo(() => {
+    const names = new Set<string>();
+    for (const [name, state] of Object.entries(volumes)) {
+      if (state.volume.mic === 0) {
+        names.add(name);
+      }
+    }
+    return names;
+  }, [volumes]);
+
   const value = React.useMemo<VolumeMixerValue>(
     () => ({
       master,
@@ -184,6 +197,7 @@ export function VolumeMixerProvider({ children }: { children: React.ReactNode })
       toggleFocus,
       setFocusAllowed,
       isFocusMuted,
+      mutedNames,
       outputDeviceId,
       setOutputDeviceId,
       ensureLoaded,
@@ -199,6 +213,7 @@ export function VolumeMixerProvider({ children }: { children: React.ReactNode })
       toggleFocus,
       setFocusAllowed,
       isFocusMuted,
+      mutedNames,
       outputDeviceId,
       setOutputDeviceId,
       ensureLoaded,

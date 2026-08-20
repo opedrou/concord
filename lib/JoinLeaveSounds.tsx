@@ -4,11 +4,9 @@ import * as React from 'react';
 import { useRoomContext } from '@livekit/components-react';
 import { ConnectionState, RoomEvent, Track } from 'livekit-client';
 import type { RemoteTrackPublication, RemoteParticipant } from 'livekit-client';
-import { BellIcon, BellOffIcon } from '@/lib/icons';
 import { closeSfxContext, playSfx, preloadSfx } from '@/lib/sfx';
 import { getSoundPrefs, setSoundMuted, setSoundVolume, useSoundPrefs } from '@/lib/soundPrefs';
 import windowStyles from '../styles/SettingsWindow.module.css';
-import styles from '../styles/JoinLeaveSounds.module.css';
 
 // Intervalo minimo entre dois sons do mesmo tipo — se varias pessoas
 // entrarem/sairem quase juntas, so o primeiro soa em vez de virar rajada.
@@ -40,14 +38,15 @@ const ALL_SOUNDS = [SOUND_JOIN, SOUND_LEAVE, SOUND_STREAM_START, SOUND_STREAM_ST
  *
  * O audio em si mora em lib/sfx.ts, num AudioContext separado do da chamada —
  * ver o porque no topo daquele arquivo.
+ *
+ * Componente SEM UI, montado junto dos outros binders no PageClientImpl: ele
+ * precisa do RoomContext pros eventos, mas nao desenha nada.
  */
 export function JoinLeaveSounds() {
   const room = useRoomContext();
   // Preferencias vem da store compartilhada (lib/soundPrefs.ts): o mesmo
   // valor e editavel aqui e na secao "Notificacoes" da janela de
   // configuracoes, que nao se enxergam pela arvore.
-  const { muted } = useSoundPrefs();
-
   const readyRef = React.useRef(false);
   const lastPlayedAtRef = React.useRef<Record<string, number>>({});
 
@@ -144,21 +143,11 @@ export function JoinLeaveSounds() {
     };
   }, []);
 
-  return (
-    <button
-      type="button"
-      className={`lk-button ${styles.toggleButton}`}
-      onClick={() => setSoundMuted(!muted)}
-      aria-pressed={muted}
-      title={
-        muted
-          ? 'Ativar sons de entrada, saída e transmissão'
-          : 'Silenciar sons de entrada, saída e transmissão'
-      }
-    >
-      {muted ? <BellOffIcon size={18} /> : <BellIcon size={18} />}
-    </button>
-  );
+  // SEM UI. O liga/desliga e o volume moram na secao "Notificacoes" da janela
+  // de configuracoes (ver JoinLeaveSoundsSettings, no fim deste arquivo) — a
+  // barra de controles tinha um sino que era so isso, e um botao permanente
+  // pra uma preferencia que se mexe uma vez na vida nao pagava o espaco.
+  return null;
 }
 
 /**

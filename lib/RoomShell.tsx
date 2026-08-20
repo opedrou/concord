@@ -97,6 +97,7 @@ export function RoomShell(props: {
                 activeChannelSlug={props.roomName}
                 activeTextChannelSlug={openTextChannel?.slug}
                 onSelectTextChannel={handleSelectTextChannel}
+                onReturnToCall={closeTextChannel}
                 onLogout={handleLogout}
                 width={sidebarWidth}
                 onWidthChange={setSidebarWidth}
@@ -121,8 +122,8 @@ export function RoomShell(props: {
                 {openTextChannel && (
                   <div className={styles.textLayer}>
                     <p className={styles.callBanner}>
-                      Chamada de voz continua em andamento em segundo plano. Feche este canal de
-                      texto pra voltar pra ela.
+                      Chamada de voz continua em andamento em segundo plano. Clique no canal de voz
+                      ao lado pra voltar pra ela.
                     </p>
                     <TextChannelPanel
                       channelId={openTextChannel.id}
@@ -155,6 +156,7 @@ function SidebarSlot(props: {
   activeChannelSlug: string;
   activeTextChannelSlug?: string;
   onSelectTextChannel: (channel: Channel) => void;
+  onReturnToCall: () => void;
   onLogout: () => void;
   width: number;
   onWidthChange: (value: number) => void;
@@ -170,6 +172,7 @@ function SidebarSlot(props: {
         activeChannelSlug={props.activeChannelSlug}
         activeTextChannelSlug={props.activeTextChannelSlug}
         onSelectTextChannel={props.onSelectTextChannel}
+        onReturnToCall={props.onReturnToCall}
         onLogout={props.onLogout}
         widthPx={props.width}
       />

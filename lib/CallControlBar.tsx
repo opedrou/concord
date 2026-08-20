@@ -14,8 +14,6 @@ import {
   usePersistentUserChoices,
 } from '@livekit/components-react';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
-import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
-import { FocusModeControl } from '@/lib/FocusModeControl';
 import { Soundboard } from '@/lib/Soundboard';
 import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
 import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
@@ -125,13 +123,8 @@ export function CallControlBar(props: {
 
       {/* Antes era outro botao flutuante solto (mesma familia visual do
           "Participantes" antigo) — agora e so mais um item da fileira. */}
-      {/* Modo foco: ouvir so quem eu escolher (ver lib/FocusModeControl.tsx). */}
-      <FocusModeControl />
-
       {/* Soundboard compartilhada (ver lib/soundboardEvents.tsx). */}
       <Soundboard />
-
-      <JoinLeaveSounds />
 
       <ChatToggle>
         <ChatIcon />

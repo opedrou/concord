@@ -17,6 +17,7 @@ import {
 import { MicProcessorBinder } from '@/lib/MicProcessorBinder';
 import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import { CallStateBinder } from '@/lib/CallStateBinder';
+import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
 import { VolumeMixerBinder } from '@/lib/VolumeMixerBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
@@ -699,6 +700,9 @@ function VideoConferenceComponent(props: {
             volume individual + volume geral + modo foco. Ver
             lib/VolumeMixerContext.tsx. */}
         <VolumeMixerBinder />
+        {/* Tambem sem UI: toca os sons de entrar/sair/transmitir. O liga e
+            desliga fica na janela de configuracoes, secao Notificacoes. */}
+        <JoinLeaveSounds />
         <CallStage
           chatMessageFormatter={formatChatMessageLinks}
           onDeviceError={handleDeviceError}

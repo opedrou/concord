@@ -25,6 +25,7 @@ import { ParticipantVolumeCard, useScreenShareAudioIdentities } from '@/lib/Part
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { useFullscreen } from '@/lib/FullscreenContext';
 import { useScreenShareViewers } from '@/lib/useScreenShareViewers';
+import { useAudibility } from '@/lib/useAudibility';
 import { FocusModeBanner } from '@/lib/FocusModeControl';
 import { useVolumeMixer } from '@/lib/VolumeMixerContext';
 import { CollapseIcon, ExpandIcon, CloseIcon } from '@/lib/icons';
@@ -240,6 +241,7 @@ export function CallStage(props: {
   const viewersBySid = useScreenShareViewers(watchedSids);
   /** Numero de espectadores de um tile, ou `undefined` se nao for transmissao. */
   const mixer = useVolumeMixer();
+  const audibility = useAudibility();
 
   const viewersFor = React.useCallback(
     (t: TrackReferenceOrPlaceholder): number | undefined => {
@@ -369,6 +371,8 @@ export function CallStage(props: {
                     watch={watchControlFor(focusTrack)}
                     viewers={viewersFor(focusTrack)}
                     focusMuted={isFocusMuted(focusTrack)}
+                    focusRing={audibility[focusTrack.participant.identity]?.ring}
+                    mutedMe={audibility[focusTrack.participant.identity]?.mutedMe}
                   />
                 </TileErrorBoundary>
               </div>
@@ -398,6 +402,8 @@ export function CallStage(props: {
                           watch={watchControlFor(t)}
                           viewers={viewersFor(t)}
                           focusMuted={isFocusMuted(t)}
+                          focusRing={audibility[t.participant.identity]?.ring}
+                          mutedMe={audibility[t.participant.identity]?.mutedMe}
                         />
                       </TileErrorBoundary>
                     ))}
@@ -418,6 +424,8 @@ export function CallStage(props: {
                       watch={watchControlFor(t)}
                       viewers={viewersFor(t)}
                       focusMuted={isFocusMuted(t)}
+                      focusRing={audibility[t.participant.identity]?.ring}
+                      mutedMe={audibility[t.participant.identity]?.mutedMe}
                     />
                   </TileErrorBoundary>
                 ))}

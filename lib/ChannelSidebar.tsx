@@ -25,6 +25,13 @@ export interface ChannelSidebarProps {
    */
   onSelectTextChannel?: (channel: Channel) => void;
   /**
+   * Chamado quando a pessoa clica no canal de voz em que JA esta. Usado pelo
+   * RoomShell pra fechar o painel de texto aberto por cima da chamada — sem
+   * isso o clique nao fazia nada (ia num `router.push` pra rota que ja e a
+   * atual), e o unico jeito de voltar pra call era achar o botao de fechar.
+   */
+  onReturnToCall?: () => void;
+  /**
    * Largura em px, quando o container em volta (RoomShell) controla o
    * redimensionamento pelo usuario. Sem isso cai no valor fixo do CSS
    * module (usado na home, onde a sidebar nao e arrastavel).
@@ -53,9 +60,6 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   // mora aqui, e nao dentro da janela, porque a janela desmonta ao fechar.
   const [settingsSection, setSettingsSection] = React.useState<SettingsSection | null>(null);
   const closeSettings = React.useCallback(() => setSettingsSection(null), []);
-  // `activeChannelSlug` so vem preenchido pelo RoomShell — ou seja, so existe
-  // quando ha uma chamada de voz montada por baixo.
-  const inCall = !!props.activeChannelSlug;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -71,6 +75,8 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
     };
   }, []);
 
+  const { onReturnToCall } = props;
+
   const handleEnterVoice = React.useCallback(
     (channel: Channel) => {
       // Atualiza a presenca localmente na hora — nao espera o proximo poll
@@ -80,6 +86,13 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
           identity: props.user.username,
           name: props.user.username,
         });
+      }
+      if (props.activeChannelSlug === channel.slug) {
+        // Ja estou nesta call. Clicar de novo e "me leva de volta pra ela":
+        // fecha o que estiver por cima (canal de texto) e fica por isso mesmo.
+        // O `router.push` la embaixo seria no-op nesse caso.
+        onReturnToCall?.();
+        return;
       }
       if (props.activeChannelSlug && props.activeChannelSlug !== channel.slug) {
         // Trocando de canal de voz com uma chamada em andamento: MANTIDO o
@@ -101,7 +114,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
       }
       router.push(`/rooms/${encodeURIComponent(channel.slug)}`);
     },
-    [router, props.user, props.activeChannelSlug, applyOptimisticJoin],
+    [router, props.user, props.activeChannelSlug, applyOptimisticJoin, onReturnToCall],
   );
 
   const { onSelectTextChannel } = props;
@@ -382,7 +395,6 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
           username={props.user.username}
           isAdmin={props.user.isAdmin}
           initialSection={settingsSection}
-          inCall={inCall}
           onClose={closeSettings}
           onLogout={props.onLogout}
         />

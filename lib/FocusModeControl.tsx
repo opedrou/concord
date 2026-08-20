@@ -20,103 +20,19 @@
 // jogo competitivo o áudio da transmissão costuma ser exatamente o que se quer
 // continuar ouvindo, e calar tudo transformaria isso em "modo surdo".
 //
-// ONDE MORA: `CallControlBar`, dentro do `RoomContext` — precisa de
-// `useRemoteParticipants` pra listar quem marcar. Não dá pra levar isso pra
-// janela de configurações, que renderiza no ramo irmão.
+// ONDE SE LIGA E DESLIGA: pelo atalho de teclado (ver lib/KeyboardShortcuts.tsx)
+// ou pela seção "Modo foco" da janela de configurações. Não há mais botão na
+// barra de controles — ele ocupava espaço permanente pra uma ação que é de
+// atalho, e o estado agora aparece no anel roxo em volta dos tiles.
+//
+// O estado é ANUNCIADO pra sala (lib/focusBroadcast.ts): todo mundo vê quem
+// está em foco, e cada um vê se continua sendo ouvido.
 
 import * as React from 'react';
-import { useRemoteParticipants } from '@livekit/components-react';
 import { useVolumeMixer } from './VolumeMixerContext';
-import { HeadphonesIcon } from '@/lib/icons';
+import { useCallState } from './CallStateContext';
 import styles from '../styles/FocusMode.module.css';
-
-export function FocusModeControl() {
-  const mixer = useVolumeMixer();
-  const participants = useRemoteParticipants();
-  const [open, setOpen] = React.useState(false);
-
-  if (!mixer) {
-    return null;
-  }
-
-  const { focus } = mixer;
-  const names = participants.map((p) => p.name || p.identity).sort((a, b) => a.localeCompare(b));
-
-  const toggleName = (name: string) => {
-    const next = new Set(focus.allowed);
-    if (next.has(name)) {
-      next.delete(name);
-    } else {
-      next.add(name);
-    }
-    mixer.setFocusAllowed(next);
-  };
-
-  return (
-    <div className={styles.wrap}>
-      <button
-        type="button"
-        className={`lk-button ${styles.button} ${focus.enabled ? styles.buttonActive : ''}`}
-        aria-pressed={focus.enabled}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        title="Modo foco — ouvir só quem você escolher"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <HeadphonesIcon size={18} />
-      </button>
-
-      {open && (
-        <>
-          <div className={styles.backdrop} onClick={() => setOpen(false)} />
-          <div className={styles.popover} role="dialog" aria-label="Modo foco">
-            <header className={styles.header}>
-              <span className={styles.title}>Modo foco</span>
-              <button
-                type="button"
-                className={`lk-button ${styles.toggle} ${focus.enabled ? styles.toggleOn : ''}`}
-                aria-pressed={focus.enabled}
-                onClick={mixer.toggleFocus}
-              >
-                {focus.enabled ? 'Ligado' : 'Desligado'}
-              </button>
-            </header>
-
-            <p className={styles.hint}>
-              Você para de ouvir a voz de quem não estiver marcado. Ninguém é mutado de verdade — é
-              só no seu áudio.
-            </p>
-
-            {names.length === 0 ? (
-              <p className={styles.hint}>Ninguém mais está no canal agora.</p>
-            ) : (
-              <ul className={styles.list}>
-                {names.map((name) => (
-                  <li key={name}>
-                    <label className={styles.item}>
-                      <input
-                        type="checkbox"
-                        checked={focus.allowed.has(name)}
-                        onChange={() => toggleName(name)}
-                      />
-                      <span>{name}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {focus.enabled && focus.allowed.size === 0 && (
-              <p className={styles.warning}>
-                Ninguém marcado — você não está ouvindo a voz de ninguém.
-              </p>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+import settingsStyles from '../styles/SettingsWindow.module.css';
 
 /**
  * Faixa de aviso no topo do palco. Feia de propósito e sem opção de esconder:
@@ -144,6 +60,89 @@ export function FocusModeBanner() {
       <button type="button" className={styles.bannerButton} onClick={mixer.toggleFocus}>
         Desligar
       </button>
+    </div>
+  );
+}
+
+/**
+ * Seção "Modo foco" da janela de configurações. Mexe no MESMO estado do botão
+ * da barra de controles — os dois ficam em sincronia porque o dono é o
+ * `VolumeMixerContext`.
+ *
+ * A lista de pessoas vem do `CallStateContext`, e não de
+ * `useRemoteParticipants`: esta seção renderiza dentro da `ChannelSidebar`,
+ * que é IRMÃ da chamada e não enxerga o `RoomContext`. Mesma solução da seção
+ * Mixer (ver lib/MixerSection.tsx).
+ */
+export function FocusModeSettings() {
+  const mixer = useVolumeMixer();
+  const callState = useCallState();
+
+  const people = React.useMemo(() => {
+    if (!callState?.slug) return [];
+    return Object.entries(callState.byIdentity)
+      .filter(([identity]) => identity !== callState.localIdentity)
+      .map(([, state]) => state.name)
+      .sort((a, b) => a.localeCompare(b));
+  }, [callState]);
+
+  if (!mixer) {
+    return (
+      <p className={settingsStyles.hint}>O modo foco fica disponível dentro de um canal de voz.</p>
+    );
+  }
+
+  const { focus } = mixer;
+
+  const toggleName = (name: string) => {
+    const next = new Set(focus.allowed);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    mixer.setFocusAllowed(next);
+  };
+
+  return (
+    <div className={settingsStyles.field}>
+      <label className={settingsStyles.checkboxRow}>
+        <input type="checkbox" checked={focus.enabled} onChange={mixer.toggleFocus} />
+        <span>Ligar o modo foco</span>
+      </label>
+      <p className={settingsStyles.hint}>
+        Você para de ouvir a voz de quem não estiver marcado abaixo. Ninguém é mutado de verdade —
+        as pessoas continuam falando normalmente pra todo mundo, e não têm como saber. Áudio de tela
+        e soundboard continuam passando.
+      </p>
+
+      {!callState?.slug ? (
+        <p className={settingsStyles.hint}>Entre num canal de voz para escolher quem ouvir.</p>
+      ) : people.length === 0 ? (
+        <p className={settingsStyles.hint}>Ninguém mais está no canal agora.</p>
+      ) : (
+        <>
+          <span className={settingsStyles.fieldLabel}>Continuo ouvindo</span>
+          {people.map((name) => (
+            <label key={name} className={settingsStyles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={focus.allowed.has(name)}
+                onChange={() => toggleName(name)}
+              />
+              <span>{name}</span>
+            </label>
+          ))}
+        </>
+      )}
+
+      {focus.enabled && focus.allowed.size === 0 && (
+        <p className={settingsStyles.warning}>
+          Ninguém marcado — você não está ouvindo a voz de ninguém.
+        </p>
+      )}
+
+      <p className={settingsStyles.hint}>
+        O modo foco nunca é lembrado entre sessões: ele sempre nasce desligado, pra ninguém voltar
+        amanhã sem ouvir o grupo por causa de um botão apertado hoje.
+      </p>
     </div>
   );
 }

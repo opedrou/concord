@@ -192,3 +192,55 @@
   margin-left: 0.35rem;
   color: var(--lk-danger, #f91f31);
 }
+
+/* --- Anel do MODO FOCO (ver lib/focusBroadcast.ts) -------------------------
+   Anel roxo em volta de quem está com o modo foco ligado, no mesmo espírito do
+   anel de "falando" — mas com significado diferente e, principalmente, com
+   TOM diferente conforme voce esteja ou nao na lista de quem essa pessoa
+   continua ouvindo.
+
+   Desenhado num ::before PROPRIO em vez de reaproveitar o ::after da lib: o
+   ::after e o anel de "falando", e sobrescrever a cor dele faria os dois
+   estados competirem pelo mesmo pixel — alguem em foco E falando perderia um
+   dos dois sinais. Aqui os dois convivem: azul por fora (falando), roxo por
+   dentro (foco).
+
+   `inset: 3px` deixa o roxo logo dentro do azul; `z-index: 1` e obrigatorio
+   porque ::before pinta ANTES dos filhos, e sem ele o <video> cobriria o anel. */
+.tile.tile::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  z-index: 1;
+  border-radius: var(--lk-border-radius);
+  border: 0 solid transparent;
+  pointer-events: none;
+  transition:
+    border-width 0.2s ease-in-out,
+    border-color 0.2s ease-in-out;
+}
+
+.tile.tile[data-concord-focus]::before {
+  border-width: var(--lk-speaking-indicator-width, 2.5px);
+}
+
+/* Em foco e AINDA me ouvindo — roxo vivo. */
+.tile.tile[data-concord-focus='listening']::before {
+  border-color: #a855f7;
+}
+
+/* Em foco e NAO me ouvindo — roxo apagado. O tom mais fraco e o recado: a
+   pessoa esta ali, mas o que voce falar nao chega nela. */
+.tile.tile[data-concord-focus='excluded']::before {
+  border-color: #6d28d9;
+}
+
+/* "Nao te ouve" — a pessoa mutou voce individualmente, ou esta em modo foco
+   sem voce na lista. Ambar de aviso, nao vermelho de erro: nao ha nada
+   quebrado, e uma escolha dela. Ver lib/audibility.ts. */
+.notHearingBadge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  color: #f5a524;
+}

@@ -29,6 +29,19 @@
   max-width: 460px;
 }
 
+/* Configuracoes: continua sendo janela (com moldura e fundo escurecido atras),
+   so que grande. Os 900px do padrao espremiam a navegacao lateral contra o
+   conteudo, e o `narrow` de 460px — que era o que estava sendo usado por
+   engano — nao cabia de jeito nenhum.
+
+   `height` fixa em vez de deixar crescer com o conteudo: sem isso a janela
+   mudava de tamanho ao trocar de secao (Perfil e curto, Admin e longo), o que
+   faz a moldura pular debaixo do cursor. */
+.windowLarge {
+  max-width: 1080px;
+  height: min(85vh, 46rem);
+}
+
 .header {
   flex-shrink: 0;
   display: flex;
@@ -77,18 +90,6 @@
   min-height: 0;
   overflow-y: auto;
   padding: 1.25rem;
-}
-
-/* Aviso de que a chamada continua rodando por baixo — mesmo tom do banner do
-   canal de texto no RoomShell. */
-.callNote {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0.5rem 1.1rem;
-  background-color: var(--lk-accent-bg, rgba(255, 255, 255, 0.1));
-  border-bottom: 1px solid var(--lk-border-color);
-  font-size: 0.78rem;
-  color: var(--lk-fg2, rgba(255, 255, 255, 0.7));
 }
 
 @media (max-width: 640px) {
