@@ -18,7 +18,7 @@ import {
   SOUNDS_DIR,
   isAcceptedSoundFormat,
   resolveSoundPath,
-  soundUrlFor,
+  toPublicSound,
 } from '@/lib/sounds';
 import {
   EmptyUploadError,
@@ -30,26 +30,6 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-interface PublicSound {
-  id: number;
-  name: string;
-  url: string;
-  size: number;
-  uploadedBy: number | null;
-  createdAt: number;
-}
-
-function toPublic(row: DbSound): PublicSound {
-  return {
-    id: row.id,
-    name: row.name,
-    url: soundUrlFor(row.id, row.filename),
-    size: row.size,
-    uploadedBy: row.uploaded_by,
-    createdAt: row.created_at,
-  };
-}
-
 export async function GET(request: NextRequest) {
   const auth = await requireUser(request);
   if ('response' in auth) return auth.response;
@@ -57,7 +37,7 @@ export async function GET(request: NextRequest) {
   const rows = getDb()
     .prepare('SELECT * FROM sounds ORDER BY name COLLATE NOCASE ASC')
     .all() as unknown as DbSound[];
-  return NextResponse.json(rows.map(toPublic));
+  return NextResponse.json(rows.map(toPublicSound));
 }
 
 export async function POST(request: NextRequest) {
@@ -110,7 +90,7 @@ export async function POST(request: NextRequest) {
     .run(name, saved.filename, saved.format.contentType, saved.size, user.id, createdAt);
 
   return NextResponse.json(
-    toPublic({
+    toPublicSound({
       id: Number(result.lastInsertRowid),
       name,
       filename: saved.filename,
@@ -118,6 +98,8 @@ export async function POST(request: NextRequest) {
       size: saved.size,
       uploaded_by: user.id,
       created_at: createdAt,
+      trim_start: 0,
+      trim_end: null,
     }),
     { status: 201 },
   );

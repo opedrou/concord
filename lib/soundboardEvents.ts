@@ -26,7 +26,7 @@
 
 import * as React from 'react';
 import { useDataChannel } from '@livekit/components-react';
-import { playSfx } from './sfx';
+import { playSfx, stopAllSfx } from './sfx';
 import { useVolumeMixer } from './VolumeMixerContext';
 
 export const SOUNDBOARD_TOPIC = 'soundboard';
@@ -39,6 +39,31 @@ interface SoundboardMessage {
   /** Só pra UI mostrar "fulano tocou X" sem ter que procurar na lista. */
   name: string;
   url: string;
+  /** Corte gravado na biblioteca; o arquivo continua inteiro no servidor. */
+  trimStart?: number;
+  trimEnd?: number | null;
+}
+
+/**
+ * "Parar tudo". Vai pelo mesmo tópico: quem pediu silêncio quer silêncio na
+ * call, não só no próprio fone — o som está tocando no alto-falante de cada
+ * um, então parar tem que ser um evento igual ao de tocar. Qualquer um pode
+ * parar qualquer som (grupo de amigos; a alternativa seria só quem tocou poder
+ * parar, o que deixa o resto refém de um áudio de 10s).
+ */
+interface SoundboardStopMessage {
+  stop: true;
+}
+
+type IncomingMessage = Partial<SoundboardMessage & SoundboardStopMessage>;
+
+/** O que o `play` precisa saber de um som da biblioteca. */
+export interface SoundboardPlayable {
+  id: number;
+  name: string;
+  url: string;
+  trimStart?: number;
+  trimEnd?: number | null;
 }
 
 export interface SoundboardEvent {
@@ -55,7 +80,9 @@ export interface SoundboardEvent {
  *   do servidor) e o último evento recebido, pra UI.
  */
 export function useSoundboard(): {
-  play: (sound: { id: number; name: string; url: string }) => void;
+  play: (sound: SoundboardPlayable) => void;
+  /** Corta o que estiver tocando, aqui e na máquina de todo mundo. */
+  stop: () => void;
   lastEvent: SoundboardEvent | null;
 } {
   const mixer = useVolumeMixer();
@@ -69,17 +96,27 @@ export function useSoundboard(): {
 
   const handleMessage = React.useCallback(
     (msg: { payload: Uint8Array; from?: { identity: string; name?: string } }) => {
-      let parsed: SoundboardMessage;
+      let parsed: IncomingMessage;
       try {
-        parsed = JSON.parse(new TextDecoder().decode(msg.payload)) as SoundboardMessage;
+        parsed = JSON.parse(new TextDecoder().decode(msg.payload)) as IncomingMessage;
       } catch {
-        return;
-      }
-      if (typeof parsed?.url !== 'string') {
         return;
       }
 
       const by = msg.from?.name || msg.from?.identity || 'alguém';
+
+      // Antes do cooldown de propósito: parar nunca pode ser engolido pelo
+      // anti-spam — é justamente o que a pessoa aperta quando o som está
+      // demais.
+      if (parsed.stop) {
+        stopAllSfx();
+        setLastEvent(null);
+        return;
+      }
+
+      if (typeof parsed.url !== 'string') {
+        return;
+      }
 
       // Anti-spam: uma pessoa não consegue transformar isso em metralhadora.
       const now = Date.now();
@@ -96,9 +133,13 @@ export function useSoundboard(): {
       const focusMuted = current?.isFocusMuted(by) ?? false;
       const gain = focusMuted ? 0 : Math.min(individual * master, 2);
 
-      setLastEvent({ by, name: parsed.name, at: now });
+      setLastEvent({ by, name: parsed.name ?? 'um som', at: now });
       if (gain > 0) {
-        playSfx(parsed.url, { gain });
+        playSfx(parsed.url, {
+          gain,
+          start: parsed.trimStart ?? 0,
+          end: parsed.trimEnd ?? undefined,
+        });
       }
     },
     [],
@@ -107,8 +148,14 @@ export function useSoundboard(): {
   const { send } = useDataChannel(SOUNDBOARD_TOPIC, handleMessage);
 
   const play = React.useCallback(
-    (sound: { id: number; name: string; url: string }) => {
-      const payload: SoundboardMessage = { soundId: sound.id, name: sound.name, url: sound.url };
+    (sound: SoundboardPlayable) => {
+      const payload: SoundboardMessage = {
+        soundId: sound.id,
+        name: sound.name,
+        url: sound.url,
+        trimStart: sound.trimStart,
+        trimEnd: sound.trimEnd,
+      };
       // `reliable`: um som que não chega é pior que um som atrasado, e o
       // volume de tráfego aqui é ridículo (algumas dezenas de bytes).
       void send(new TextEncoder().encode(JSON.stringify(payload)), { reliable: true }).catch(() => {
@@ -118,11 +165,25 @@ export function useSoundboard(): {
       // Toca localmente na hora, sem esperar eco: o próprio `send` não volta
       // pra quem enviou, e esperar confirmação só adicionaria latência.
       const current = mixerRef.current;
-      playSfx(sound.url, { gain: current?.master ?? 1 });
+      playSfx(sound.url, {
+        gain: current?.master ?? 1,
+        start: sound.trimStart,
+        end: sound.trimEnd ?? undefined,
+      });
       setLastEvent({ by: 'você', name: sound.name, at: Date.now() });
     },
     [send],
   );
 
-  return { play, lastEvent };
+  const stop = React.useCallback(() => {
+    // Para na hora pra quem apertou, mesmo que o canal de dados esteja fora.
+    stopAllSfx();
+    setLastEvent(null);
+    const payload: SoundboardStopMessage = { stop: true };
+    void send(new TextEncoder().encode(JSON.stringify(payload)), { reliable: true }).catch(() => {
+      // Sem conexão de dados — os outros continuam ouvindo até o som acabar.
+    });
+  }, [send]);
+
+  return { play, stop, lastEvent };
 }

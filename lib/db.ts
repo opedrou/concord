@@ -62,6 +62,12 @@ export interface DbSound {
   size: number;
   uploaded_by: number | null;
   created_at: number;
+  // Corte NAO destrutivo (ver migrateSoundTrimColumns): segundos a pular no
+  // comeco e segundo em que o som para. O arquivo no disco continua inteiro;
+  // quem aplica o corte e o `playSfx` na hora de tocar. `trim_end` NULL = ate
+  // o fim.
+  trim_start: number;
+  trim_end: number | null;
 }
 
 export interface DbMessageAttachment {
@@ -149,6 +155,7 @@ export function getDb(): DatabaseSync {
   `);
 
   migrateAvatarColumn(db);
+  migrateSoundTrimColumns(db);
   migrateChannelTypeColumn(db);
   migrateAttachmentColumns(db);
 
@@ -172,6 +179,32 @@ function migrateAvatarColumn(db: DatabaseSync): void {
   if (!hasAvatarColumn) {
     db.exec('ALTER TABLE users ADD COLUMN avatar_path TEXT;');
     console.log('[migrate] coluna users.avatar_path adicionada.');
+  }
+}
+
+/**
+ * Migração aditiva (corte de áudio na soundboard): `trim_start` e `trim_end`
+ * em `sounds`.
+ *
+ * Guardar os limites em vez de reescrever o arquivo: cortar de verdade exigiria
+ * decodificar e reencodar no servidor (ffmpeg na imagem) e tornaria o ajuste
+ * irreversível. Dois números resolvem — o `playSfx` já sabe começar num offset
+ * e parar numa duração, e dá pra afrouxar o corte depois. Som já existente
+ * pega `trim_start = 0` e `trim_end = NULL` (tudo), então nada muda pra quem
+ * já tinha biblioteca.
+ */
+function migrateSoundTrimColumns(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(sounds)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const existing = new Set(columns.map((c) => c.name));
+  if (!existing.has('trim_start')) {
+    db.exec('ALTER TABLE sounds ADD COLUMN trim_start REAL NOT NULL DEFAULT 0;');
+    console.log('[migrate] coluna sounds.trim_start adicionada.');
+  }
+  if (!existing.has('trim_end')) {
+    db.exec('ALTER TABLE sounds ADD COLUMN trim_end REAL;');
+    console.log('[migrate] coluna sounds.trim_end adicionada.');
   }
 }
 

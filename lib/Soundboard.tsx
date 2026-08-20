@@ -14,12 +14,14 @@ import {
   apiErrorMessage,
   deleteSound,
   fetchSounds,
+  updateSound,
   uploadSound,
   type Sound,
 } from '@/lib/api-client';
 import { useSoundboard } from '@/lib/soundboardEvents';
-import { playSfx } from '@/lib/sfx';
-import { MAX_SOUND_BYTES } from '@/lib/uploadLimits';
+import { playSfx, stopAllSfx } from '@/lib/sfx';
+import { SoundTrimmer } from '@/lib/SoundTrimmer';
+import { MAX_SOUND_BYTES, MAX_SOUND_NAME_LENGTH } from '@/lib/uploadLimits';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { CloseIcon, Volume2Icon } from '@/lib/icons';
 import styles from '../styles/Soundboard.module.css';
@@ -27,7 +29,7 @@ import settingsStyles from '../styles/SettingsWindow.module.css';
 
 export function Soundboard() {
   const [open, setOpen] = React.useState(false);
-  const { play, lastEvent } = useSoundboard();
+  const { play, stop, lastEvent } = useSoundboard();
 
   return (
     <div className={styles.wrap}>
@@ -43,13 +45,14 @@ export function Soundboard() {
       </button>
 
       {/* Fora do popover de propósito: dá pra ver quem tocou o quê mesmo com o
-          painel fechado. */}
+          painel fechado. Renderiza aqui mas aparece como toast no canto
+          inferior direito (posição fixa, ver Soundboard.module.css). */}
       {lastEvent && <LastPlayed event={lastEvent} />}
 
       {open && (
         <>
           <div className={styles.backdrop} onClick={() => setOpen(false)} />
-          <SoundboardPanel onPlay={play} onClose={() => setOpen(false)} />
+          <SoundboardPanel onPlay={play} onStop={stop} onClose={() => setOpen(false)} />
         </>
       )}
     </div>
@@ -76,7 +79,11 @@ function LastPlayed({ event }: { event: { by: string; name: string; at: number }
   );
 }
 
-function SoundboardPanel(props: { onPlay: (sound: Sound) => void; onClose: () => void }) {
+function SoundboardPanel(props: {
+  onPlay: (sound: Sound) => void;
+  onStop: () => void;
+  onClose: () => void;
+}) {
   const [sounds, setSounds] = React.useState<Sound[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -98,6 +105,17 @@ function SoundboardPanel(props: { onPlay: (sound: Sound) => void; onClose: () =>
     <div className={styles.panel} role="dialog" aria-label="Soundboard">
       <header className={styles.header}>
         <span className={styles.title}>Soundboard</span>
+        {/* Parar vale pra TODO MUNDO (ver soundboardEvents): o som está tocando
+            no alto-falante de cada um, então calar só o próprio fone não é o
+            que se quer quando alguém solta um áudio longo. */}
+        <button
+          type="button"
+          className={`lk-button ${styles.stopButton}`}
+          onClick={props.onStop}
+          title="Parar o som que está tocando — pra todo mundo"
+        >
+          Parar
+        </button>
         <button type="button" className="lk-button" onClick={props.onClose} aria-label="Fechar">
           <CloseIcon size={14} />
         </button>
@@ -157,6 +175,8 @@ export function SoundboardSettings() {
   const [sounds, setSounds] = React.useState<Sound[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [editing, setEditing] = React.useState<number | null>(null);
+  const [renaming, setRenaming] = React.useState<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
@@ -192,6 +212,31 @@ export function SoundboardSettings() {
     }
   }, []);
 
+  /**
+   * O nome é o rótulo do botão que todo mundo vê — por padrão vem do nome do
+   * arquivo, que quase nunca é o que se quer ("audio_2 (1).mp3"). Renomear não
+   * mexe no arquivo nem na URL: é só a coluna `name`.
+   */
+  const handleRename = React.useCallback(async (sound: Sound, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === sound.name) {
+      setRenaming(null);
+      return;
+    }
+    setError(null);
+    try {
+      const updated = await updateSound(sound.id, { name: trimmed });
+      setSounds((prev) =>
+        (prev ?? [])
+          .map((s) => (s.id === updated.id ? updated : s))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      setRenaming(null);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
+  }, []);
+
   const handleDelete = React.useCallback(async (sound: Sound) => {
     setError(null);
     try {
@@ -223,31 +268,91 @@ export function SoundboardSettings() {
       )}
 
       {sounds?.map((sound) => {
+        // Mesma regra de apagar: quem subiu ou um admin. O corte vale pro grupo
+        // inteiro, então não é ajuste que qualquer um mexe.
         const canDelete = !!user && (user.isAdmin || sound.uploadedBy === user.id);
+        const trimmed = sound.trimStart > 0 || sound.trimEnd !== null;
         return (
-          <div key={sound.id} className={styles.settingsRow}>
-            <span className={styles.settingsName}>{sound.name}</span>
-            {/* Toca só pra você: aqui é o lugar de conferir o som antes de
-                soltar pro grupo, não de tocar pro grupo. */}
-            <button
-              type="button"
-              className="lk-button"
-              onClick={() => playSfx(sound.url, { gain: 1 })}
-              title="Ouvir só pra você"
-            >
-              Ouvir
-            </button>
-            {canDelete && (
+          <React.Fragment key={sound.id}>
+            <div className={styles.settingsRow}>
+              {renaming === sound.id ? (
+                <NameEditor
+                  initial={sound.name}
+                  onSubmit={(name) => void handleRename(sound, name)}
+                  onCancel={() => setRenaming(null)}
+                />
+              ) : (
+                <span className={styles.settingsName}>
+                  {sound.name}
+                  {trimmed && <span className={styles.trimBadge}>cortado</span>}
+                </span>
+              )}
+              {/* Toca só pra você: aqui é o lugar de conferir o som antes de
+                  soltar pro grupo, não de tocar pro grupo. Já com o corte, que
+                  é como o grupo vai ouvir. */}
               <button
                 type="button"
                 className="lk-button"
-                onClick={() => handleDelete(sound)}
-                title="Apagar da biblioteca — vale pra todo mundo"
+                onClick={() =>
+                  playSfx(sound.url, {
+                    gain: 1,
+                    start: sound.trimStart,
+                    end: sound.trimEnd ?? undefined,
+                  })
+                }
+                title="Ouvir só pra você"
               >
-                Apagar
+                Ouvir
               </button>
+              <button
+                type="button"
+                className="lk-button"
+                onClick={() => stopAllSfx()}
+                title="Parar a prévia"
+              >
+                Parar
+              </button>
+              {canDelete && renaming !== sound.id && (
+                <button
+                  type="button"
+                  className="lk-button"
+                  onClick={() => setRenaming(sound.id)}
+                  title="Mudar o nome que aparece no botão"
+                >
+                  Renomear
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  className="lk-button"
+                  onClick={() => setEditing((v) => (v === sound.id ? null : sound.id))}
+                  title="Cortar o início ou o fim"
+                >
+                  {editing === sound.id ? 'Fechar' : 'Editar'}
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  className="lk-button"
+                  onClick={() => handleDelete(sound)}
+                  title="Apagar da biblioteca — vale pra todo mundo"
+                >
+                  Apagar
+                </button>
+              )}
+            </div>
+            {editing === sound.id && (
+              <SoundTrimmer
+                sound={sound}
+                onSaved={(updated) =>
+                  setSounds((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)))
+                }
+                onClose={() => setEditing(null)}
+              />
             )}
-          </div>
+          </React.Fragment>
         );
       })}
 
@@ -275,5 +380,42 @@ export function SoundboardSettings() {
         &quot;Soundboard&quot; dela na seção Mixer.
       </p>
     </div>
+  );
+}
+
+/**
+ * Campo de nome inline. Enter salva, Esc cancela, sair do campo salva — é uma
+ * edição de um campo só, um formulário com botão de OK seria cerimônia demais.
+ */
+function NameEditor(props: {
+  initial: string;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = React.useState(props.initial);
+  const cancelledRef = React.useRef(false);
+
+  return (
+    <input
+      className={styles.nameInput}
+      value={value}
+      maxLength={MAX_SOUND_NAME_LENGTH}
+      autoFocus
+      aria-label="Nome do som"
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          props.onSubmit(value);
+        } else if (e.key === 'Escape') {
+          cancelledRef.current = true;
+          props.onCancel();
+        }
+      }}
+      onBlur={() => {
+        if (!cancelledRef.current) {
+          props.onSubmit(value);
+        }
+      }}
+    />
   );
 }

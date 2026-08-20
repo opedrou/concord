@@ -440,6 +440,10 @@ export interface Sound {
   /** `null` se a conta de quem subiu foi apagada. O som continua sendo do grupo. */
   uploadedBy: number | null;
   createdAt: number;
+  /** Corte de entrada, em segundos (0 = do começo). */
+  trimStart: number;
+  /** Corte de saída, em segundos; `null` = toca até o fim. */
+  trimEnd: number | null;
 }
 
 export async function fetchSounds(): Promise<Sound[]> {
@@ -453,6 +457,25 @@ export async function uploadSound(file: File): Promise<Sound> {
     method: 'POST',
     credentials: 'same-origin',
     body: file,
+  });
+  return parseJsonOrThrow<Sound>(res);
+}
+
+/**
+ * Edita nome e/ou corte de um som. Parcial: campo ausente fica como esta. O
+ * corte nao reescreve o arquivo, so grava onde comecar e onde parar (ver PATCH
+ * em app/api/sounds/[id]). Recusa (403) se quem chama nao subiu o som nem e
+ * admin.
+ */
+export async function updateSound(
+  id: number,
+  patch: { name?: string; trimStart?: number; trimEnd?: number | null },
+): Promise<Sound> {
+  const res = await fetch(`/api/sounds/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(patch),
   });
   return parseJsonOrThrow<Sound>(res);
 }

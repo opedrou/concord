@@ -50,6 +50,12 @@ function getSfxContext(): AudioContext | null {
   }
 }
 
+// Fontes tocando agora. Um `AudioBufferSourceNode` nao da pra consultar
+// ("esta tocando?"), entao guardamos as vivas aqui e o `onended` (que dispara
+// tanto no fim natural quanto no `stop()`) faz a limpeza. E isso que permite
+// o botao de PARAR da soundboard.
+const playing = new Set<AudioBufferSourceNode>();
+
 // Cache por URL. Guarda a PROMESSA, nao o buffer pronto: dois toques quase
 // simultaneos do mesmo som (ou o preload e um toque se cruzando) reaproveitam
 // o mesmo download em vez de disparar dois.
@@ -85,6 +91,15 @@ function loadBuffer(url: string): Promise<AudioBuffer | null> {
 }
 
 /**
+ * O `AudioBuffer` decodificado, ou `null` se falhou. Exposto pro editor de
+ * corte, que precisa das amostras pra desenhar a forma de onda e da duracao
+ * pra posicionar as alcas.
+ */
+export function loadSoundBuffer(url: string): Promise<AudioBuffer | null> {
+  return loadBuffer(url);
+}
+
+/**
  * Baixa e decodifica antecipadamente. Sem isso o PRIMEIRO toque de cada som
  * chegaria atrasado pelo tempo de rede — justamente o toque que mais importa
  * (alguem entrou na sala).
@@ -95,12 +110,20 @@ export function preloadSfx(urls: readonly string[]): void {
   }
 }
 
+export interface PlaySfxOptions {
+  /** Ganho linear (1 = volume original do arquivo). */
+  gain?: number;
+  /** Segundos a pular no comeco do arquivo (corte de entrada). */
+  start?: number;
+  /** Segundo em que o som para (corte de saida). `undefined` = ate o fim. */
+  end?: number;
+}
+
 /**
- * Toca um som. `gain` e ganho linear (1 = volume original do arquivo).
- * Nao devolve nada e nunca rejeita: quem chama nao tem o que fazer com a
- * falha.
+ * Toca um som. Nao devolve nada e nunca rejeita: quem chama nao tem o que
+ * fazer com a falha.
  */
-export function playSfx(url: string, options: { gain?: number } = {}): void {
+export function playSfx(url: string, options: PlaySfxOptions = {}): void {
   const ctx = getSfxContext();
   if (!ctx) {
     return;
@@ -116,7 +139,23 @@ export function playSfx(url: string, options: { gain?: number } = {}): void {
         const gainNode = ctx.createGain();
         gainNode.gain.value = options.gain ?? 1;
         source.connect(gainNode).connect(ctx.destination);
-        source.start();
+
+        // Corte nao destrutivo: o arquivo no disco continua inteiro, o
+        // `start(when, offset, duration)` da Web Audio pula o comeco e para
+        // no fim escolhido. Zero reencode, zero ffmpeg no servidor.
+        const offset = clampToBuffer(options.start ?? 0, buffer.duration);
+        const end = clampToBuffer(options.end ?? buffer.duration, buffer.duration);
+        const duration = end - offset;
+        if (duration <= 0) {
+          return;
+        }
+        playing.add(source);
+        source.onended = () => {
+          playing.delete(source);
+          source.disconnect();
+          gainNode.disconnect();
+        };
+        source.start(0, offset, duration);
       } catch {
         // Contexto fechado no meio do caminho, por exemplo.
       }
@@ -135,10 +174,34 @@ export function playSfx(url: string, options: { gain?: number } = {}): void {
   });
 }
 
+function clampToBuffer(seconds: number, duration: number): number {
+  if (!Number.isFinite(seconds)) {
+    return duration;
+  }
+  return Math.min(Math.max(seconds, 0), duration);
+}
+
+/**
+ * Corta tudo que estiver tocando agora. Vale pros bipes da interface tambem —
+ * na pratica so a soundboard toca algo longo o bastante pra alguem querer
+ * parar.
+ */
+export function stopAllSfx(): void {
+  for (const source of playing) {
+    try {
+      source.stop();
+    } catch {
+      // Ja terminou; o `onended` limpa.
+    }
+  }
+  playing.clear();
+}
+
 /** Fecha o contexto compartilhado. So faz sentido ao sair da call. */
 export function closeSfxContext(): void {
   const ctx = sfxContext;
   sfxContext = null;
+  playing.clear();
   // Os buffers foram decodificados PARA esse contexto — num contexto novo eles
   // nao servem, entao o cache vai junto.
   buffers.clear();
