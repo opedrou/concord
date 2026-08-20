@@ -35,14 +35,19 @@ export function MicProcessorBinder() {
   // `buildAudioCaptureConstraints`: com modelo neural ativo, a supressao
   // nativa e desligada pra nao filtrar duas vezes).
   const applyConstraints = React.useCallback(
-    async (model: DenoiseModel, browserEnabled: boolean) => {
+    async (model: DenoiseModel, browserEnabled: boolean, autoGainControl?: boolean) => {
       const mst = trackRef.current?.mediaStreamTrack;
       if (!mst) return;
+      const agc = autoGainControl ?? internals?.desired.current.autoGainControl ?? true;
       try {
         // `applyConstraints` muda a captura sem republicar a track — troca o
         // "quanto processar" sem cortar o audio de ninguem.
         await mst.applyConstraints(
-          buildAudioCaptureConstraints(browserEnabled, model !== 'off') as MediaTrackConstraints,
+          buildAudioCaptureConstraints(
+            browserEnabled,
+            model !== 'off',
+            agc,
+          ) as MediaTrackConstraints,
         );
       } catch {
         // Navegador recusou, ou a constraint nao existe pra esse dispositivo. A
@@ -61,13 +66,14 @@ export function MicProcessorBinder() {
   const attachToTrack = React.useCallback(
     async (track: LocalAudioTrack) => {
       if (!internals) return;
-      const { threshold, noiseLevel } = internals.desired.current;
+      const { threshold, noiseLevel, inputGain } = internals.desired.current;
       const denoiseModel = levelToDenoiseModel(noiseLevel);
 
       if (trackRef.current === track && processorRef.current) {
         // Mesma track de sempre (reaplicacao vinda de outro efeito) — so garante
         // que os valores estao em dia, sem recriar a cadeia de audio.
         processorRef.current.setThreshold(threshold);
+        processorRef.current.setInputGain(inputGain);
         return;
       }
       // Track antiga (device trocado) — desmonta o processor dela antes de
@@ -80,7 +86,7 @@ export function MicProcessorBinder() {
       const monitorDevice = isMonitorDevice(track.mediaStreamTrack?.label);
       internals.report({ active: true, monitorDevice });
 
-      const processor = new MicProcessorChain(threshold, denoiseModel);
+      const processor = new MicProcessorChain(threshold, denoiseModel, inputGain);
       processor.onLevel = ({ levelDb }) => internals.emitLevel(levelDb);
       processor.onDenoiseStatus = (denoiseStatus) => internals.report({ denoiseStatus });
       try {
@@ -118,6 +124,18 @@ export function MicProcessorBinder() {
       applyNoiseLevel: (model, browserEnabled) => {
         void processorRef.current?.setDenoise(model);
         void applyConstraints(model, browserEnabled);
+      },
+      applyInputGain: (value, autoGainControl) => {
+        processorRef.current?.setInputGain(value);
+        // O AGC vive na captura, nao na cadeia de nos — precisa de
+        // applyConstraints. Reusa o modelo/nivel vigentes pra nao desfazer a
+        // configuracao de ruido ao mexer no ganho.
+        const { noiseLevel } = internals.desired.current;
+        void applyConstraints(
+          levelToDenoiseModel(noiseLevel),
+          noiseLevel !== 'off',
+          autoGainControl,
+        );
       },
     });
     return () => internals.register(null);

@@ -18,9 +18,12 @@
 //   400: { error: 'invalid_body' } | { error: 'not_a_text_channel' }
 //   401: { error: 'not_authenticated' }
 //   404: { error: 'not_found' }
+import fs from 'node:fs';
+import nodePath from 'node:path';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api-auth';
 import { DbChannel, DbMessage, getDb } from '@/lib/db';
+import { ATTACHMENTS_DIR, attachmentUrlFor } from '@/lib/attachments';
 import { publishChannelEvent } from '@/lib/messageBus';
 
 export const runtime = 'nodejs';
@@ -38,6 +41,14 @@ function parseId(raw: string): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+interface PublicAttachment {
+  url: string;
+  name: string;
+  mime: string;
+  kind: string;
+  size: number;
+}
+
 interface PublicMessage {
   id: number;
   channelId: number;
@@ -45,14 +56,29 @@ interface PublicMessage {
   authorName: string;
   content: string;
   createdAt: number;
+  attachment: PublicAttachment | null;
 }
 
 interface MessageRow extends DbMessage {
   author_name: string | null;
 }
 
+function toPublicAttachment(row: MessageRow): PublicAttachment | null {
+  if (!row.attachment_path) {
+    return null;
+  }
+  return {
+    url: attachmentUrlFor(row.id, row.attachment_path),
+    name: row.attachment_name ?? 'arquivo',
+    mime: row.attachment_mime ?? 'application/octet-stream',
+    kind: row.attachment_kind ?? 'file',
+    size: row.attachment_size ?? 0,
+  };
+}
+
 function toPublicMessage(row: MessageRow): PublicMessage {
   return {
+    attachment: toPublicAttachment(row),
     id: row.id,
     channelId: row.channel_id,
     authorId: row.user_id,
@@ -116,27 +142,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // um segundo COUNT(*) só pra isso. Ordena DESC (mais nova primeiro) pra
   // pegar exatamente as `limit` anteriores ao cursor, depois inverte pra
   // ordem cronológica na resposta.
-  const rows = (
-    before === null
-      ? db
-          .prepare(
-            `SELECT messages.*, users.username AS author_name
+  const rows = (before === null
+    ? db
+        .prepare(
+          `SELECT messages.*, users.username AS author_name
              FROM messages LEFT JOIN users ON users.id = messages.user_id
              WHERE messages.channel_id = ?
              ORDER BY messages.id DESC
              LIMIT ?`,
-          )
-          .all(id, limit + 1)
-      : db
-          .prepare(
-            `SELECT messages.*, users.username AS author_name
+        )
+        .all(id, limit + 1)
+    : db
+        .prepare(
+          `SELECT messages.*, users.username AS author_name
              FROM messages LEFT JOIN users ON users.id = messages.user_id
              WHERE messages.channel_id = ? AND messages.id < ?
              ORDER BY messages.id DESC
              LIMIT ?`,
-          )
-          .all(id, before, limit + 1)
-  ) as unknown as MessageRow[];
+        )
+        .all(id, before, limit + 1)) as unknown as MessageRow[];
 
   const hasMore = rows.length > limit;
   const page = rows.slice(0, limit).reverse();
@@ -163,28 +187,83 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
-  const { content } = (body ?? {}) as { content?: unknown };
+  const { content, attachment } = (body ?? {}) as { content?: unknown; attachment?: unknown };
   if (typeof content !== 'string') {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
   const trimmed = content.trim();
-  if (!trimmed || trimmed.length > MAX_MESSAGE_LENGTH) {
+  if (trimmed.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
+  }
+
+  // O anexo já está no disco (ver POST /api/attachments) — aqui só amarramos
+  // ele à mensagem. Validamos que o arquivo EXISTE de verdade em vez de
+  // confiar no corpo: `path` vem do cliente, e sem essa checagem daria pra
+  // criar mensagem apontando pra um arquivo qualquer (ou pra nada).
+  let saved: { path: string; name: string; mime: string; kind: string; size: number } | null = null;
+  if (attachment !== undefined && attachment !== null) {
+    const candidate = attachment as Record<string, unknown>;
+    if (typeof candidate.path !== 'string' || !candidate.path) {
+      return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
+    }
+    // `path.basename` no resolve impede sair do diretório; aqui só checamos
+    // presença.
+    if (!fs.existsSync(nodePath.join(ATTACHMENTS_DIR, nodePath.basename(candidate.path)))) {
+      return NextResponse.json({ error: 'attachment_not_found' }, { status: 400 });
+    }
+    saved = {
+      path: nodePath.basename(candidate.path),
+      name: typeof candidate.name === 'string' ? candidate.name.slice(0, 120) : 'arquivo',
+      mime: typeof candidate.mime === 'string' ? candidate.mime : 'application/octet-stream',
+      kind: typeof candidate.kind === 'string' ? candidate.kind : 'file',
+      size: typeof candidate.size === 'number' ? candidate.size : 0,
+    };
+  }
+
+  // Mensagem VAZIA agora é válida, desde que tenha anexo — mandar só uma foto,
+  // sem legenda, é o caso mais comum de anexo e antes era recusado aqui.
+  if (!trimmed && !saved) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
   const createdAt = Date.now();
   const result = db
-    .prepare('INSERT INTO messages (channel_id, user_id, content, created_at) VALUES (?, ?, ?, ?)')
+    .prepare(
+      `INSERT INTO messages
+         (channel_id, user_id, content, created_at,
+          attachment_path, attachment_name, attachment_mime, attachment_kind, attachment_size)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
     // Autor SEMPRE da sessão — nunca de campo do body, mesma regra do token do LiveKit.
-    .run(id, user.id, trimmed, createdAt);
+    .run(
+      id,
+      user.id,
+      trimmed,
+      createdAt,
+      saved?.path ?? null,
+      saved?.name ?? null,
+      saved?.mime ?? null,
+      saved?.kind ?? null,
+      saved?.size ?? null,
+    );
 
+  const messageId = Number(result.lastInsertRowid);
   const publicMessage: PublicMessage = {
-    id: Number(result.lastInsertRowid),
+    id: messageId,
     channelId: id,
     authorId: user.id,
     authorName: user.username,
     content: trimmed,
     createdAt,
+    attachment: saved
+      ? {
+          url: attachmentUrlFor(messageId, saved.path),
+          name: saved.name,
+          mime: saved.mime,
+          kind: saved.kind,
+          size: saved.size,
+        }
+      : null,
   };
 
   // Entrega em tempo real pra quem estiver com o canal aberto agora (ver

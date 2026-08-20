@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api-auth';
 import { DbMessage, getDb } from '@/lib/db';
 import { publishChannelEvent } from '@/lib/messageBus';
+import { ATTACHMENTS_DIR } from '@/lib/attachments';
+import { deleteUploadIfExists } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +49,10 @@ export async function DELETE(
   }
 
   db.prepare('DELETE FROM messages WHERE id = ?').run(messageId);
+
+  // O arquivo vai junto. Sem isto, apagar a mensagem deixaria o anexo ocupando
+  // o volume pra sempre, sem nenhuma forma de chegar nele pela UI.
+  deleteUploadIfExists(ATTACHMENTS_DIR, message.attachment_path);
 
   publishChannelEvent(channelId, { type: 'deleted', messageId, channelId });
 

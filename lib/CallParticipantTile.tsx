@@ -15,7 +15,7 @@ import {
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { Avatar } from '@/lib/Avatar';
-import { ExpandIcon } from '@/lib/icons';
+import { ExpandIcon, EyeIcon, EyeOffIcon } from '@/lib/icons';
 import { useSpeakingIndicator } from '@/lib/useSpeakingIndicator';
 import styles from '../styles/CallParticipantTile.module.css';
 
@@ -34,7 +34,25 @@ import styles from '../styles/CallParticipantTile.module.css';
  * 2. Clique abre volume: reaproveitamos o onClick nativo (que o hook publico
  *    `onParticipantClick` NAO expoe com coordenadas) pra abrir o card de
  *    volume por participante ancorado perto de onde a pessoa clicou.
+ * 3. Parar de assistir a transmissao (ver a prop `watch`): o tile continua na
+ *    tela, mas mostrando o ultimo quadro congelado e borrado em vez de video
+ *    ao vivo.
  */
+/**
+ * Controle de "estou assistindo esta transmissao?". So chega preenchido pros
+ * screen shares REMOTOS — a propria tela nao consome banda de download, e
+ * camera de terceiro nao entra no escopo (ver ROADMAP, item 3).
+ */
+export interface WatchControl {
+  watching: boolean;
+  /** Ultimo quadro (data URL) capturado antes de parar de assistir, se deu. */
+  frame?: string;
+  /** Recebe o quadro capturado pelo tile — quem guarda e o CallStage, porque
+   * este componente desmonta ao sair do foco pra grade. */
+  onStop: (frame: string | null) => void;
+  onStart: () => void;
+}
+
 export function CallParticipantTile(props: {
   trackRef: TrackReferenceOrPlaceholder;
   avatarMap: Record<string, string | null>;
@@ -42,9 +60,17 @@ export function CallParticipantTile(props: {
   /** Coloca ESTA transmissao em tela cheia. Ausente = sem botao (ex.: o tile
    * que ja esta em tela cheia nao precisa oferecer o proprio botao). */
   onExpand?: () => void;
+  /** Ausente = nao ha o que assistir/parar de assistir neste tile. */
+  watch?: WatchControl;
+  /** Quantas pessoas estao vendo ESTA transmissao. Ausente fora de screen
+   * share, ou quando o dado nao pode ser obtido (ver useScreenShareViewers). */
+  viewers?: number;
+  /** O modo foco esta calando a voz desta pessoa (so pra mim). */
+  focusMuted?: boolean;
 }) {
-  const { trackRef, avatarMap, onOpenVolume, onExpand } = props;
+  const { trackRef, avatarMap, onOpenVolume, onExpand, watch, viewers, focusMuted } = props;
   const isCameraSource = trackRef.source === Track.Source.Camera;
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
 
   const handleClick = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -81,12 +107,29 @@ export function CallParticipantTile(props: {
     micTracks[0],
   );
 
-  const hasLiveVideo = isTrackReference(trackRef) && trackRef.publication.kind === Track.Kind.Video;
+  // `watch` presente e desligado => a track esta com `setSubscribed(false)`, o
+  // SFU parou de mandar bytes e `publication.track` e undefined. Renderizar o
+  // <VideoTrack> ai daria um <video> preto por cima do quadro congelado.
+  const stoppedWatching = !!watch && !watch.watching;
+  const hasLiveVideo =
+    !stoppedWatching &&
+    isTrackReference(trackRef) &&
+    trackRef.publication.kind === Track.Kind.Video;
+
+  // Congela o quadro atual ANTES de dar unsubscribe — depois do unsubscribe o
+  // <video> ja esta vazio e nao ha mais o que capturar. Sai reduzido e em JPEG
+  // de qualidade baixa de proposito: vai aparecer borrado, ninguem vai ler
+  // pixel nenhum ali, e isso e um data URL vivendo em memoria.
+  const handleStopWatching = React.useCallback(() => {
+    const video = containerRef.current?.querySelector('video');
+    watch?.onStop(video ? captureFrame(video) : null);
+  }, [watch]);
   const avatarUrl = avatarMap[trackRef.participant.name || trackRef.participant.identity];
 
   return (
     <div
       {...elementProps}
+      ref={containerRef}
       // Depois do spread, de proposito: sobrescreve o valor vindo do servidor.
       data-lk-speaking={isSpeaking}
       // So diagnostico (nao afeta CSS nenhum) — 'local-volume' ou
@@ -94,9 +137,38 @@ export function CallParticipantTile(props: {
       // devtools durante uma call de verdade e confirmar qual fonte esta
       // ativa por participante, sem precisar instrumentar nada na hora.
       data-lk-speaking-source={speakingSource}
-      className={`${elementProps.className ?? ''} ${styles.tile}`}
+      // Apaga o tile de quem o modo foco silenciou — sem isso a pessoa fala,
+      // o anel de "falando" nem acende, e parece bug em vez de escolha.
+      data-lk-focus-muted={focusMuted ? 'true' : undefined}
+      className={`${elementProps.className ?? ''} ${styles.tile} ${
+        focusMuted ? styles.focusMuted : ''
+      }`}
     >
       {hasLiveVideo && <VideoTrack trackRef={trackRef} />}
+      {stoppedWatching && (
+        <div className={styles.pausedLayer}>
+          {watch?.frame ? (
+            <div
+              className={styles.pausedFrame}
+              style={{ backgroundImage: `url(${watch.frame})` }}
+              aria-hidden="true"
+            />
+          ) : (
+            <div className={styles.pausedFrame} aria-hidden="true" />
+          )}
+          <button
+            type="button"
+            className={styles.watchButton}
+            onClick={(event) => {
+              event.stopPropagation();
+              watch?.onStart();
+            }}
+          >
+            <EyeIcon size={16} />
+            Assistir
+          </button>
+        </div>
+      )}
       {/* A classe 'lk-participant-placeholder' e a mesma do LiveKit — o CSS
           dele ja controla a visibilidade (so aparece com
           data-lk-video-muted="true" e data-lk-source="camera", nunca no
@@ -121,6 +193,18 @@ export function CallParticipantTile(props: {
           )}
           <ParticipantName participant={trackRef.participant} />
           {!isCameraSource && <span>&apos;s screen</span>}
+          {/* Contador de espectadores, ao lado do nome da transmissao. So
+              aparece com pelo menos uma pessoa vendo — "0 assistindo" nao
+              informa nada e ainda ocuparia espaco. */}
+          {!isCameraSource && viewers !== undefined && viewers > 0 && (
+            <span
+              className={styles.viewerCount}
+              title={viewers === 1 ? '1 pessoa assistindo' : `${viewers} pessoas assistindo`}
+            >
+              <EyeIcon size={13} />
+              {viewers}
+            </span>
+          )}
         </div>
         <ConnectionQualityIndicator
           className="lk-participant-metadata-item"
@@ -128,6 +212,21 @@ export function CallParticipantTile(props: {
         />
       </div>
       <FocusToggle trackRef={trackRef} />
+      {watch?.watching && (
+        <button
+          type="button"
+          className={styles.stopWatchButton}
+          // Mesmo motivo do botao de expandir: o tile inteiro tem onClick.
+          onClick={(event) => {
+            event.stopPropagation();
+            handleStopWatching();
+          }}
+          aria-label="Parar de assistir"
+          title="Parar de assistir — para de consumir banda"
+        >
+          <EyeOffIcon size={16} />
+        </button>
+      )}
       {onExpand && (
         <button
           type="button"
@@ -146,4 +245,32 @@ export function CallParticipantTile(props: {
       )}
     </div>
   );
+}
+
+/**
+ * Ultimo quadro do video como data URL, pra virar o "congelado e borrado" de
+ * quem parou de assistir — mesma ideia do Discord. `null` quando o navegador
+ * ainda nao tem quadro nenhum (`videoWidth === 0`) ou o canvas 2d falha.
+ */
+function captureFrame(video: HTMLVideoElement): string | null {
+  if (!video.videoWidth || !video.videoHeight) {
+    return null;
+  }
+  const scale = Math.min(1, 480 / video.videoWidth);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return null;
+  }
+  try {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.6);
+  } catch {
+    // Canvas "tainted" nao acontece com MediaStream do WebRTC, mas se algum
+    // navegador decidir o contrario o certo e ficar sem o quadro, nao quebrar
+    // o tile inteiro.
+    return null;
+  }
 }

@@ -19,12 +19,14 @@ function describe(p: Participant, speakingIdentities: Set<string>): LiveParticip
   const mic = p.getTrackPublication(Track.Source.Microphone);
   const cam = p.getTrackPublication(Track.Source.Camera);
   return {
+    name: p.name || p.identity,
     // Sem microfone publicado conta como mudo — mesma regra do servidor em
     // /api/channels/presence, pra sidebar nao piscar quando a fonte troca de
     // polling pra ao vivo.
     muted: !mic || mic.isMuted,
     camera: !!cam && !cam.isMuted,
     screenShare: !!p.getTrackPublication(Track.Source.ScreenShare),
+    screenShareAudio: !!p.getTrackPublication(Track.Source.ScreenShareAudio),
     speaking: speakingIdentities.has(p.identity),
   };
 }
@@ -50,7 +52,7 @@ export function CallStateBinder() {
       // Antes de conectar, `room.name` e vazio — sem canal, nao ha o que a
       // sidebar possa aplicar. O evento Connected dispara outro recompute.
       if (!room.name) {
-        publish(null, {});
+        publish(null, {}, null);
         return;
       }
       const speaking = new Set(room.activeSpeakers.map((p) => p.identity));
@@ -59,7 +61,7 @@ export function CallStateBinder() {
       for (const remote of room.remoteParticipants.values()) {
         byIdentity[remote.identity] = describe(remote, speaking);
       }
-      publish(room.name, byIdentity);
+      publish(room.name, byIdentity, room.localParticipant.identity);
     };
 
     const events: RoomEvent[] = [
@@ -92,7 +94,7 @@ export function CallStateBinder() {
   // estado ao vivo de um canal em que voce nao esta mais, sem nunca atualizar.
   React.useEffect(() => {
     return () => {
-      publish?.(null, {});
+      publish?.(null, {}, null);
     };
   }, [publish]);
 

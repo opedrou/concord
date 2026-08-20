@@ -12,8 +12,11 @@ import {
 import type { DenoiseStatus } from './micProcessor';
 import {
   DEFAULT_GATE_THRESHOLD,
+  DEFAULT_INPUT_GAIN,
   loadGateThresholdPref,
+  loadInputGainPref,
   saveGateThresholdPref,
+  saveInputGainPref,
 } from './micProcessor';
 import type { NoiseSuppressionTier } from './noiseSuppression';
 
@@ -44,6 +47,11 @@ import type { NoiseSuppressionTier } from './noiseSuppression';
 
 export interface MicProcessorBinding {
   applyThreshold: (value: number) => void;
+  /** Ganho de entrada (pre-amplificador). Recebe tambem se o controle
+   * automatico de ganho do navegador deve ficar ligado: os dois BRIGAM — o AGC
+   * desfaz o que voce ajusta na mao — entao quem aplica precisa saber os dois
+   * ao mesmo tempo, pelo mesmo motivo do applyNoiseLevel logo abaixo. */
+  applyInputGain: (value: number, autoGainControl: boolean) => void;
   /** Recebe os DOIS valores de uma vez, nunca um de cada vez: as duas camadas
    * sao interdependentes (com modelo neural ativo a supressao nativa e
    * desligada), e aplicar em duas chamadas separadas deixaria um instante com
@@ -63,8 +71,15 @@ interface ReportedState {
 export interface MicProcessorContextValue extends ReportedState {
   threshold: number;
   noiseLevel: NoiseLevel;
+  /** Ganho de entrada linear (1 = sem alteracao). */
+  inputGain: number;
+  /** Controle automatico de ganho do NAVEGADOR. Ligado por padrao; mexer no
+   * ganho manual desliga (ver setInputGain). */
+  autoGainControl: boolean;
   setThreshold: (value: number) => void;
   setNoiseLevel: (level: NoiseLevel) => void;
+  setInputGain: (value: number) => void;
+  setAutoGainControl: (enabled: boolean) => void;
   /** Nivel do microfone ao vivo, pro medidor. Fora do estado do React de
    * proposito: chega a ~33Hz (ver TICK_MS em micProcessor.ts) e re-renderizar
    * a arvore nessa cadencia seria desperdicio puro. */
@@ -81,7 +96,12 @@ interface MicProcessorInternals {
   emitLevel: (levelDb: number) => void;
   /** Valores desejados no momento — o binder lê isso ao aplicar o processor
    * numa track nova, sem depender de re-render. */
-  desired: React.MutableRefObject<{ threshold: number; noiseLevel: NoiseLevel }>;
+  desired: React.MutableRefObject<{
+    threshold: number;
+    noiseLevel: NoiseLevel;
+    inputGain: number;
+    autoGainControl: boolean;
+  }>;
   /** Usado quando o proprio binder decide mudar a preferencia — hoje, o
    * desligamento automatico em device "Monitor of ..." (ver MicProcessorBinder). */
   override: (patch: { threshold?: number; noiseLevel?: NoiseLevel }) => void;
@@ -92,6 +112,11 @@ const MicProcessorInternalsContext = React.createContext<MicProcessorInternals |
 export function MicProcessorProvider(props: { children: React.ReactNode }) {
   const [threshold, setThresholdState] = React.useState<number>(DEFAULT_GATE_THRESHOLD);
   const [noiseLevel, setNoiseLevelState] = React.useState<NoiseLevel>(DEFAULT_NOISE_LEVEL);
+  const [inputGain, setInputGainState] = React.useState<number>(DEFAULT_INPUT_GAIN);
+  // Nao persistido em chave propria: e derivado do ganho manual (ver
+  // setInputGain). Quem carrega uma preferencia de ganho != 1 ja quis o AGC
+  // desligado da vez passada.
+  const [autoGainControl, setAutoGainControlState] = React.useState(true);
   const [reported, setReported] = React.useState<ReportedState>({
     active: false,
     denoiseStatus: 'off',
@@ -106,12 +131,15 @@ export function MicProcessorProvider(props: { children: React.ReactNode }) {
   React.useEffect(() => {
     setThresholdState(loadGateThresholdPref());
     setNoiseLevelState(loadNoiseLevelPref());
+    const gain = loadInputGainPref();
+    setInputGainState(gain);
+    setAutoGainControlState(gain === DEFAULT_INPUT_GAIN);
   }, []);
 
   const bindingRef = React.useRef<MicProcessorBinding | null>(null);
   const listenersRef = React.useRef(new Set<(levelDb: number) => void>());
-  const desired = React.useRef({ threshold, noiseLevel });
-  desired.current = { threshold, noiseLevel };
+  const desired = React.useRef({ threshold, noiseLevel, inputGain, autoGainControl });
+  desired.current = { threshold, noiseLevel, inputGain, autoGainControl };
 
   const setThreshold = React.useCallback((value: number) => {
     setThresholdState(value);
@@ -123,6 +151,23 @@ export function MicProcessorProvider(props: { children: React.ReactNode }) {
     setNoiseLevelState(level);
     saveNoiseLevelPref(level);
     bindingRef.current?.applyNoiseLevel(levelToDenoiseModel(level), level !== 'off');
+  }, []);
+
+  const setInputGain = React.useCallback((value: number) => {
+    setInputGainState(value);
+    saveInputGainPref(value);
+    // Ganho manual e AGC do navegador brigam: o AGC normaliza o nivel e desfaz
+    // o ajuste, deixando o slider com cara de placebo. Sair do valor neutro
+    // desliga o automatico; voltar pra 1 devolve o controle pro navegador. A
+    // UI diz isso em texto, pra ninguem ter que descobrir sozinho.
+    const auto = value === DEFAULT_INPUT_GAIN;
+    setAutoGainControlState(auto);
+    bindingRef.current?.applyInputGain(value, auto);
+  }, []);
+
+  const setAutoGainControl = React.useCallback((enabled: boolean) => {
+    setAutoGainControlState(enabled);
+    bindingRef.current?.applyInputGain(desired.current.inputGain, enabled);
   }, []);
 
   const subscribeLevel = React.useCallback((listener: (levelDb: number) => void) => {
@@ -181,11 +226,26 @@ export function MicProcessorProvider(props: { children: React.ReactNode }) {
       ...reported,
       threshold,
       noiseLevel,
+      inputGain,
+      autoGainControl,
       setThreshold,
       setNoiseLevel,
+      setInputGain,
+      setAutoGainControl,
       subscribeLevel,
     }),
-    [reported, threshold, noiseLevel, setThreshold, setNoiseLevel, subscribeLevel],
+    [
+      reported,
+      threshold,
+      noiseLevel,
+      inputGain,
+      autoGainControl,
+      setThreshold,
+      setNoiseLevel,
+      setInputGain,
+      setAutoGainControl,
+      subscribeLevel,
+    ],
   );
 
   return (

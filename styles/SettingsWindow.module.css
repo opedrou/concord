@@ -1,0 +1,370 @@
+/* Janela única de configurações (ver lib/SettingsWindow.tsx). Substitui o
+   antigo SettingsPanel.module.css — o popover de 20rem ancorado na sidebar.
+   Todo o miolo de áudio (seletor de nível de ruído e medidor do gate) veio de
+   lá intacto; o que mudou foi a moldura, que agora é o <AccountOverlay />. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  min-height: 20rem;
+}
+
+/* --- Navegação de seções --------------------------------------------------- */
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  position: sticky;
+  top: 0;
+}
+
+.navItem {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: none;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.65));
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.navItem:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--lk-fg, #fff);
+}
+
+.navItem:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
+.navItemActive,
+.navItemActive:hover {
+  background-color: var(--lk-accent-bg, #1f6feb);
+  color: var(--lk-accent-fg, #fff);
+  font-weight: 600;
+}
+
+.navDivider {
+  height: 1px;
+  margin: 0.4rem 0;
+  background: var(--lk-border-color, rgba(255, 255, 255, 0.15));
+}
+
+.navItemDanger {
+  color: var(--lk-danger, #f5a524);
+}
+
+/* --- Conteúdo -------------------------------------------------------------- */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lk-fg, #fff);
+}
+
+/* Valor numérico à direita do rótulo (porcentagem, dB). */
+.fieldValue {
+  margin-left: auto;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--lk-fg4, #b0b0b0);
+}
+
+.status {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+}
+
+.warning {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--lk-danger, #f5a524);
+}
+
+.deviceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  min-width: 0;
+}
+
+.deviceLabel {
+  font-size: 0.78rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+  flex-shrink: 0;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--lk-fg, #fff);
+  cursor: pointer;
+}
+
+.soundPreview {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+/* Slider comum (ganho, volume geral, volume dos sons). O medidor do gate tem
+   trilha própria, mais abaixo. */
+.plainRange {
+  width: 100%;
+  accent-color: var(--lk-accent-bg, #1f6feb);
+  cursor: pointer;
+}
+
+.plainRange:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Mixer: uma pessoa por bloco ------------------------------------------- */
+
+.mixerPerson {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.12));
+}
+
+.mixerPersonName {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* --- Seletor de nível de ruído (veio do SettingsPanel.module.css) ---------- */
+
+/* Quatro botões colados, do mais leve pro mais forte. Grid de quatro colunas
+   iguais em vez de flex — assim "Desligada" e "RNNoise" têm a mesma largura e a
+   fileira não dança quando o rótulo muda. */
+.segmented {
+  display: grid;
+  /* `minmax(0, 1fr)`, não `1fr`: `1fr` é `minmax(auto, 1fr)`, ou seja cada
+     coluna tem piso de min-content (a palavra inteira). Com isso a fileira não
+     conseguia encolher e estourava a largura. Com o piso zerado ela acompanha
+     o container. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border-radius: 0.375rem;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.segment {
+  padding: 0.35rem 0.15rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
+  font-size: 0.68rem;
+  line-height: 1.2;
+  cursor: pointer;
+  /* Rótulo é uma palavra só; sem isso "Desligada" quebraria em duas linhas
+     quando a coluna aperta, e as quatro pílulas ficariam de alturas
+     diferentes. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.segment:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--lk-fg);
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
+.segmentActive,
+.segmentActive:hover {
+  background: var(--lk-accent-bg, #1f6feb);
+  color: var(--lk-accent-fg, #fff);
+}
+
+/* --- Medidor do gate (veio intacto do SettingsPanel.module.css) ------------ */
+
+/* No estilo "Input Sensitivity" do Discord: uma trilha fina com duas faixas de
+   cor separadas pelo limiar (âmbar = não passa, verde = passa) e DOIS TONS em
+   cada faixa — o tom escuro é a trilha em repouso, o tom aceso avança até o
+   nível que o microfone está captando agora. A "bolinha" do limiar é o thumb do
+   <input type=range> por cima, invisível exceto pelo próprio thumb.
+
+   --mic-gate-threshold (onde as cores trocam) vem do React via style inline;
+   --mic-gate-level (até onde o tom aceso vai) é escrito direto no .meterActive
+   pelo JS a cada tick, sem re-render (ver AudioSettingsSection.tsx). */
+.meter {
+  position: relative;
+  /* Altura da ÁREA CLICÁVEL, não da trilha — a trilha visível é fina (como no
+     Discord) mas arrastar uma linha de 4px com o mouse é ruim; o input cobre
+     essa altura toda. */
+  height: 1.15rem;
+}
+
+.meterDim,
+.meterActive {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0.3rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  /* Corte duro no ponto do limiar: âmbar (não passa) antes, verde (passa)
+     depois. As duas camadas usam a MESMA geometria — o que muda é só o tom. */
+  background: linear-gradient(
+    to right,
+    var(--mic-gate-below) 0%,
+    var(--mic-gate-below) var(--mic-gate-threshold, 12%),
+    var(--mic-gate-above) var(--mic-gate-threshold, 12%),
+    var(--mic-gate-above) 100%
+  );
+}
+
+.meterDim {
+  --mic-gate-below: #6b4a17;
+  --mic-gate-above: #2c6045;
+}
+
+/* Camada acesa: mesmo gradiente em tom vivo, revelada da esquerda até o nível
+   ao vivo. clip-path (e não width) pra que o gradiente continue calculado sobre
+   a largura TOTAL — com width o ponto de troca de cor andaria junto com o
+   nível, que é exatamente o que não pode acontecer. */
+.meterActive {
+  --mic-gate-below: #faa61a;
+  --mic-gate-above: #3ba55d;
+  clip-path: inset(0 calc(100% - var(--mic-gate-level, 0%)) 0 0);
+  transition: clip-path 60ms linear;
+}
+
+.rangeInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rangeInput:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* Trilha totalmente transparente — quem desenha a trilha visível são os dois
+   divs acima (.meterDim/.meterActive); o input só contribui com o thumb. */
+.rangeInput::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+}
+
+.rangeInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+
+.rangeInput::-moz-range-track {
+  background: transparent;
+  height: 100%;
+}
+
+.rangeInput::-moz-range-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+
+@media (max-width: 640px) {
+  /* Numa tela estreita a nav vira uma fileira rolável no topo, em vez de comer
+     metade da largura útil. */
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
+  .nav {
+    flex-direction: row;
+    overflow-x: auto;
+    position: static;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.15));
+  }
+
+  .navItem {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .navDivider {
+    width: 1px;
+    height: auto;
+    margin: 0 0.3rem;
+  }
+
+  /* Área de toque maior no celular. */
+  .rangeInput::-webkit-slider-thumb {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  .rangeInput::-moz-range-thumb {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+}

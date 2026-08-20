@@ -9,6 +9,16 @@
 // processos — anotado como limitação conhecida.
 import { EventEmitter } from 'node:events';
 
+/** Anexo de uma mensagem. Ver lib/attachments.ts e lib/uploads.ts. */
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  mime: string;
+  /** 'image' | 'video' | 'audio' | 'file' — decide como o chat renderiza. */
+  kind: string;
+  size: number;
+}
+
 export interface MessageCreatedEvent {
   type: 'created';
   message: {
@@ -18,6 +28,7 @@ export interface MessageCreatedEvent {
     authorName: string;
     content: string;
     createdAt: number;
+    attachment: MessageAttachment | null;
   };
 }
 

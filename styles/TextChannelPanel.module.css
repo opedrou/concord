@@ -187,3 +187,41 @@
   outline: 2px solid var(--lk-accent-bg, rgba(255, 255, 255, 0.3));
   outline-offset: -1px;
 }
+
+/* --- Anexos no composer (ver ROADMAP item 11) ----------------------------- */
+
+.uploadRow,
+.pendingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--lk-fg2, rgba(255, 255, 255, 0.7));
+}
+
+.progress {
+  flex: 1;
+  height: 0.35rem;
+}
+
+.pendingName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pendingRemove {
+  display: flex;
+  align-items: center;
+  padding: 0.2rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pendingRemove:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}

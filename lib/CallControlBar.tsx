@@ -11,10 +11,14 @@ import {
   StartAudio,
   TrackToggle,
   useMaybeLayoutContext,
+  usePersistentUserChoices,
 } from '@livekit/components-react';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
+import { FocusModeControl } from '@/lib/FocusModeControl';
+import { Soundboard } from '@/lib/Soundboard';
 import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
+import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import styles from '../styles/CallControlBar.module.css';
 
 const SHOW_SETTINGS_MENU = process.env.NEXT_PUBLIC_SHOW_SETTINGS_MENU == 'true';
@@ -37,25 +41,54 @@ export function CallControlBar(props: {
   const layoutContext = useMaybeLayoutContext();
   const [qualityOpen, setQualityOpen] = React.useState(false);
 
+  // Sem tela de prejoin (ROADMAP item 4), esta barra virou o UNICO lugar onde
+  // se escolhe microfone e camera — e o que for escolhido aqui precisa valer
+  // na proxima entrada, senao toda call comecaria no dispositivo errado. O
+  // hook guarda tudo na chave `lk-user-choices` do localStorage, a mesma que o
+  // PageClientImpl le pra montar o Room. Ver lib/userChoices.ts.
+  const {
+    saveAudioInputEnabled,
+    saveVideoInputEnabled,
+    saveAudioInputDeviceId,
+    saveVideoInputDeviceId,
+  } = usePersistentUserChoices({ defaults: DEFAULT_USER_CHOICES });
+
   return (
     <div className={`lk-control-bar ${styles.bar}`}>
       <div className="lk-button-group">
         <TrackToggle
           source={Track.Source.Microphone}
-          onDeviceError={(e) => props.onDeviceError?.({ source: Track.Source.Microphone, error: e })}
+          // `isUserInitiated` filtra as mudancas que o proprio LiveKit faz
+          // (publicar/despublicar a track na conexao, reconexao) — so a
+          // decisao consciente da pessoa merece virar preferencia salva.
+          onChange={(enabled, isUserInitiated) => {
+            if (isUserInitiated) saveAudioInputEnabled(enabled);
+          }}
+          onDeviceError={(e) =>
+            props.onDeviceError?.({ source: Track.Source.Microphone, error: e })
+          }
         />
         <div className="lk-button-group-menu">
-          <MediaDeviceMenu kind="audioinput" />
+          <MediaDeviceMenu
+            kind="audioinput"
+            onActiveDeviceChange={(_kind, deviceId) => saveAudioInputDeviceId(deviceId ?? '')}
+          />
         </div>
       </div>
 
       <div className="lk-button-group">
         <TrackToggle
           source={Track.Source.Camera}
+          onChange={(enabled, isUserInitiated) => {
+            if (isUserInitiated) saveVideoInputEnabled(enabled);
+          }}
           onDeviceError={(e) => props.onDeviceError?.({ source: Track.Source.Camera, error: e })}
         />
         <div className="lk-button-group-menu">
-          <MediaDeviceMenu kind="videoinput" />
+          <MediaDeviceMenu
+            kind="videoinput"
+            onActiveDeviceChange={(_kind, deviceId) => saveVideoInputDeviceId(deviceId ?? '')}
+          />
         </div>
       </div>
 
@@ -64,7 +97,9 @@ export function CallControlBar(props: {
       <div className={`lk-button-group ${styles.screenShareGroup}`}>
         <TrackToggle
           source={Track.Source.ScreenShare}
-          onDeviceError={(e) => props.onDeviceError?.({ source: Track.Source.ScreenShare, error: e })}
+          onDeviceError={(e) =>
+            props.onDeviceError?.({ source: Track.Source.ScreenShare, error: e })
+          }
         />
         <div className="lk-button-group-menu">
           <button
@@ -90,6 +125,12 @@ export function CallControlBar(props: {
 
       {/* Antes era outro botao flutuante solto (mesma familia visual do
           "Participantes" antigo) — agora e so mais um item da fileira. */}
+      {/* Modo foco: ouvir so quem eu escolher (ver lib/FocusModeControl.tsx). */}
+      <FocusModeControl />
+
+      {/* Soundboard compartilhada (ver lib/soundboardEvents.tsx). */}
+      <Soundboard />
+
       <JoinLeaveSounds />
 
       <ChatToggle>

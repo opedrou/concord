@@ -23,9 +23,15 @@
 import * as React from 'react';
 
 export interface LiveParticipantState {
+  /** Username limpo (`participant.name`). A chave do mapa e a `identity`, que
+   * carrega sufixo aleatorio por conexao e nao serve pra casar com avatar nem
+   * com volume salvo — por isso o nome vem junto. */
+  name: string;
   muted: boolean;
   camera: boolean;
   screenShare: boolean;
+  /** Publicando audio junto com a tela (fonte separada da voz). */
+  screenShareAudio: boolean;
   speaking: boolean;
 }
 
@@ -36,8 +42,15 @@ export interface CallStateValue {
   /** Chaveado por `identity` (que traz sufixo aleatorio, ver
    * /api/connection-details), nao por username. */
   byIdentity: Record<string, LiveParticipantState>;
+  /** A minha propria identity nesta call. Serve pra quem consome distinguir
+   * "eu" dos outros — o mixer, por exemplo, nao mostra slider pra voce mesmo. */
+  localIdentity: string | null;
   /** Chamado pelo `<CallStateBinder />`. Nao usar de fora dele. */
-  publish: (slug: string | null, byIdentity: Record<string, LiveParticipantState>) => void;
+  publish: (
+    slug: string | null,
+    byIdentity: Record<string, LiveParticipantState>,
+    localIdentity: string | null,
+  ) => void;
 }
 
 const CallStateContext = React.createContext<CallStateValue | null>(null);
@@ -46,17 +59,27 @@ export function CallStateProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<{
     slug: string | null;
     byIdentity: Record<string, LiveParticipantState>;
-  }>({ slug: null, byIdentity: {} });
+    localIdentity: string | null;
+  }>({ slug: null, byIdentity: {}, localIdentity: null });
 
   const publish = React.useCallback(
-    (slug: string | null, byIdentity: Record<string, LiveParticipantState>) => {
-      setState({ slug, byIdentity });
+    (
+      slug: string | null,
+      byIdentity: Record<string, LiveParticipantState>,
+      localIdentity: string | null,
+    ) => {
+      setState({ slug, byIdentity, localIdentity });
     },
     [],
   );
 
   const value = React.useMemo<CallStateValue>(
-    () => ({ slug: state.slug, byIdentity: state.byIdentity, publish }),
+    () => ({
+      slug: state.slug,
+      byIdentity: state.byIdentity,
+      localIdentity: state.localIdentity,
+      publish,
+    }),
     [state, publish],
   );
 

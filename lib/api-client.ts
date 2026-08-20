@@ -152,6 +152,16 @@ export function apiErrorMessage(err: unknown): string {
         return 'Formato de imagem não reconhecido. Use JPEG, PNG, WEBP ou GIF.';
       case 'file_too_large':
         return 'Arquivo grande demais.';
+      case 'upload_failed':
+        return 'Não foi possível enviar o arquivo. Tente de novo.';
+      case 'network_error':
+        return 'Falha de rede ao enviar o arquivo.';
+      case 'aborted':
+        return 'Envio cancelado.';
+      case 'attachment_not_found':
+        return 'O arquivo enviado não foi encontrado no servidor. Envie de novo.';
+      case 'unsupported_format':
+        return 'Formato não suportado.';
       case 'wrong_password':
         return 'Senha atual incorreta.';
       case 'password_too_short':
@@ -281,6 +291,14 @@ export async function uploadAvatar(file: File | Blob): Promise<{ avatarUrl: stri
 // Mensagens de canal de texto (ONDA A). Contrato confirmado lendo
 // app/api/channels/[id]/messages/{route,[messageId]/route,stream/route}.ts.
 
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  mime: string;
+  kind: 'image' | 'video' | 'audio' | 'file';
+  size: number;
+}
+
 export interface ChannelMessage {
   id: number;
   channelId: number;
@@ -289,6 +307,7 @@ export interface ChannelMessage {
   authorName: string;
   content: string;
   createdAt: number;
+  attachment: MessageAttachment | null;
 }
 
 interface MessagesPage {
@@ -314,12 +333,65 @@ export async function fetchMessages(
 }
 
 /** Posta uma mensagem no canal. Autor vem sempre da sessao no servidor, nunca daqui. */
-export async function postMessage(channelId: number, content: string): Promise<ChannelMessage> {
+/** O que o POST de anexo devolve — o "recibo" que a mensagem vai referenciar. */
+export interface UploadedAttachment {
+  path: string;
+  name: string;
+  mime: string;
+  kind: 'image' | 'video' | 'audio' | 'file';
+  size: number;
+}
+
+/**
+ * Sobe um arquivo pro chat. Corpo BRUTO, nao FormData: o servidor grava em
+ * stream direto no disco (ver lib/uploads.ts), e multipart obrigaria a
+ * bufferizar tudo em memoria antes de validar.
+ *
+ * `onProgress` recebe 0..1. Usa XMLHttpRequest porque `fetch` ainda nao tem
+ * progresso de UPLOAD em nenhum navegador — so de download.
+ */
+export function uploadAttachment(
+  file: File,
+  options: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+): Promise<UploadedAttachment> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/attachments?name=${encodeURIComponent(file.name)}`);
+    xhr.withCredentials = true;
+    xhr.responseType = 'json';
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        options.onProgress?.(event.loaded / event.total);
+      }
+    };
+    xhr.onload = () => {
+      const body = xhr.response as { error?: string } | UploadedAttachment | null;
+      if (xhr.status >= 200 && xhr.status < 300 && body && !('error' in body)) {
+        resolve(body as UploadedAttachment);
+        return;
+      }
+      const code = (body as { error?: string } | null)?.error ?? 'upload_failed';
+      reject(new ApiError(code, xhr.status));
+    };
+    xhr.onerror = () => reject(new ApiError('network_error', 0));
+    xhr.onabort = () => reject(new ApiError('aborted', 0));
+    options.signal?.addEventListener('abort', () => xhr.abort());
+
+    xhr.send(file);
+  });
+}
+
+export async function postMessage(
+  channelId: number,
+  content: string,
+  attachment?: UploadedAttachment | null,
+): Promise<ChannelMessage> {
   const res = await fetch(`/api/channels/${channelId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, attachment: attachment ?? undefined }),
   });
   return parseJsonOrThrow<ChannelMessage>(res);
 }
@@ -356,4 +428,43 @@ export async function changePassword(input: {
     body: JSON.stringify(input),
   });
   await parseJsonOrThrow(res);
+}
+
+// --- Soundboard (biblioteca compartilhada) ----------------------------------
+
+export interface Sound {
+  id: number;
+  name: string;
+  url: string;
+  size: number;
+  /** `null` se a conta de quem subiu foi apagada. O som continua sendo do grupo. */
+  uploadedBy: number | null;
+  createdAt: number;
+}
+
+export async function fetchSounds(): Promise<Sound[]> {
+  const res = await fetch('/api/sounds', { credentials: 'same-origin' });
+  return parseJsonOrThrow<Sound[]>(res);
+}
+
+/** Corpo bruto, igual ao anexo do chat — ver uploadAttachment. */
+export async function uploadSound(file: File): Promise<Sound> {
+  const res = await fetch(`/api/sounds?name=${encodeURIComponent(file.name)}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body: file,
+  });
+  return parseJsonOrThrow<Sound>(res);
+}
+
+/** O servidor recusa (403) se quem chama nao subiu o som nem e admin. */
+export async function deleteSound(id: number): Promise<void> {
+  const res = await fetch(`/api/sounds/${id}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(body.error ?? 'unknown', res.status);
+  }
 }

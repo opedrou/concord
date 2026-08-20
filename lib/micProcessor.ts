@@ -143,6 +143,43 @@ export function saveGateThresholdPref(value: number) {
   }
 }
 
+// --- Ganho de entrada (pre-amplificador) ------------------------------------
+//
+// Nao confundir com o `gainNode` do GATE, mais abaixo: aquele so alterna entre
+// 0 e 1 pra cortar silencio, e usar ele pra ganho quebraria o gate (o ramp de
+// abertura vai SEMPRE pra 1). Sao dois GainNode com papeis diferentes.
+
+export const INPUT_GAIN_STORAGE_KEY = 'concord-mic-input-gain';
+/** Ganho linear. 1 = sem alteracao. 0.5 = metade, 3 = triplo (~+9.5 dB). */
+export const INPUT_GAIN_MIN = 0.5;
+export const INPUT_GAIN_MAX = 3;
+export const DEFAULT_INPUT_GAIN = 1;
+
+export function loadInputGainPref(): number {
+  if (typeof window === 'undefined') return DEFAULT_INPUT_GAIN;
+  try {
+    const raw = window.localStorage.getItem(INPUT_GAIN_STORAGE_KEY);
+    const parsed = raw === null ? NaN : Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_INPUT_GAIN;
+    return Math.min(INPUT_GAIN_MAX, Math.max(INPUT_GAIN_MIN, parsed));
+  } catch {
+    return DEFAULT_INPUT_GAIN;
+  }
+}
+
+function clampInputGain(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_INPUT_GAIN;
+  return Math.min(INPUT_GAIN_MAX, Math.max(INPUT_GAIN_MIN, value));
+}
+
+export function saveInputGainPref(value: number) {
+  try {
+    window.localStorage.setItem(INPUT_GAIN_STORAGE_KEY, String(value));
+  } catch {
+    // Persistencia e bonus, nao pode quebrar a UI.
+  }
+}
+
 /** Marca (numa chave separada) que essa preferencia ja foi definida por uma
  * escolha explicita da pessoa nesse navegador — usado so pra decidir se
  * vale a pena forcar o gate desligado automaticamente no caso do device
@@ -190,6 +227,8 @@ export type DenoiseStatus =
  *
  *   source (MediaStreamSource da track crua)
  *     -> denoise (RNNoise/GTCRN, opcional — pode ser trocado em runtime)
+ *     -> inputGain (pre-amplificador ajustavel; ANTES do analyser pra o
+ *        medidor e o gate julgarem o sinal que sai de verdade)
  *     -> analyser (só mede, não altera o sinal)
  *     -> gain (o gate propriamente dito: ataca rápido, solta devagar)
  *     -> destination (MediaStreamDestination — o `.stream` dela vira
@@ -208,6 +247,12 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
   private audioContext?: AudioContext;
   private sourceNode?: MediaStreamAudioSourceNode;
   private analyser?: AnalyserNode;
+  /** Pre-amplificador ajustavel pela pessoa. Fica ANTES do analyser de
+   * proposito: assim o medidor e o gate julgam o sinal que os outros vao de
+   * fato ouvir, e nao o sinal cru. */
+  private inputGainNode?: GainNode;
+  private inputGain: number;
+  /** O gate. So alterna 0<->1 — ver nota em INPUT_GAIN_STORAGE_KEY. */
   private gainNode?: GainNode;
   private destNode?: MediaStreamAudioDestinationNode;
 
@@ -242,13 +287,30 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
    * depois de uma falha, sem ficar consultando. */
   onDenoiseStatus?: (status: DenoiseStatus) => void;
 
-  constructor(initialThreshold: number, initialDenoise: DenoiseModel) {
+  constructor(
+    initialThreshold: number,
+    initialDenoise: DenoiseModel,
+    initialInputGain: number = DEFAULT_INPUT_GAIN,
+  ) {
     this.threshold = initialThreshold;
     this.denoiseModel = initialDenoise;
+    this.inputGain = clampInputGain(initialInputGain);
   }
 
   setThreshold(value: number) {
     this.threshold = Math.min(GATE_MAX, Math.max(GATE_MIN, value));
+  }
+
+  /** Ganho de entrada, em runtime. Rampa curta em vez de salto seco pra nao
+   * dar estalo no meio da fala. */
+  setInputGain(value: number) {
+    this.inputGain = clampInputGain(value);
+    if (this.inputGainNode && this.audioContext) {
+      const now = this.audioContext.currentTime;
+      this.inputGainNode.gain.cancelScheduledValues(now);
+      this.inputGainNode.gain.setValueAtTime(this.inputGainNode.gain.value, now);
+      this.inputGainNode.gain.linearRampToValueAtTime(this.inputGain, now + 0.03);
+    }
   }
 
   getDenoiseStatus(): DenoiseStatus {
@@ -276,31 +338,31 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
 
     // Sem cadeia montada ainda (setDenoise antes do init): guarda a escolha,
     // o init aplica.
-    if (!this.audioContext || !this.sourceNode || !this.analyser) {
+    if (!this.audioContext || !this.sourceNode || !this.analyser || !this.inputGainNode) {
       return;
     }
 
     this.detachDenoise();
 
     if (model === 'off') {
-      this.sourceNode.connect(this.analyser);
+      this.sourceNode.connect(this.inputGainNode);
       this.setDenoiseStatus('off');
       return;
     }
     if (!isAudioWorkletSupported()) {
-      this.sourceNode.connect(this.analyser);
+      this.sourceNode.connect(this.inputGainNode);
       this.setDenoiseStatus('unsupported');
       return;
     }
     if (!isSampleRateSupported(this.audioContext)) {
-      this.sourceNode.connect(this.analyser);
+      this.sourceNode.connect(this.inputGainNode);
       this.setDenoiseStatus('wrong-sample-rate');
       return;
     }
 
     // Enquanto o WASM carrega (primeira ativação; depois vem do cache), o áudio
     // segue passando cru em vez de ficar mudo esperando.
-    this.sourceNode.connect(this.analyser);
+    this.sourceNode.connect(this.inputGainNode);
     this.setDenoiseStatus('loading');
 
     let created: DenoiseNode;
@@ -316,14 +378,19 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
     // A pessoa trocou de modelo (ou o processor morreu) enquanto carregava —
     // joga fora o nó recém-criado em vez de plugar um modelo que já não é o
     // escolhido.
-    if (generation !== this.denoiseGeneration || !this.sourceNode || !this.analyser) {
+    if (
+      generation !== this.denoiseGeneration ||
+      !this.sourceNode ||
+      !this.analyser ||
+      !this.inputGainNode
+    ) {
       created.destroy();
       return;
     }
 
-    this.sourceNode.disconnect(this.analyser);
+    this.sourceNode.disconnect(this.inputGainNode);
     this.sourceNode.connect(created.node);
-    created.node.connect(this.analyser);
+    created.node.connect(this.inputGainNode);
     this.denoise = created;
     this.setDenoiseStatus('active');
   }
@@ -355,6 +422,10 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
     // fino o bastante pra não atrasar o attack.
     this.analyser.fftSize = 512;
     this.timeDomainBuf = new Float32Array(this.analyser.fftSize);
+
+    this.inputGainNode = ctx.createGain();
+    this.inputGainNode.gain.value = this.inputGain;
+    this.inputGainNode.connect(this.analyser);
 
     this.gainNode = ctx.createGain();
     // Começa aberto (ganho 1) — evita silêncio de 1 frame no instante da
@@ -477,6 +548,7 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
     try {
       this.sourceNode?.disconnect();
       this.analyser?.disconnect();
+      this.inputGainNode?.disconnect();
       this.gainNode?.disconnect();
     } catch {
       // Nós já podem ter sido desconectados/descartados — não é um erro
@@ -486,8 +558,8 @@ export class MicProcessorChain implements TrackProcessor<Track.Kind.Audio, Audio
     this.processedTrack = undefined;
     this.sourceNode = undefined;
     this.analyser = undefined;
+    this.inputGainNode = undefined;
     this.gainNode = undefined;
     this.destNode = undefined;
   }
 }
-

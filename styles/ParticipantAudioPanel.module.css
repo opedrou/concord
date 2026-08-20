@@ -110,3 +110,16 @@
   opacity: 0.65;
   font-variant-numeric: tabular-nums;
 }
+
+/* Linha de uma fonte que o MODO FOCO esta calando. Substitui o slider: um
+   controle que nao muda nada e pior que nenhum controle — a pessoa arrasta,
+   nada acontece, e conclui que o app quebrou. */
+.focusMutedRow {
+  color: var(--lk-fg4, rgba(255, 255, 255, 0.5));
+}
+
+.focusMutedHint {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-style: italic;
+}

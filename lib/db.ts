@@ -54,7 +54,25 @@ export interface DbChannel {
   type: ChannelType;
 }
 
-export interface DbMessage {
+export interface DbSound {
+  id: number;
+  name: string;
+  filename: string;
+  mime: string;
+  size: number;
+  uploaded_by: number | null;
+  created_at: number;
+}
+
+export interface DbMessageAttachment {
+  attachment_path: string | null;
+  attachment_name: string | null;
+  attachment_mime: string | null;
+  attachment_kind: string | null;
+  attachment_size: number | null;
+}
+
+export interface DbMessage extends DbMessageAttachment {
   id: number;
   channel_id: number;
   user_id: number | null;
@@ -113,9 +131,26 @@ export function getDb(): DatabaseSync {
   // canal" quanto a paginação por cursor (WHERE channel_id = ? AND id < ?
   // ORDER BY id DESC LIMIT ?) sem varrer a tabela inteira.
   db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_channel_id ON messages (channel_id, id);`);
+  // Soundboard. Biblioteca COMPARTILHADA de propósito (é o pedido): o que
+  // alguém sobe fica disponível pra todo mundo tocar, não é coleção por
+  // pessoa. `uploaded_by` existe só pra saber quem pode apagar (o autor ou um
+  // admin, mesma regra de apagar mensagem) e vira NULL se a conta sumir — o
+  // som permanece, porque já é do grupo.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sounds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
 
   migrateAvatarColumn(db);
   migrateChannelTypeColumn(db);
+  migrateAttachmentColumns(db);
 
   globalThis.__appDb = db;
   return db;
@@ -137,6 +172,39 @@ function migrateAvatarColumn(db: DatabaseSync): void {
   if (!hasAvatarColumn) {
     db.exec('ALTER TABLE users ADD COLUMN avatar_path TEXT;');
     console.log('[migrate] coluna users.avatar_path adicionada.');
+  }
+}
+
+/**
+ * Migração aditiva (anexos no chat): cinco colunas em `messages`, todas
+ * anuláveis — mensagem sem anexo continua sendo o caso normal.
+ *
+ * Colunas em vez de tabela `attachments` própria: o requisito é UM anexo por
+ * mensagem (2-5 amigos, não é um Drive), e uma tabela extra só acrescentaria um
+ * JOIN em toda listagem de histórico. Se um dia virar "vários anexos", a tabela
+ * entra sem quebrar nada do que está aqui.
+ *
+ * `attachment_path` é o nome do arquivo no disco (UUID + extensão que NÓS
+ * derivamos dos magic bytes); `attachment_name` é o nome original, só pra
+ * exibir e pro download.
+ */
+function migrateAttachmentColumns(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(messages)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const existing = new Set(columns.map((c) => c.name));
+  const wanted: Array<[string, string]> = [
+    ['attachment_path', 'TEXT'],
+    ['attachment_name', 'TEXT'],
+    ['attachment_mime', 'TEXT'],
+    ['attachment_kind', 'TEXT'],
+    ['attachment_size', 'INTEGER'],
+  ];
+  for (const [name, type] of wanted) {
+    if (!existing.has(name)) {
+      db.exec(`ALTER TABLE messages ADD COLUMN ${name} ${type};`);
+      console.log(`[migrate] coluna messages.${name} adicionada.`);
+    }
   }
 }
 

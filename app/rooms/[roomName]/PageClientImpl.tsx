@@ -15,15 +15,16 @@ import {
   loadNoiseLevelPref,
 } from '@/lib/denoise';
 import { MicProcessorBinder } from '@/lib/MicProcessorBinder';
+import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import { CallStateBinder } from '@/lib/CallStateBinder';
+import { VolumeMixerBinder } from '@/lib/VolumeMixerBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
-import preJoinStyles from '@/styles/PreJoinUsername.module.css';
 import {
   formatChatMessageLinks,
   LocalUserChoices,
-  PreJoin,
   RoomContext,
+  usePersistentUserChoices,
 } from '@livekit/components-react';
 import {
   ExternalE2EEKeyProvider,
@@ -156,56 +157,119 @@ export function PageClientImpl(props: {
   hq: boolean;
   codec: VideoCodec;
   singlePeerConnection: boolean;
-  // Nome resolvido pela sessao logada (onda 2). Quando presente, o campo de
-  // username do PreJoin fica preenchido e escondido — nao faz sentido pedir
-  // de novo um nome que ja veio do login.
+  // Nome resolvido pela sessao logada (onda 2). Sem ele nao da pra pedir o
+  // token — o RoomShell so monta este componente depois de resolver a sessao.
   username?: string;
 }) {
-  const [preJoinChoices, setPreJoinChoices] = React.useState<LocalUserChoices | undefined>(
-    undefined,
+  // -------------------------------------------------------------------------
+  // Entrar com UM clique (ROADMAP item 4)
+  // -------------------------------------------------------------------------
+  //
+  // Nao existe mais tela de prejoin. Clicar no canal de voz JA e a decisao de
+  // entrar — pedir camera/microfone antes era uma tela a mais na interacao
+  // mais repetida do app, e no Discord ela nao existe.
+  //
+  // O que a tela de prejoin fazia e continua precisando existir em algum
+  // lugar:
+  //
+  // - escolher os dispositivos -> agora e dentro da call, nos <MediaDeviceMenu>
+  //   da CallControlBar, que gravam a escolha no MESMO localStorage que a
+  //   gente le aqui (`usePersistentUserChoices`, chave `lk-user-choices`).
+  // - ligar/desligar mic e camera antes de entrar -> tambem vira estado
+  //   lembrado: a CallControlBar salva, e a proxima entrada respeita. Igual
+  //   Discord, que lembra que voce estava mudo.
+  // - o username -> vem do login, nunca foi escolha de ninguem aqui.
+  //
+  // Na PRIMEIRA vez (localStorage vazio) o padrao e microfone LIGADO e camera
+  // DESLIGADA: e o comportamento do Discord, e ninguem quer descobrir que
+  // entrou com a camera aberta sem ter escolhido isso.
+  const { userChoices: savedChoices } = usePersistentUserChoices({
+    defaults: DEFAULT_USER_CHOICES,
+    // So LEITURA aqui — quem grava e a CallControlBar, durante a call.
+    preventSave: true,
+    // No servidor nao existe localStorage e a lib loga um erro a cada render.
+    // O valor de verdade e lido na hidratacao, antes de qualquer coisa
+    // depender dele (a primeira pintura e sempre "Entrando no canal…").
+    preventLoad: typeof window === 'undefined',
+  });
+
+  const { username } = props;
+  const userChoices = React.useMemo<LocalUserChoices>(
+    () => ({ ...savedChoices, username: username ?? savedChoices.username }),
+    [savedChoices, username],
   );
-  const preJoinDefaults = React.useMemo(() => {
-    return {
-      username: props.username ?? '',
-      videoEnabled: true,
-      audioEnabled: true,
-    };
-  }, [props.username]);
+
   const [connectionDetails, setConnectionDetails] = React.useState<ConnectionDetails | undefined>(
     undefined,
   );
+  const [joinError, setJoinError] = React.useState<string | null>(null);
+  // Incrementado pelo botao de tentar de novo; e a unica coisa que faz o
+  // efeito abaixo rodar outra vez.
+  const [attempt, setAttempt] = React.useState(0);
 
-  const handlePreJoinSubmit = React.useCallback(async (values: LocalUserChoices) => {
-    setPreJoinChoices(values);
+  React.useEffect(() => {
+    if (!username) {
+      return;
+    }
+    let cancelled = false;
+    setJoinError(null);
     const url = new URL(CONN_DETAILS_ENDPOINT, window.location.origin);
     url.searchParams.append('roomName', props.roomName);
-    url.searchParams.append('participantName', values.username);
+    url.searchParams.append('participantName', username);
     if (props.region) {
       url.searchParams.append('region', props.region);
     }
-    const connectionDetailsResp = await fetch(url.toString());
-    const connectionDetailsData = await connectionDetailsResp.json();
-    setConnectionDetails(connectionDetailsData);
-  }, []);
-  const handlePreJoinError = React.useCallback((e: any) => console.error(e), []);
+    fetch(url.toString())
+      .then(async (resp) => {
+        if (!resp.ok) {
+          // Antes esta resposta era usada sem checar `ok` — um 4xx/5xx virava
+          // um objeto sem token e a falha so aparecia la na frente, como erro
+          // generico de conexao.
+          throw new Error(`O servidor respondeu ${resp.status}.`);
+        }
+        return (await resp.json()) as ConnectionDetails;
+      })
+      .then((details) => {
+        if (!cancelled) setConnectionDetails(details);
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+        if (!cancelled) {
+          setJoinError(error instanceof Error ? error.message : String(error));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.roomName, props.region, username, attempt]);
 
   return (
     <main data-lk-theme="default" style={{ height: '100%' }}>
-      {connectionDetails === undefined || preJoinChoices === undefined ? (
+      {connectionDetails === undefined ? (
         <div
-          className={props.username ? preJoinStyles.hideUsername : undefined}
-          style={{ display: 'grid', placeItems: 'center', height: '100%' }}
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            height: '100%',
+            textAlign: 'center',
+            gap: '0.75rem',
+          }}
         >
-          <PreJoin
-            defaults={preJoinDefaults}
-            onSubmit={handlePreJoinSubmit}
-            onError={handlePreJoinError}
-          />
+          {joinError ? (
+            <div style={{ display: 'grid', justifyItems: 'center', gap: '0.75rem' }}>
+              <p style={{ margin: 0 }}>Não foi possível entrar no canal. {joinError}</p>
+              <button type="button" className="lk-button" onClick={() => setAttempt((n) => n + 1)}>
+                Tentar de novo
+              </button>
+            </div>
+          ) : (
+            <p style={{ margin: 0 }}>Entrando no canal…</p>
+          )}
         </div>
       ) : (
         <VideoConferenceComponent
           connectionDetails={connectionDetails}
-          userChoices={preJoinChoices}
+          userChoices={userChoices}
           options={{
             codec: props.codec,
             hq: props.hq,
@@ -631,6 +695,10 @@ function VideoConferenceComponent(props: {
             que a ChannelSidebar le de fora da arvore da call. Ver
             lib/CallStateContext.tsx. */}
         <CallStateBinder />
+        {/* Idem: e o unico lugar que chama participant.setVolume, combinando
+            volume individual + volume geral + modo foco. Ver
+            lib/VolumeMixerContext.tsx. */}
+        <VolumeMixerBinder />
         <CallStage
           chatMessageFormatter={formatChatMessageLinks}
           onDeviceError={handleDeviceError}

@@ -86,3 +86,109 @@
   outline: 2px solid var(--lk-accent-bg);
   outline-offset: 1px;
 }
+
+/* --- "Parei de assistir" (ver ROADMAP item 3 e CallParticipantTile.tsx) ---
+
+   A track de video ja foi dessubscrita — nao chega mais um byte do SFU. O que
+   fica na tela e o ULTIMO quadro, capturado num canvas antes do unsubscribe,
+   borrado e escurecido: da pra reconhecer o que estava rolando sem que pareca
+   que a transmissao caiu. Mesmo tratamento que o Discord da. */
+
+.pausedLayer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: inherit;
+  /* Cor de fundo pro caso de nao ter dado pra capturar quadro nenhum (ex.: a
+     pessoa parou de assistir antes do primeiro frame chegar). */
+  background: var(--lk-bg2, #1f1f1f);
+}
+
+.pausedFrame {
+  position: absolute;
+  /* Estoura a caixa de proposito: `filter: blur` desbota as bordas, e sem a
+     folga apareceria uma moldura clara em volta do quadro. */
+  inset: -8%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(14px) brightness(0.5);
+}
+
+.watchButton {
+  position: relative; /* acima do .pausedFrame */
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: var(--lk-border-radius, 0.5rem);
+  background: var(--lk-accent-bg, #1f6feb);
+  color: var(--lk-accent-fg, #fff);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.watchButton:hover {
+  filter: brightness(1.15);
+}
+
+.watchButton:focus-visible {
+  outline: 2px solid var(--lk-fg, #fff);
+  outline-offset: 2px;
+}
+
+/* Mesmo canto e mesmo comportamento do .expandButton, so que mais a esquerda —
+   a fileira do canto superior direito vira, da direita pra esquerda:
+   <FocusToggle> do LiveKit, expandir, parar de assistir. */
+.stopWatchButton {
+  composes: expandButton;
+  right: 4.25rem;
+}
+
+.tile:hover .stopWatchButton,
+.stopWatchButton:focus-visible {
+  opacity: 1;
+}
+
+.stopWatchButton:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.stopWatchButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 1px;
+}
+
+/* Contador de espectadores da transmissao (ver ROADMAP item 3/6). Fica na
+   mesma linha do nome, dentro do `.lk-participant-metadata-item`, que o CSS do
+   LiveKit ja desenha como pilula escura. */
+.viewerCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.4rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Tile de quem o MODO FOCO silenciou (ver lib/FocusModeControl.tsx). Precisa
+   ser visivelmente diferente: a pessoa esta falando e voce nao esta ouvindo, o
+   que sem sinal nenhum na tela parece defeito, nao escolha. */
+.focusMuted {
+  opacity: 0.45;
+  filter: saturate(0.4);
+}
+
+.focusMutedBadge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  color: var(--lk-danger, #f91f31);
+}

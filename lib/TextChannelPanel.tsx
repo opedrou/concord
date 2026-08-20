@@ -7,9 +7,13 @@ import {
   deleteMessage,
   fetchMessages,
   postMessage,
+  uploadAttachment,
   type ChannelMessage,
   type CurrentUser,
+  type UploadedAttachment,
 } from '@/lib/api-client';
+import { ATTACHMENT_MAX_DIMENSION, resizeImageClientSide } from '@/lib/resizeImageClientSide';
+import { AttachmentPreview, formatBytes } from '@/lib/AttachmentPreview';
 import { CloseIcon, HashIcon } from '@/lib/icons';
 import styles from '../styles/TextChannelPanel.module.css';
 
@@ -47,6 +51,13 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [draft, setDraft] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  // Anexo escolhido mas ainda nao enviado. O upload comeca na hora da escolha
+  // (nao no "Enviar"): num arquivo de dezenas de MB, esperar o clique pra
+  // comecar a subir faria o botao ficar travado por minutos.
+  const [pending, setPending] = React.useState<UploadedAttachment | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState(0);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [sendError, setSendError] = React.useState<string | null>(null);
 
   const seenIds = React.useRef<Set<number>>(new Set());
@@ -151,20 +162,48 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
 
   const handleSend = React.useCallback(async () => {
     const content = draft.trim();
-    if (!content || sending) return;
+    // Mensagem so com anexo e valida — mandar uma foto sem legenda e o caso
+    // mais comum de anexo.
+    if ((!content && !pending) || sending || uploading) return;
     setSending(true);
     setSendError(null);
     try {
-      const message = await postMessage(channelId, content);
+      const message = await postMessage(channelId, content, pending);
       appendOrUpdate(message);
       setDraft('');
+      setPending(null);
       isNearBottomRef.current = true;
     } catch (err) {
       setSendError(apiErrorMessage(err));
     } finally {
       setSending(false);
     }
-  }, [channelId, draft, sending, appendOrUpdate]);
+  }, [channelId, draft, pending, sending, uploading, appendOrUpdate]);
+
+  const handleFiles = React.useCallback(async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setSendError(null);
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      // Imagem grande de celular passa dos 10 MB sem precisar: encolher no
+      // cliente (o mesmo caminho que a foto de perfil ja usa) economiza banda
+      // de subida de quem manda e espaco no volume. Video e audio vao inteiros
+      // — recomprimir isso no navegador seria lento e pioraria a qualidade.
+      const payload = file.type.startsWith('image/')
+        ? new File([await resizeImageClientSide(file, ATTACHMENT_MAX_DIMENSION)], file.name, {
+            type: 'image/jpeg',
+          })
+        : file;
+      const uploaded = await uploadAttachment(payload, { onProgress: setUploadProgress });
+      setPending(uploaded);
+    } catch (err) {
+      setSendError(apiErrorMessage(err));
+    } finally {
+      setUploading(false);
+    }
+  }, []);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -193,13 +232,27 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
           {props.channelName}
         </span>
         {props.onClose && (
-          <button type="button" className={styles.closeButton} onClick={props.onClose} aria-label="Fechar">
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={props.onClose}
+            aria-label="Fechar"
+          >
             <CloseIcon size={16} />
           </button>
         )}
       </div>
 
-      <div className={styles.scrollArea} ref={scrollRef} onScroll={handleScroll}>
+      <div
+        className={styles.scrollArea}
+        ref={scrollRef}
+        onScroll={handleScroll}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          void handleFiles(e.dataTransfer.files);
+        }}
+      >
         {loadError && (
           <p className={styles.error} role="alert">
             {loadError}
@@ -245,13 +298,19 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
                     {!groupedWithPrevious && (
                       <div className={styles.messageMeta}>
                         <span className={styles.authorName}>{message.authorName}</span>
-                        <span className={styles.timestamp} title={formatFullDateTime(message.createdAt)}>
+                        <span
+                          className={styles.timestamp}
+                          title={formatFullDateTime(message.createdAt)}
+                        >
                           {formatTime(message.createdAt)}
                         </span>
                       </div>
                     )}
                     <div className={styles.messageBody}>
-                      <span className={styles.messageContent}>{message.content}</span>
+                      {message.content && (
+                        <span className={styles.messageContent}>{message.content}</span>
+                      )}
+                      {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                       {groupedWithPrevious && (
                         <span
                           className={styles.hoverTimestamp}
@@ -287,11 +346,63 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
             {sendError}
           </p>
         )}
+        {uploading && (
+          <div className={styles.uploadRow}>
+            <span>Enviando arquivo… {Math.round(uploadProgress * 100)}%</span>
+            <progress className={styles.progress} value={uploadProgress} max={1} />
+          </div>
+        )}
+
+        {pending && !uploading && (
+          <div className={styles.pendingRow}>
+            <span className={styles.pendingName}>
+              {pending.name} · {formatBytes(pending.size)}
+            </span>
+            <button
+              type="button"
+              className={styles.pendingRemove}
+              onClick={() => setPending(null)}
+              aria-label="Remover anexo"
+              title="Remover anexo"
+            >
+              <CloseIcon size={14} />
+            </button>
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          hidden
+          onChange={(e) => {
+            void handleFiles(e.target.files);
+            // Permite escolher o MESMO arquivo de novo depois de remover.
+            e.target.value = '';
+          }}
+        />
+        <button
+          type="button"
+          className="lk-button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || sending || pending !== null}
+          title={pending ? 'Só um anexo por mensagem' : 'Anexar arquivo'}
+        >
+          Anexar
+        </button>
         <textarea
           className={styles.textarea}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => {
+            // Colar print direto no campo é como se manda captura de tela na
+            // prática — sem isto a pessoa teria que salvar em arquivo antes.
+            const file = e.clipboardData?.files?.[0];
+            if (file) {
+              e.preventDefault();
+              void handleFiles(e.clipboardData.files);
+            }
+          }}
           placeholder={`Conversar em #${props.channelName}`}
           rows={1}
           maxLength={4000}
@@ -301,7 +412,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
           type="button"
           className="lk-button"
           onClick={handleSend}
-          disabled={sending || !draft.trim()}
+          disabled={sending || uploading || (!draft.trim() && !pending)}
         >
           Enviar
         </button>

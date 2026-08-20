@@ -9,7 +9,16 @@ import styles from '../../styles/Admin.module.css';
 
 type Tab = 'users' | 'channels';
 
-export function AdminDashboard({ currentUsername }: { currentUsername: string }) {
+export function AdminDashboard({
+  currentUsername,
+  onClose,
+}: {
+  currentUsername: string;
+  /** Presente quando o painel esta aberto SOBREPOSTO, sem navegar (ver
+   * lib/AccountOverlay.tsx) — nesse caso o cabecalho proprio some, porque
+   * titulo, "Sair" e "voltar" ja existem em volta. */
+  onClose?: () => void;
+}) {
   const [tab, setTab] = React.useState<Tab>('users');
   const [logoutError, setLogoutError] = React.useState<string | null>(null);
 
@@ -25,20 +34,25 @@ export function AdminDashboard({ currentUsername }: { currentUsername: string })
 
   return (
     <div className={styles.dashboard}>
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Painel de administração</h1>
-          <p className={styles.subtitle}>Logado como {currentUsername}</p>
-        </div>
-        <div className={styles.headerActions}>
-          <Link className="lk-button" href="/">
-            Voltar para o app
-          </Link>
-          <button className="lk-button" type="button" onClick={onLogout}>
-            Sair
-          </button>
-        </div>
-      </header>
+      {/* Sobreposto, quem da titulo e botao de fechar e o AccountOverlay — este
+          cabecalho so existiria pra duplicar os dois. "Sair" tambem ja esta no
+          menu de configuracoes que abriu esta janela. */}
+      {!onClose && (
+        <header className={styles.header}>
+          <div>
+            <h1 className={styles.title}>Painel de administração</h1>
+            <p className={styles.subtitle}>Logado como {currentUsername}</p>
+          </div>
+          <div className={styles.headerActions}>
+            <Link className="lk-button" href="/">
+              Voltar para o app
+            </Link>
+            <button className="lk-button" type="button" onClick={onLogout}>
+              Sair
+            </button>
+          </div>
+        </header>
+      )}
       {logoutError && (
         <p className={styles.error} role="alert">
           {logoutError}
@@ -65,11 +79,7 @@ export function AdminDashboard({ currentUsername }: { currentUsername: string })
       </nav>
 
       <section className={styles.panel}>
-        {tab === 'users' ? (
-          <UsersPanel currentUsername={currentUsername} />
-        ) : (
-          <ChannelsPanel />
-        )}
+        {tab === 'users' ? <UsersPanel currentUsername={currentUsername} /> : <ChannelsPanel />}
       </section>
     </div>
   );

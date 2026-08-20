@@ -7,8 +7,8 @@ import { usePresencePolling } from '@/lib/usePresencePolling';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { Avatar } from '@/lib/Avatar';
 import { HashIcon, SpeakerIcon, SettingsIcon, MicOffIcon, VideoIcon } from '@/lib/icons';
-import { SettingsPanel } from '@/lib/SettingsPanel';
 import { useCallState } from '@/lib/CallStateContext';
+import { SettingsWindow, type SettingsSection } from '@/lib/SettingsWindow';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -47,7 +47,15 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   const callState = useCallState();
   const avatarMap = useMembersAvatarMap();
   const router = useRouter();
-  const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
+  // A janela de configuracoes abre SOBREPOSTA, nunca por navegacao: navegar
+  // desmontaria o PageClientImpl e derrubaria a chamada em andamento. Mesmo
+  // motivo e mesma solucao do canal de texto (ver RoomShell.tsx). O estado
+  // mora aqui, e nao dentro da janela, porque a janela desmonta ao fechar.
+  const [settingsSection, setSettingsSection] = React.useState<SettingsSection | null>(null);
+  const closeSettings = React.useCallback(() => setSettingsSection(null), []);
+  // `activeChannelSlug` so vem preenchido pelo RoomShell — ou seja, so existe
+  // quando ha uma chamada de voz montada por baixo.
+  const inCall = !!props.activeChannelSlug;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -307,7 +315,21 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
       <div className={styles.userBar}>
         {props.user ? (
           <>
-            <div className={styles.userIdentity}>
+            {/* Clicar em si mesmo abre o perfil — atalho que o Discord tem
+                e que evita ter que caçar a secao dentro da janela. */}
+            <div
+              className={styles.userIdentity}
+              role="button"
+              tabIndex={0}
+              title="Abrir seu perfil"
+              onClick={() => setSettingsSection('profile')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSettingsSection('profile');
+                }
+              }}
+            >
               <span className={styles.avatarWrap}>
                 <Avatar
                   username={props.user.username}
@@ -332,37 +354,39 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                   RoomShell) e e alimentado pelo <MicProcessorBinder />. Ligar
                   e desligar o proprio microfone continua sendo na ControlBar
                   da call — aqui so ficam as configuracoes. */}
-              <div className={styles.accountMenuWrap}>
-                <button
-                  type="button"
-                  className={styles.userIconButton}
-                  aria-haspopup="dialog"
-                  aria-expanded={accountMenuOpen}
-                  aria-label="Configuracoes"
-                  onClick={() => setAccountMenuOpen((v) => !v)}
-                >
-                  <SettingsIcon size={16} />
-                </button>
-                {accountMenuOpen && (
-                  <>
-                    <div
-                      className={styles.menuBackdrop}
-                      onClick={() => setAccountMenuOpen(false)}
-                    />
-                    <SettingsPanel
-                      isAdmin={props.user.isAdmin}
-                      onLogout={props.onLogout}
-                      onNavigate={() => setAccountMenuOpen(false)}
-                    />
-                  </>
-                )}
-              </div>
+              {/* Uma engrenagem, uma janela. Antes isto abria um popover de
+                  20rem que so tinha audio + links de conta; tudo virou secao
+                  da mesma janela (ver lib/SettingsWindow.tsx). */}
+              <button
+                type="button"
+                className={styles.userIconButton}
+                aria-haspopup="dialog"
+                aria-expanded={settingsSection !== null}
+                aria-label="Configurações"
+                onClick={() => setSettingsSection('voice')}
+              >
+                <SettingsIcon size={16} />
+              </button>
             </div>
           </>
         ) : (
           <span className={styles.userName}>...</span>
         )}
       </div>
+
+      {/* Portalizada pro <body> (ver AccountOverlay), mas montada DENTRO desta
+          arvore de proposito: assim o ramo irmao — o PageClientImpl com o
+          <Room> — nunca desmonta, e a voz continua tocando por baixo. */}
+      {settingsSection !== null && props.user && (
+        <SettingsWindow
+          username={props.user.username}
+          isAdmin={props.user.isAdmin}
+          initialSection={settingsSection}
+          inCall={inCall}
+          onClose={closeSettings}
+          onLogout={props.onLogout}
+        />
+      )}
     </nav>
   );
 }

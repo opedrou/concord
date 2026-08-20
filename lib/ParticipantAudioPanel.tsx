@@ -3,208 +3,22 @@
 import * as React from 'react';
 import { RemoteParticipant, Track } from 'livekit-client';
 import { useIsSpeaking, useTracks } from '@livekit/components-react';
-import { CloseIcon, Volume2Icon, VolumeXIcon } from '@/lib/icons';
+import { CloseIcon, EyeOffIcon, Volume2Icon, VolumeXIcon } from '@/lib/icons';
+import { useVolumeMixer } from '@/lib/VolumeMixerContext';
+import {
+  SLIDER_STEPS,
+  formatDb,
+  gainToSlider,
+  sliderToGain,
+  type SourceKey,
+} from '@/lib/participantVolumes';
 import styles from '../styles/ParticipantAudioPanel.module.css';
 
-// Volume 1 = 100%. A API do livekit-client aceita valores acima de 1 (boost),
-// mas isso so tem efeito de verdade quando o elemento de audio usa um GainNode
-// (WebAudio). Sem isso o navegador ignora valores acima de 1 no <audio>.volume
-// e o boost fica sem efeito pratico — ver limitacao no HANDOFF/relatorio.
-const DEFAULT_VOLUME = 1;
-const MAX_VOLUME = 2;
-const STORAGE_PREFIX = 'lk-participant-volume:';
-
-// --- Curva perceptual -------------------------------------------------------
-//
-// `GainNode.gain` e amplitude LINEAR, mas o ouvido humano percebe volume de
-// forma aproximadamente logaritmica: dobrar a amplitude nao soa como "o dobro
-// do volume". Num slider linear isso faz quase toda a diferenca audivel se
-// concentrar no fim do curso, e a metade de baixo fica praticamente inutil.
-//
-// Usamos uma lei de potencia (quadratica), que e a aproximacao classica de
-// fader de mesa de som: ganho = MAX * x^EXP, com x = posicao normalizada 0..1.
-// Com EXP=2 e MAX=2, o ganho unitario (0 dB, som original) cai em
-// x = sqrt(1/2) ~= 0.707, ou seja ~71% do curso — sobra bastante percurso fino
-// na regiao baixa, que e onde o ouvido discrimina melhor, e o trecho final vira
-// boost ate +6 dB.
-//
-// Guardamos e aplicamos SEMPRE o ganho linear (compativel com o que ja esta no
-// localStorage de quem usou a versao anterior); a curva existe so entre a
-// posicao do slider e esse ganho.
-const CURVE_EXPONENT = 2;
-const SLIDER_STEPS = 100;
-
-/** Posicao do slider (0..SLIDER_STEPS) -> ganho linear (0..MAX_VOLUME). */
-function sliderToGain(position: number): number {
-  const x = Math.min(Math.max(position / SLIDER_STEPS, 0), 1);
-  return MAX_VOLUME * Math.pow(x, CURVE_EXPONENT);
-}
-
-/** Ganho linear -> posicao do slider. Inversa exata de `sliderToGain`. */
-function gainToSlider(gain: number): number {
-  const x = Math.min(Math.max(gain / MAX_VOLUME, 0), 1);
-  return Math.pow(x, 1 / CURVE_EXPONENT) * SLIDER_STEPS;
-}
-
-/** Ganho linear -> decibeis, pra exibicao. 0 vira -Infinity (silencio). */
-function gainToDb(gain: number): number {
-  return 20 * Math.log10(gain);
-}
-
-/** Rotulo curto em dB: "0 dB", "+4.1 dB", "-8.5 dB", "-∞". */
-function formatDb(gain: number): string {
-  if (gain <= 0) return '−∞';
-  const db = gainToDb(gain);
-  if (Math.abs(db) < 0.05) return '0 dB';
-  return `${db > 0 ? '+' : '−'}${Math.abs(db).toFixed(1)} dB`;
-}
-
-type SourceKey = 'mic' | 'screenShareAudio';
-
-const SOURCE_MAP: Record<SourceKey, Track.Source.Microphone | Track.Source.ScreenShareAudio> = {
-  mic: Track.Source.Microphone,
-  screenShareAudio: Track.Source.ScreenShareAudio,
-};
-
-interface StoredVolumeState {
-  volume: Partial<Record<SourceKey, number>>;
-  mutedPrevVolume: Partial<Record<SourceKey, number>>;
-}
-
-function storageKey(identity: string) {
-  return `${STORAGE_PREFIX}${identity}`;
-}
-
-function loadStoredState(identity: string): StoredVolumeState {
-  if (typeof window === 'undefined') {
-    return { volume: {}, mutedPrevVolume: {} };
-  }
-  try {
-    const raw = window.localStorage.getItem(storageKey(identity));
-    if (!raw) {
-      return { volume: {}, mutedPrevVolume: {} };
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      volume: parsed.volume ?? {},
-      mutedPrevVolume: parsed.mutedPrevVolume ?? {},
-    };
-  } catch {
-    return { volume: {}, mutedPrevVolume: {} };
-  }
-}
-
-function saveStoredState(identity: string, state: StoredVolumeState) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.localStorage.setItem(storageKey(identity), JSON.stringify(state));
-  } catch {
-    // localStorage pode falhar (modo privado, quota etc). Persistencia e um
-    // bonus, nao precisa quebrar a UI por isso.
-  }
-}
-
 /**
- * Um controle de volume (slider + mute) para uma fonte de audio (mic ou
- * audio de tela) de um participante remoto. `setVolume`/`getVolume` sao
- * locais: so afetam o que quem esta ouvindo escuta, nao mutam ninguem
- * globalmente.
- */
-function VolumeControl(props: {
-  participant: RemoteParticipant;
-  sourceKey: SourceKey;
-  label: string;
-  storedState: StoredVolumeState;
-  onStoredStateChange: (next: StoredVolumeState) => void;
-}) {
-  const { participant, sourceKey, label, storedState, onStoredStateChange } = props;
-  const source = SOURCE_MAP[sourceKey];
-
-  const initialVolume = storedState.volume[sourceKey] ?? DEFAULT_VOLUME;
-  const [volume, setVolumeState] = React.useState(initialVolume);
-  const isMuted = volume === 0;
-
-  // Aplica o volume salvo assim que o componente monta (ou quando o
-  // participante reconecta) — setVolume pode ser chamado mesmo antes da
-  // track existir, o livekit-client aplica quando ela e publicada.
-  React.useEffect(() => {
-    participant.setVolume(initialVolume, source);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participant, source]);
-
-  const applyVolume = React.useCallback(
-    (next: number) => {
-      setVolumeState(next);
-      participant.setVolume(next, source);
-      const nextState: StoredVolumeState = {
-        volume: { ...storedState.volume, [sourceKey]: next },
-        mutedPrevVolume: storedState.mutedPrevVolume,
-      };
-      onStoredStateChange(nextState);
-    },
-    [participant, source, sourceKey, storedState, onStoredStateChange],
-  );
-
-  const toggleMute = React.useCallback(() => {
-    if (isMuted) {
-      const restored = storedState.mutedPrevVolume[sourceKey] ?? DEFAULT_VOLUME;
-      setVolumeState(restored);
-      participant.setVolume(restored, source);
-      onStoredStateChange({
-        volume: { ...storedState.volume, [sourceKey]: restored },
-        mutedPrevVolume: storedState.mutedPrevVolume,
-      });
-    } else {
-      setVolumeState(0);
-      participant.setVolume(0, source);
-      onStoredStateChange({
-        volume: { ...storedState.volume, [sourceKey]: 0 },
-        mutedPrevVolume: { ...storedState.mutedPrevVolume, [sourceKey]: volume },
-      });
-    }
-  }, [isMuted, participant, source, sourceKey, storedState, onStoredStateChange, volume]);
-
-  return (
-    <div className={styles.volumeRow}>
-      <button
-        type="button"
-        className={`lk-button ${styles.muteButton}`}
-        aria-pressed={isMuted}
-        aria-label={isMuted ? `Desmutar ${label}` : `Mutar ${label} só pra mim`}
-        title={isMuted ? `Desmutar ${label}` : `Mutar ${label} só pra mim`}
-        onClick={toggleMute}
-      >
-        {isMuted ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />}
-      </button>
-      <span className={styles.volumeLabel}>{label}</span>
-      <input
-        className={styles.slider}
-        type="range"
-        min={0}
-        max={SLIDER_STEPS}
-        step={1}
-        // A posicao passa pela curva perceptual; o que vai pro setVolume (e pro
-        // localStorage) continua sendo o ganho linear.
-        value={Math.round(gainToSlider(volume))}
-        onChange={(e) => applyVolume(sliderToGain(Number(e.target.value)))}
-        aria-label={`Volume de ${label} de ${participant.identity}`}
-        aria-valuetext={`${Math.round(volume * 100)} por cento, ${formatDb(volume)}`}
-      />
-      <span className={styles.volumeValue} title={`Ganho linear ${volume.toFixed(2)}×`}>
-        {Math.round(volume * 100)}%
-        <small className={styles.volumeDb}>{formatDb(volume)}</small>
-      </span>
-    </div>
-  );
-}
-
-/**
- * Rastreia quem esta publicando audio de tela, pra so mostrar o segundo
- * slider (audio da tela) quando fizer sentido. A track e reativa via
- * `useTracks`. Extraido num hook proprio porque agora tanto o card de volume
- * quanto o clique no tile (que decide SE abre o card) precisam do mesmo dado.
+ * Rastreia quem esta publicando audio de tela, pra so mostrar o slider de
+ * audio da tela quando fizer sentido. A track e reativa via `useTracks`.
+ * Extraido num hook proprio porque tanto o card de volume quanto o clique no
+ * tile (que decide SE abre o card) precisam do mesmo dado.
  */
 export function useScreenShareAudioIdentities(): Set<string> {
   const screenShareAudioRefs = useTracks([Track.Source.ScreenShareAudio], {
@@ -217,11 +31,79 @@ export function useScreenShareAudioIdentities(): Set<string> {
 }
 
 /**
+ * Um controle de volume (slider + mute) para uma fonte de audio de um
+ * participante. E UI BURRA: nao guarda estado, nao persiste nada e nao chama
+ * `setVolume` — tudo isso e do `VolumeMixerContext` e do
+ * `<VolumeMixerBinder />`. Mesma divisao que o painel de configuracoes tem com
+ * o `MicProcessorContext`.
+ */
+export function VolumeControl(props: {
+  /** Username limpo (`participant.name`), nunca a identity. */
+  name: string;
+  sourceKey: SourceKey;
+  label: string;
+  /** Quando true, mostra que o modo foco esta calando isto. */
+  focusMuted?: boolean;
+}) {
+  const { name, sourceKey, label, focusMuted } = props;
+  const mixer = useVolumeMixer();
+  if (!mixer) {
+    return null;
+  }
+
+  const volume = mixer.volumeFor(name, sourceKey);
+  const isMuted = volume === 0;
+
+  if (focusMuted) {
+    // Um slider que nao faz diferenca nenhuma e pior que nenhum slider: a
+    // pessoa arrasta, nada muda, e ela conclui que o app esta quebrado.
+    return (
+      <div className={`${styles.volumeRow} ${styles.focusMutedRow}`}>
+        <EyeOffIcon size={16} />
+        <span className={styles.volumeLabel}>{label}</span>
+        <span className={styles.focusMutedHint}>silenciado pelo modo foco</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.volumeRow}>
+      <button
+        type="button"
+        className={`lk-button ${styles.muteButton}`}
+        aria-pressed={isMuted}
+        aria-label={isMuted ? `Desmutar ${label}` : `Mutar ${label} só pra mim`}
+        title={isMuted ? `Desmutar ${label}` : `Mutar ${label} só pra mim`}
+        onClick={() => mixer.toggleMute(name, sourceKey)}
+      >
+        {isMuted ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />}
+      </button>
+      <span className={styles.volumeLabel}>{label}</span>
+      <input
+        className={styles.slider}
+        type="range"
+        min={0}
+        max={SLIDER_STEPS}
+        step={1}
+        // A posicao passa pela curva perceptual; o que e guardado continua
+        // sendo o ganho linear.
+        value={Math.round(gainToSlider(volume))}
+        onChange={(e) => mixer.setVolume(name, sourceKey, sliderToGain(Number(e.target.value)))}
+        aria-label={`Volume de ${label} de ${name}`}
+        aria-valuetext={`${Math.round(volume * 100)} por cento, ${formatDb(volume)}`}
+      />
+      <span className={styles.volumeValue} title={`Ganho linear ${volume.toFixed(2)}×`}>
+        {Math.round(volume * 100)}%<small className={styles.volumeDb}>{formatDb(volume)}</small>
+      </span>
+    </div>
+  );
+}
+
+/**
  * Card de volume de UM participante, aberto ao clicar no tile dele dentro da
- * call (estilo Discord) — ver <CallParticipantTile />. Reaproveita toda a
- * logica de ganho/curva/persistencia de cima; so muda COMO se chega aqui: on
- * costumava ser um botao "Participantes" fixo que abria um drawer com todo
- * mundo, agora e por participante, sob demanda.
+ * call (estilo Discord) — ver <CallParticipantTile />. E o caminho RAPIDO
+ * durante a chamada; a lista completa de todo mundo vive na janela de
+ * configuracoes, secao Mixer.
  *
  * `anchor` posiciona o card perto de onde a pessoa clicou (coordenadas do
  * MouseEvent nativo, capturadas pelo tile — a API publica de
@@ -236,20 +118,9 @@ export function ParticipantVolumeCard(props: {
 }) {
   const { participant, hasScreenShareAudio, anchor, onClose } = props;
   const isSpeaking = useIsSpeaking(participant);
-
-  // Estado persistido em localStorage, por identidade do participante.
-  // Guardamos as duas fontes (mic + screen share audio) no mesmo registro.
-  const [storedState, setStoredState] = React.useState<StoredVolumeState>(() =>
-    loadStoredState(participant.identity),
-  );
-
-  const handleStoredStateChange = React.useCallback(
-    (next: StoredVolumeState) => {
-      setStoredState(next);
-      saveStoredState(participant.identity, next);
-    },
-    [participant.identity],
-  );
+  const mixer = useVolumeMixer();
+  const name = participant.name || participant.identity;
+  const focusMuted = mixer?.isFocusMuted(name) ?? false;
 
   // Fecha com Escape ou clique fora — sem isso o card fica pendurado na tela.
   React.useEffect(() => {
@@ -269,8 +140,14 @@ export function ParticipantVolumeCard(props: {
     typeof window === 'undefined'
       ? {}
       : {
-          left: Math.min(Math.max(anchor.x - CARD_WIDTH / 2, 8), window.innerWidth - CARD_WIDTH - 8),
-          top: Math.min(Math.max(anchor.y - CARD_HEIGHT - 12, 8), window.innerHeight - CARD_HEIGHT - 8),
+          left: Math.min(
+            Math.max(anchor.x - CARD_WIDTH / 2, 8),
+            window.innerWidth - CARD_WIDTH - 8,
+          ),
+          top: Math.min(
+            Math.max(anchor.y - CARD_HEIGHT - 12, 8),
+            window.innerHeight - CARD_HEIGHT - 8,
+          ),
         };
 
   return (
@@ -280,30 +157,24 @@ export function ParticipantVolumeCard(props: {
         className={`${styles.card} ${isSpeaking ? styles.speaking : ''}`}
         style={style}
         role="dialog"
-        aria-label={`Volume de ${participant.name || participant.identity}`}
+        aria-label={`Volume de ${name}`}
       >
         <div className={styles.cardHeader}>
-          <span className={styles.participantName}>{participant.name || participant.identity}</span>
+          <span className={styles.participantName}>{name}</span>
           <button type="button" className="lk-button" onClick={onClose} aria-label="Fechar">
             <CloseIcon size={16} />
           </button>
         </div>
-        <VolumeControl
-          participant={participant}
-          sourceKey="mic"
-          label="Voz"
-          storedState={storedState}
-          onStoredStateChange={handleStoredStateChange}
-        />
+        {/* O modo foco cala so a VOZ — audio de tela e soundboard continuam
+            passando de propósito (ver VolumeMixerBinder.tsx). */}
+        <VolumeControl name={name} sourceKey="mic" label="Voz" focusMuted={focusMuted} />
         {hasScreenShareAudio && (
-          <VolumeControl
-            participant={participant}
-            sourceKey="screenShareAudio"
-            label="Áudio da tela"
-            storedState={storedState}
-            onStoredStateChange={handleStoredStateChange}
-          />
+          <VolumeControl name={name} sourceKey="screenShareAudio" label="Áudio da tela" />
         )}
+        {/* Terceira fonte, independente da voz: da pra calar a soundboard de
+            alguem e continuar ouvindo a pessoa falar. Ver
+            lib/soundboardEvents.ts. */}
+        <VolumeControl name={name} sourceKey="soundboard" label="Soundboard" />
       </div>
     </>
   );

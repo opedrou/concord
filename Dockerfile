@@ -26,7 +26,7 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 # volume persistente do SQLite — precisa existir e pertencer ao uid 1001
 # antes do primeiro upload (instrumentation.ts também garante isso no boot,
 # mas criar aqui evita depender só disso numa imagem nova).
-RUN mkdir -p /data/avatars && chown -R nextjs:nodejs /data
+RUN mkdir -p /data/avatars /data/attachments /data/sounds && chown -R nextjs:nodejs /data
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

@@ -188,7 +188,11 @@
   background-color: var(--lk-bg2);
 }
 
+/* Clicavel: abre o perfil na janela de configuracoes. */
 .userIdentity {
+  cursor: pointer;
+  border-radius: 0.375rem;
+
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -242,6 +246,15 @@
   flex-shrink: 0;
 }
 
+.userIdentity:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.userIdentity:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: -2px;
+}
+
 .userIcon,
 .userIconButton {
   display: inline-flex;
@@ -269,20 +282,10 @@
   outline-offset: 1px;
 }
 
-.accountMenuWrap {
-  position: relative;
-}
-
-.menuBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 24;
-  background: transparent;
-}
-
-/* O conteudo do antigo menu de conta (Perfil / Admin / Sair) virou uma secao
-   do painel unico — estilos em styles/SettingsPanel.module.css. Aqui ficaram
-   so o wrapper de posicionamento e o backdrop, que o painel ainda usa. */
+/* O antigo menu de conta (Perfil / Admin / Sair) e o popover de audio viraram
+   secoes da janela unica de configuracoes — ver lib/SettingsWindow.tsx. O
+   wrapper de posicionamento e o backdrop que existiam aqui sumiram junto: a
+   janela e portalizada pro <body> e traz o proprio backdrop. */
 
 /* Telas estreitas: a sidebar nao pode comer a tela inteira. Vira uma tira
    colapsavel no topo em vez de ocupar a largura toda de forma fixa. */

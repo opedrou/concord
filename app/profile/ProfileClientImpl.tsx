@@ -12,7 +12,7 @@ import styles from '../../styles/Login.module.css';
 // propria conta em ambos os casos — POST /api/avatars e POST
 // /api/auth/change-password sempre agem sobre o usuario da sessao, nunca
 // aceitam id de outra conta no corpo da requisicao.
-export function ProfileClientImpl() {
+export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
   const { user, loading } = useCurrentUser({ redirectToLogin: true });
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = React.useState(false);
@@ -109,7 +109,9 @@ export function ProfileClientImpl() {
       {avatarError && <p className={styles.error}>{avatarError}</p>}
       {avatarSuccess && !avatarBusy && <p>Foto atualizada.</p>}
 
-      <hr style={{ width: '100%', border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.15)' }} />
+      <hr
+        style={{ width: '100%', border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.15)' }}
+      />
 
       <form className={styles.form} onSubmit={handlePasswordSubmit}>
         <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Trocar senha</h2>
@@ -168,9 +170,18 @@ export function ProfileClientImpl() {
         </button>
       </form>
 
-      <Link href="/" style={{ textAlign: 'center' }}>
-        Voltar
-      </Link>
+      {/* Sobreposto (durante uma chamada) o "Voltar" fecha a janela; um <Link>
+          aqui navegaria e derrubaria a chamada. Na rota /profile, sem
+          `onClose`, continua sendo o link de sempre. */}
+      {props.onClose ? (
+        <button type="button" className="lk-button" onClick={props.onClose}>
+          Voltar
+        </button>
+      ) : (
+        <Link href="/" style={{ textAlign: 'center' }}>
+          Voltar
+        </Link>
+      )}
     </div>
   );
 }

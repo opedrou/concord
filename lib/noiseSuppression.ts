@@ -39,9 +39,15 @@ export interface SupportedNoiseConstraints {
  */
 export function getSupportedNoiseConstraints(): SupportedNoiseConstraints {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getSupportedConstraints) {
-    return { noiseSuppression: false, voiceIsolation: false, echoCancellation: false, autoGainControl: false };
+    return {
+      noiseSuppression: false,
+      voiceIsolation: false,
+      echoCancellation: false,
+      autoGainControl: false,
+    };
   }
-  const supported = navigator.mediaDevices.getSupportedConstraints() as ExtendedSupportedConstraints;
+  const supported =
+    navigator.mediaDevices.getSupportedConstraints() as ExtendedSupportedConstraints;
   return {
     noiseSuppression: !!supported.noiseSuppression,
     voiceIsolation: !!supported.voiceIsolation,
@@ -64,6 +70,11 @@ export function getSupportedNoiseConstraints(): SupportedNoiseConstraints {
 export function buildAudioCaptureConstraints(
   enabled: boolean,
   neuralActive = false,
+  // Controle automatico de ganho do navegador. Fica ligado por padrao (era o
+  // unico comportamento antes de existir ganho manual), mas o ganho de entrada
+  // ajustavel BRIGA com ele: o AGC normaliza o nivel e desfaz o ajuste, o que
+  // faz o slider parecer quebrado. Ver setInputGain em MicProcessorContext.
+  autoGainControl = true,
 ): AudioCaptureOptions {
   if (!enabled) {
     // Desligado explicitamente — nao pede nenhuma das constraints. Importante
@@ -77,7 +88,7 @@ export function buildAudioCaptureConstraints(
     noiseSuppression: neuralActive ? false : supported.noiseSuppression ? true : undefined,
     voiceIsolation: neuralActive ? false : supported.voiceIsolation ? true : undefined,
     echoCancellation: supported.echoCancellation ? true : undefined,
-    autoGainControl: supported.autoGainControl ? true : undefined,
+    autoGainControl: supported.autoGainControl ? autoGainControl : undefined,
   } as AudioCaptureOptions;
 }
 

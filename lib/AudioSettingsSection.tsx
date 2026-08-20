@@ -1,114 +1,114 @@
 'use client';
 
+// Seção "Voz e vídeo" da janela de configurações: redução de ruído,
+// sensibilidade de entrada (com medidor ao vivo), ganho de entrada e escolha
+// dos dispositivos.
+//
+// Este componente é BURRO de propósito: não conhece LiveKit, não segura
+// processor nenhum, e pode desmontar à vontade quando a janela fecha. Quem
+// mantém o processamento de áudio vivo é o `<MicProcessorBinder />`, montado
+// dentro do `RoomContext` — ver o desenho no topo de MicProcessorContext.tsx.
+//
+// Veio inteiro do antigo `SettingsPanel.tsx` (o popover de 20rem que a
+// engrenagem abria), com a lógica intacta; o que mudou foi só onde mora.
+
 import * as React from 'react';
-import { createPortal } from 'react-dom';
+import { MediaDeviceMenu } from '@livekit/components-react';
 import { useMicProcessor } from './MicProcessorContext';
 import { NOISE_LEVELS, noiseLevelDescription, noiseLevelLabel, type NoiseLevel } from './denoise';
-import { GATE_MAX, GATE_MIN, dbToMeterFraction, markGateThresholdTouched } from './micProcessor';
+import {
+  DEFAULT_INPUT_GAIN,
+  GATE_MAX,
+  GATE_MIN,
+  INPUT_GAIN_MAX,
+  INPUT_GAIN_MIN,
+  dbToMeterFraction,
+  markGateThresholdTouched,
+} from './micProcessor';
 import type { DenoiseStatus } from './micProcessor';
 import { tierLabel } from './noiseSuppression';
-import { MicIcon, SettingsIcon } from '@/lib/icons';
-import styles from '../styles/SettingsPanel.module.css';
-
-/**
- * Painel unico de configuracoes, aberto pela engrenagem da `ChannelSidebar`.
- *
- * Antes havia DUAS engrenagens: uma na barra de controles da chamada (audio) e
- * outra na sidebar (conta). Agora e uma so, com as duas coisas em secoes —
- * pedido do dono.
- *
- * Este componente e burro de proposito: nao conhece LiveKit, nao segura
- * processor nenhum, e pode desmontar a vontade quando o painel fecha. Quem
- * mantem o processamento de audio vivo e o `<MicProcessorBinder />`, montado
- * dentro do `RoomContext` — ver o desenho no topo de MicProcessorContext.tsx.
- */
-export function SettingsPanel(props: {
-  isAdmin: boolean;
-  onLogout?: () => void;
-  onNavigate?: () => void;
-}) {
-  const mic = useMicProcessor();
-
-  // PORTAL: o painel e renderizado no <body>, nao no lugar em que aparece na
-  // arvore (dentro da .sidebar). A .sidebar tem `overflow-y: auto`, e por spec
-  // isso torna o `overflow-x` dela `auto` tambem — qualquer coisa mais larga
-  // que a sidebar corre risco de recorte ali dentro. O `position: fixed`
-  // sozinho protege enquanto nenhum ancestral criar containing block (um
-  // `transform`/`filter`/`contain` a mais em qualquer pai da sidebar quebraria
-  // o painel em silencio, sem erro de build). Portalizando, a questao deixa de
-  // existir por construcao.
-  //
-  // O <body> carrega `data-lk-theme="default"` (app/layout.tsx), entao as
-  // variaveis --lk-* continuam resolvendo aqui.
-  const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null);
-  React.useEffect(() => {
-    // Só depois da montagem: no SSR nao existe `document`.
-    setPortalTarget(document.body);
-  }, []);
-
-  const panel = (
-    <div className={styles.panel} role="dialog" aria-label="Configurações">
-      <header className={styles.header}>
-        <SettingsIcon size={15} />
-        <h2 className={styles.title}>Configurações</h2>
-      </header>
-
-      {mic && (
-        <section className={styles.section} aria-labelledby="settings-audio-heading">
-          <h3 className={styles.sectionTitle} id="settings-audio-heading">
-            Áudio
-          </h3>
-          {mic.active ? (
-            <AudioSettings mic={mic} />
-          ) : (
-            <p className={styles.hint}>
-              Entre num canal de voz para ajustar microfone e redução de ruído.
-            </p>
-          )}
-        </section>
-      )}
-
-      <section className={styles.section} aria-labelledby="settings-account-heading">
-        <h3 className={styles.sectionTitle} id="settings-account-heading">
-          Conta
-        </h3>
-        <div className={styles.accountLinks}>
-          <a href="/profile" className={styles.accountItem} onClick={props.onNavigate}>
-            Perfil
-          </a>
-          {props.isAdmin && (
-            <a href="/admin" className={styles.accountItem} onClick={props.onNavigate}>
-              Admin
-            </a>
-          )}
-          <button
-            type="button"
-            className={styles.accountItem}
-            onClick={() => {
-              props.onNavigate?.();
-              props.onLogout?.();
-            }}
-          >
-            Sair
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-
-  // Antes do efeito de montagem rodar, renderiza no lugar (comportamento
-  // antigo) em vez de nao renderizar nada — o painel so abre por clique, entao
-  // na pratica o alvo ja existe, mas isso evita um frame vazio.
-  return portalTarget ? createPortal(panel, portalTarget) : panel;
-}
+import { useVolumeMixer } from './VolumeMixerContext';
+import { MicIcon } from '@/lib/icons';
+import styles from '../styles/SettingsWindow.module.css';
 
 type Mic = NonNullable<ReturnType<typeof useMicProcessor>>;
 
-function AudioSettings({ mic }: { mic: Mic }) {
+export function AudioSettingsSection() {
+  const mic = useMicProcessor();
+
+  return (
+    <>
+      <DeviceSettings />
+      {mic ? (
+        mic.active ? (
+          <MicSettings mic={mic} />
+        ) : (
+          <p className={styles.hint}>
+            Entre num canal de voz para ajustar microfone e redução de ruído.
+          </p>
+        )
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Entrada e saída de áudio. O `MediaDeviceMenu` do @livekit/components-react
+ * consegue ENUMERAR dispositivos sem Room, mas quem aplica a saída é o
+ * `room.switchActiveDevice`, que só existe dentro do `RoomContext` — por isso
+ * a escolha passa pelo `VolumeMixerContext` (comando) e é o
+ * `<VolumeMixerBinder />` quem executa. Mesmo caminho do `setThreshold`.
+ */
+function DeviceSettings() {
+  const mixer = useVolumeMixer();
+
+  // `setSinkId` não existe no Firefox — sem ele o navegador toca sempre no
+  // dispositivo padrão do sistema e não há o que escolher. Melhor dizer isso
+  // do que oferecer um seletor que não faz nada.
+  const [canChooseOutput, setCanChooseOutput] = React.useState(true);
+  React.useEffect(() => {
+    setCanChooseOutput(
+      typeof window !== 'undefined' &&
+        (typeof AudioContext !== 'undefined'
+          ? 'setSinkId' in AudioContext.prototype
+          : false || 'setSinkId' in HTMLMediaElement.prototype),
+    );
+  }, []);
+
+  return (
+    <div className={styles.field}>
+      <span className={styles.fieldLabel}>Dispositivos</span>
+      <div className={styles.deviceRow}>
+        <span className={styles.deviceLabel}>Microfone</span>
+        <MediaDeviceMenu kind="audioinput" />
+      </div>
+      <div className={styles.deviceRow}>
+        <span className={styles.deviceLabel}>Saída de áudio</span>
+        {canChooseOutput ? (
+          <MediaDeviceMenu
+            kind="audiooutput"
+            onActiveDeviceChange={(_kind, deviceId) => mixer?.setOutputDeviceId(deviceId || null)}
+          />
+        ) : (
+          <span className={styles.hint}>
+            Seu navegador não permite escolher a saída — use a configuração do sistema.
+          </span>
+        )}
+      </div>
+      <div className={styles.deviceRow}>
+        <span className={styles.deviceLabel}>Câmera</span>
+        <MediaDeviceMenu kind="videoinput" />
+      </div>
+    </div>
+  );
+}
+
+function MicSettings({ mic }: { mic: Mic }) {
   return (
     <>
       <NoiseLevelPicker mic={mic} />
       <GateSlider mic={mic} />
+      <InputGainSlider mic={mic} />
 
       {mic.monitorDevice && (
         <p className={styles.warning}>
@@ -193,7 +193,7 @@ function NoiseLevelPicker({ mic }: { mic: Mic }) {
 /**
  * Sensibilidade de entrada, estilo "Input Sensitivity" do Discord. O medidor ao
  * vivo escreve numa CSS custom property em vez de passar por estado do React:
- * o nivel chega a ~33Hz e re-renderizar nessa cadencia seria desperdicio.
+ * o nível chega a ~33Hz e re-renderizar nessa cadência seria desperdício.
  */
 function GateSlider({ mic }: { mic: Mic }) {
   const fillRef = React.useRef<HTMLDivElement | null>(null);
@@ -257,6 +257,63 @@ function GateSlider({ mic }: { mic: Mic }) {
         {mic.threshold <= GATE_MIN
           ? 'Gate desligado — o microfone transmite o tempo todo.'
           : 'Abaixo da marca, o áudio não é transmitido. A barra mostra o nível do seu mic ao vivo.'}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Ganho de entrada (pré-amplificador). Fica ANTES do medidor na cadeia de
+ * áudio, então a barra da sensibilidade já mostra o efeito — que é justamente
+ * como se ajusta os dois juntos: sobe o ganho até a fala normal encostar bem
+ * acima da marca do gate.
+ */
+function InputGainSlider({ mic }: { mic: Mic }) {
+  const percent = Math.round(mic.inputGain * 100);
+  const db = 20 * Math.log10(mic.inputGain);
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.fieldLabel} htmlFor="mic-input-gain">
+        <span>Ganho de entrada</span>
+        <span className={styles.fieldValue}>
+          {percent}% ({db >= 0 ? '+' : '−'}
+          {Math.abs(db).toFixed(1)} dB)
+        </span>
+      </label>
+      <input
+        id="mic-input-gain"
+        className={styles.plainRange}
+        type="range"
+        min={INPUT_GAIN_MIN}
+        max={INPUT_GAIN_MAX}
+        step={0.05}
+        value={mic.inputGain}
+        onChange={(e) => mic.setInputGain(Number(e.target.value))}
+        aria-label="Ganho de entrada do microfone"
+        aria-valuetext={`${percent} por cento`}
+      />
+      <p className={styles.hint}>
+        Amplifica o microfone antes de sair. Use quando sua voz chega baixa mesmo com o volume do
+        sistema no máximo.
+      </p>
+
+      <label className={styles.checkboxRow}>
+        <input
+          type="checkbox"
+          checked={mic.autoGainControl}
+          onChange={(e) => mic.setAutoGainControl(e.target.checked)}
+        />
+        <span>Controle automático de ganho do navegador</span>
+      </label>
+      <p
+        className={
+          mic.autoGainControl && mic.inputGain !== DEFAULT_INPUT_GAIN ? styles.warning : styles.hint
+        }
+      >
+        {mic.autoGainControl && mic.inputGain !== DEFAULT_INPUT_GAIN
+          ? 'O automático está ligado junto com o ganho manual: ele vai normalizar o nível e desfazer boa parte do seu ajuste.'
+          : 'O automático nivela sua voz sozinho, mas briga com o ganho manual — mexer no ganho acima desliga ele.'}
       </p>
     </div>
   );

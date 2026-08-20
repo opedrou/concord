@@ -1,9 +1,0 @@
-/* Esconde o campo de username do <PreJoin> quando o nome ja vem da sessao
-   logada (nao faz sentido perguntar de novo). O botao de entrar fica no MESMO
-   <form> que o input (lk-username-container), entao so podemos esconder o
-   input em si — o input continua no DOM com o valor default preenchido, entao
-   o submit do formulario funciona normalmente. */
-.hideUsername :global(.lk-username-container input#username) {
-  display: none;
-}
-

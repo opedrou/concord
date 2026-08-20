@@ -12,6 +12,7 @@ import { usePersistedSize } from '@/lib/usePersistedSize';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { MicProcessorProvider } from '@/lib/MicProcessorContext';
 import { CallStateProvider } from './CallStateContext';
+import { VolumeMixerProvider } from './VolumeMixerContext';
 import { FullscreenProvider, useFullscreen } from './FullscreenContext';
 import { logout, type Channel, type CurrentUser } from '@/lib/api-client';
 import styles from '../styles/RoomShell.module.css';
@@ -82,58 +83,64 @@ export function RoomShell(props: {
           precisa do estado ao vivo de mudo/camera/tela, que so existe dentro
           do RoomContext. Ver lib/CallStateContext.tsx. */}
       <CallStateProvider>
-        {/* Precisa envolver a sidebar: no modo teatro ela some, e o estado
+        {/* Terceiro contexto com o mesmo desenho, pelo mesmo motivo: os
+            sliders de volume moram na janela de configuracoes (dentro da
+            sidebar) e quem aplica e um binder dentro do RoomContext. Ver
+            lib/VolumeMixerContext.tsx. */}
+        <VolumeMixerProvider>
+          {/* Precisa envolver a sidebar: no modo teatro ela some, e o estado
             nasce dentro do CallStage. Ver lib/FullscreenContext.tsx. */}
-        <FullscreenProvider>
-          <div className={styles.shell} data-lk-theme="default">
-            <SidebarSlot
-              user={user}
-              activeChannelSlug={props.roomName}
-              activeTextChannelSlug={openTextChannel?.slug}
-              onSelectTextChannel={handleSelectTextChannel}
-              onLogout={handleLogout}
-              width={sidebarWidth}
-              onWidthChange={setSidebarWidth}
-            />
-            <div className={styles.main}>
-              {/* PageClientImpl fica sempre montado — so escondido via CSS quando o
+          <FullscreenProvider>
+            <div className={styles.shell} data-lk-theme="default">
+              <SidebarSlot
+                user={user}
+                activeChannelSlug={props.roomName}
+                activeTextChannelSlug={openTextChannel?.slug}
+                onSelectTextChannel={handleSelectTextChannel}
+                onLogout={handleLogout}
+                width={sidebarWidth}
+                onWidthChange={setSidebarWidth}
+              />
+              <div className={styles.main}>
+                {/* PageClientImpl fica sempre montado — so escondido via CSS quando o
               painel de texto esta aberto — pra chamada nunca ser interrompida. */}
-              <div
-                className={styles.callLayer}
-                style={{ display: openTextChannel ? 'none' : 'block' }}
-                aria-hidden={openTextChannel ? true : undefined}
-              >
-                <PageClientImpl
-                  roomName={props.roomName}
-                  region={props.region}
-                  hq={props.hq}
-                  codec={props.codec}
-                  singlePeerConnection={props.singlePeerConnection}
-                  username={user?.username}
-                />
-              </div>
-              {openTextChannel && (
-                <div className={styles.textLayer}>
-                  <p className={styles.callBanner}>
-                    Chamada de voz continua em andamento em segundo plano. Feche este canal de texto
-                    pra voltar pra ela.
-                  </p>
-                  <TextChannelPanel
-                    channelId={openTextChannel.id}
-                    channelName={openTextChannel.name}
-                    currentUser={user}
-                    onClose={closeTextChannel}
+                <div
+                  className={styles.callLayer}
+                  style={{ display: openTextChannel ? 'none' : 'block' }}
+                  aria-hidden={openTextChannel ? true : undefined}
+                >
+                  <PageClientImpl
+                    roomName={props.roomName}
+                    region={props.region}
+                    hq={props.hq}
+                    codec={props.codec}
+                    singlePeerConnection={props.singlePeerConnection}
+                    username={user?.username}
                   />
                 </div>
-              )}
-            </div>
-            {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
+                {openTextChannel && (
+                  <div className={styles.textLayer}>
+                    <p className={styles.callBanner}>
+                      Chamada de voz continua em andamento em segundo plano. Feche este canal de
+                      texto pra voltar pra ela.
+                    </p>
+                    <TextChannelPanel
+                      channelId={openTextChannel.id}
+                      channelName={openTextChannel.name}
+                      currentUser={user}
+                      onClose={closeTextChannel}
+                    />
+                  </div>
+                )}
+              </div>
+              {/* Lista de membros so faz sentido no contexto de canal de TEXTO — na
             tela de call ela so competia por espaco com os controles de video
             (reclamacao original). Por isso so aparece quando o painel de texto
             esta aberto por cima da chamada, nunca durante a call em si. */}
-            {openTextChannel && <MembersPanel />}
-          </div>
-        </FullscreenProvider>
+              {openTextChannel && <MembersPanel />}
+            </div>
+          </FullscreenProvider>
+        </VolumeMixerProvider>
       </CallStateProvider>
     </MicProcessorProvider>
   );

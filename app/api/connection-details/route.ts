@@ -91,6 +91,17 @@ function createParticipantToken(userInfo: AccessTokenOptions, roomName: string) 
     canPublish: true,
     canPublishData: true,
     canSubscribe: true,
+    // Permite `localParticipant.setAttributes()`. Usado pelo contador de
+    // espectadores da transmissao (ver lib/useScreenShareViewers.ts): o
+    // LiveKit NAO diz a ninguem quantos assinantes uma track tem, entao cada
+    // pessoa anuncia o que esta assistindo e os outros contam. Sem este grant
+    // o `setAttributes` e recusado pelo servidor EM SILENCIO e o contador fica
+    // zerado pra sempre.
+    //
+    // Atributo e so isso: um mapa string->string por participante, visivel pra
+    // sala. Quem entrou ANTES deste grant existir continua com o token antigo
+    // ate reconectar.
+    canUpdateOwnMetadata: true,
   };
   at.addGrant(grant);
   return at.toJwt();
