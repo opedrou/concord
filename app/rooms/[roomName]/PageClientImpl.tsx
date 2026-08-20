@@ -9,7 +9,11 @@ import { CallStage } from '@/lib/CallStage';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
 import { encodingFor, loadQualityPref } from '@/lib/screenShareQuality';
 import { buildAudioCaptureConstraints } from '@/lib/noiseSuppression';
-import { createAudioContextForDenoise, levelToDenoiseModel, loadNoiseLevelPref } from '@/lib/denoise';
+import {
+  createAudioContextForDenoise,
+  levelToDenoiseModel,
+  loadNoiseLevelPref,
+} from '@/lib/denoise';
 import { MicProcessorBinder } from '@/lib/MicProcessorBinder';
 import { CallStateBinder } from '@/lib/CallStateBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
@@ -331,14 +335,24 @@ function VideoConferenceComponent(props: {
       return original(
         enabled,
         {
-          // echoCancellation: true pede pro navegador cancelar, no audio de
-          // tela/sistema capturado, o que ele mesmo ja esta tocando pelos
-          // alto-falantes — sem isso, quem compartilha audio do sistema
-          // reenvia pra sala o audio da PROPRIA call que esta ouvindo,
-          // criando um eco pra quem falou (Chrome/Edge suportam essa
-          // constraint em getDisplayMedia; onde nao suportam, e ignorada e
-          // o comportamento fica igual a antes).
-          audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+          // restrictOwnAudio e a constraint que resolve DE VERDADE o eco de
+          // "todo mundo se ouve" quando alguem compartilha audio de SISTEMA:
+          // ela manda o navegador tirar, do mix capturado, o audio que esta
+          // aba esta tocando — inclusive o audio remoto da RTCPeerConnection,
+          // ou seja, a propria call. Chrome 141+ (set/2025); onde nao existe,
+          // e ignorada silenciosamente.
+          //
+          // echoCancellation fica junto como paliativo pra navegadores sem
+          // restrictOwnAudio, mas nao resolve esse caso: ele foi feito pra
+          // realimentacao microfone↔alto-falante, nao pra separar as vozes
+          // dos outros participantes de um mix de sistema. Foi o que o Jitsi
+          // descobriu (jitsi-meet#16434) antes do Chrome shipar a constraint.
+          audio: {
+            restrictOwnAudio: true,
+            echoCancellation: true,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
           contentHint: 'motion',
           systemAudio: 'include',
           ...options,
@@ -346,7 +360,27 @@ function VideoConferenceComponent(props: {
         { videoEncoding: chosenEncoding, ...publishOptions },
       ).then((publication) => {
         if (enabled) {
-          const hasAudio = !!lp.getTrackPublication(Track.Source.ScreenShareAudio);
+          const audioPub = lp.getTrackPublication(Track.Source.ScreenShareAudio);
+          const hasAudio = !!audioPub;
+          if (hasAudio) {
+            // Publicou audio de tela. Se restrictOwnAudio nao pegou, o mix
+            // capturado ainda contem a propria call e todo mundo vai se
+            // ouvir. Nao da pra corrigir depois de capturado — so avisar,
+            // com a saida que sempre funciona (compartilhar uma ABA).
+            const settings = audioPub.track?.mediaStreamTrack.getSettings() as
+              | (MediaTrackSettings & { restrictOwnAudio?: boolean })
+              | undefined;
+            if (settings?.restrictOwnAudio !== true) {
+              toast(
+                'Atenção: seu navegador não filtrou o áudio da própria call do que está sendo compartilhado — quem está na sala pode se ouvir de volta. Pra evitar, compartilhe uma ABA (com "Compartilhar áudio da guia") em vez de tela inteira ou janela.',
+                {
+                  id: 'screen-share-own-audio',
+                  duration: 8000,
+                  icon: <AlertTriangleIcon size={18} />,
+                },
+              );
+            }
+          }
           if (!hasAudio) {
             // Reativo: publicou video de tela mas SEM faixa de audio. Nao e
             // bug — quase sempre e a pessoa ter escolhido janela/tela cheia
