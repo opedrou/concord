@@ -47,5 +47,5 @@ yarn-error.log*
 # `prebuild`/`predev` (scripts/copy-noise-suppressor.mjs), nunca editados a mao
 /public/noise-suppressor/
 
-# notas de contexto da sessao de implementacao — local, nao vai pro repo
-/CONTEXTO-REDUCAO-RUIDO.md
+# documentacao e notas ficam so na maquina do Pedro, fora do repo
+*.md
