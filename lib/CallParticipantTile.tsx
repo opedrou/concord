@@ -90,6 +90,21 @@ export function CallParticipantTile(props: {
 
   const handleClick = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      // TRANSMISSAO: clicar no tile pequeno amplia, nao abre som. Card de
+      // volume no meio da tela nao e o que se espera de um clique num video —
+      // e o volume da transmissao continua alcancavel pelo tile de CAMERA da
+      // mesma pessoa, que tem o slider "transmissao" no mesmo card do mic
+      // (ver ParticipantAudioPanel). Se ainda nao estou assistindo, o clique
+      // faz a coisa obvia: comeca a assistir (ampliar um quadro congelado nao
+      // serviria pra nada).
+      if (trackRef.source === Track.Source.ScreenShare) {
+        if (watch && !watch.watching) {
+          watch.onStart();
+        } else {
+          onExpand?.();
+        }
+        return;
+      }
       // So participante remoto tem volume ajustavel — o proprio microfone se
       // controla pela ControlBar, nao clicando no proprio tile.
       if (trackRef.participant.isLocal) return;
@@ -98,7 +113,7 @@ export function CallParticipantTile(props: {
         y: event.clientY,
       });
     },
-    [trackRef.participant, onOpenVolume],
+    [trackRef.participant, trackRef.source, onOpenVolume, onExpand, watch],
   );
 
   const { elementProps } = useParticipantTile<HTMLDivElement>({
@@ -184,17 +199,29 @@ export function CallParticipantTile(props: {
           ) : (
             <div className={styles.pausedFrame} aria-hidden="true" />
           )}
-          <button
-            type="button"
-            className={styles.watchButton}
-            onClick={(event) => {
-              event.stopPropagation();
-              watch?.onStart();
-            }}
-          >
-            <EyeIcon size={16} />
-            Assistir
-          </button>
+          <div className={styles.watchPrompt}>
+            {/* Sem quadro congelado = transmissao que voce nunca assistiu (ela
+                chega desligada). Um retangulo cinza com um botao azul no meio
+                nao diz de quem e nem o que aconteceu — o rotulo diz. Depois de
+                ja ter assistido, o quadro borrado ao fundo ja conta a
+                historia e o rotulo so poluiria. */}
+            {!watch?.frame && (
+              <span className={styles.watchPromptLabel}>
+                {trackRef.participant.name || trackRef.participant.identity} está transmitindo
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.watchButton}
+              onClick={(event) => {
+                event.stopPropagation();
+                watch?.onStart();
+              }}
+            >
+              <EyeIcon size={16} />
+              Assistir
+            </button>
+          </div>
         </div>
       )}
       {/* A classe 'lk-participant-placeholder' e a mesma do LiveKit — o CSS

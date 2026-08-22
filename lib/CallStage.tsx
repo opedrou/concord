@@ -115,30 +115,27 @@ export function CallStage(props: {
 
   const pinned = usePinnedTracks(layoutContext);
   const focusTrack = pinned?.[0];
-  const autoFocusedRef = React.useRef<TrackReferenceOrPlaceholder | null>(null);
-
-  // Replica o comportamento do <VideoConference>: quando alguém começa a
-  // compartilhar tela, foca automaticamente nela; quando para, tira o foco
-  // (mas só se o foco ainda for daquela mesma track — se a pessoa pinou outra
-  // coisa na mão nesse meio tempo, não mexe).
+  // ANTES: um efeito aqui replicava o <VideoConference> do LiveKit e focava
+  // automaticamente a primeira transmissao que aparecesse. Saiu a pedido: cair
+  // dentro da transmissao de alguem sem ter clicado em nada e invasivo, gasta
+  // banda de quem so queria conversar, e o caminho de volta ("parar de
+  // assistir") existia so pra desfazer algo que ninguem pediu. Agora
+  // transmissao nova chega DESLIGADA (ver `unwatchedSids` mais abaixo) e o
+  // foco so acontece pelo clique em "Assistir" (`startWatching`).
+  //
+  // O que sobrou de automatico e so a LIMPEZA: se a transmissao que estava em
+  // foco acabou, tira o foco — senao a tela inteira ficaria presa num tile que
+  // nao existe mais.
   React.useEffect(() => {
-    const firstSubscribed = screenShareTracks.find((t) => t.publication.isSubscribed);
-    if (firstSubscribed && autoFocusedRef.current === null) {
-      layoutContext.pin.dispatch?.({ msg: 'set_pin', trackReference: firstSubscribed });
-      autoFocusedRef.current = firstSubscribed;
-    } else if (
-      autoFocusedRef.current &&
-      !screenShareTracks.some(
-        (t) => t.publication.trackSid === autoFocusedRef.current?.publication?.trackSid,
-      )
-    ) {
+    if (!focusTrack || focusTrack.source !== Track.Source.ScreenShare) {
+      return;
+    }
+    const stillThere = screenShareTracks.some((t) => isSameTrackRef(t, focusTrack));
+    if (!stillThere) {
       layoutContext.pin.dispatch?.({ msg: 'clear_pin' });
-      autoFocusedRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    screenShareTracks.map((t) => `${t.publication.trackSid}_${t.publication.isSubscribed}`).join(),
-  ]);
+  }, [focusTrack, screenShareTracks.map((t) => t.publication.trackSid).join()]);
 
   const otherTracks = tracks.filter((t) => !isSameTrackRef(t, focusTrack));
 
@@ -169,7 +166,11 @@ export function CallStage(props: {
   // proprio no card de volume por participante (ParticipantAudioPanel.tsx).
   //
   // Guardado por `trackSid`: quando a pessoa reinicia a transmissao, o sid e
-  // outro e voce volta a assistir por padrao — que e o esperado.
+  // outro e a transmissao volta a entrar DESLIGADA, como qualquer outra nova.
+  //
+  // O padrao e "nao assistindo": toda transmissao remota entra aqui assim que
+  // aparece (ver o efeito logo abaixo). Ninguem e jogado dentro da tela dos
+  // outros sem pedir, e a banda so comeca a ser gasta no clique em "Assistir".
   const [unwatchedSids, setUnwatchedSids] = React.useState<ReadonlySet<string>>(
     () => new Set<string>(),
   );
@@ -177,6 +178,32 @@ export function CallStage(props: {
   // parar de assistir tira a track do foco e o tile remonta na grade — estado
   // local dele seria perdido no caminho.
   const [pausedFrames, setPausedFrames] = React.useState<Record<string, string>>({});
+
+  // Transmissao remota nova entra desassinada e fora do foco. `seenSidsRef`
+  // existe pra isso valer UMA vez por transmissao: sem ele, clicar em
+  // "Assistir" tiraria o sid de `unwatchedSids` e este efeito o colocaria de
+  // volta no render seguinte — a transmissao nunca ligaria.
+  const seenSidsRef = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    const novos = screenShareTracks.filter(
+      (t) => !t.participant.isLocal && !seenSidsRef.current.has(t.publication.trackSid),
+    );
+    if (novos.length === 0) {
+      return;
+    }
+    for (const t of novos) {
+      seenSidsRef.current.add(t.publication.trackSid);
+      // Corta os bytes de verdade: sem isso o SFU continuaria empurrando o
+      // video de uma transmissao que ninguem pediu pra ver.
+      (t.publication as RemoteTrackPublication).setSubscribed(false);
+    }
+    setUnwatchedSids((prev) => {
+      const next = new Set(prev);
+      for (const t of novos) next.add(t.publication.trackSid);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenShareTracks.map((t) => t.publication.trackSid).join()]);
 
   const stopWatching = React.useCallback(
     (trackRef: TrackReference, frame: string | null) => {
@@ -188,7 +215,6 @@ export function CallStage(props: {
       // so o quadro congelado. Voltar pra grade e o que o Discord faz.
       if (isSameTrackRef(trackRef, focusTrack)) {
         layoutContext.pin.dispatch?.({ msg: 'clear_pin' });
-        autoFocusedRef.current = null;
       }
     },
     [focusTrack, layoutContext],
@@ -207,10 +233,9 @@ export function CallStage(props: {
         const { [sid]: _removed, ...rest } = prev;
         return rest;
       });
-      // O efeito de auto-foco nao repina sozinho (ele so age na PRIMEIRA
-      // transmissao que aparece), entao voltar a assistir foca na mao.
+      // Clicar em "Assistir" e o UNICO caminho que poe uma transmissao em
+      // foco — nao ha mais auto-foco pra fazer isso por voce.
       layoutContext.pin.dispatch?.({ msg: 'set_pin', trackReference: trackRef });
-      autoFocusedRef.current = trackRef;
     },
     [layoutContext],
   );

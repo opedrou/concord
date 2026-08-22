@@ -117,8 +117,29 @@
   filter: blur(14px) brightness(0.5);
 }
 
-.watchButton {
+.watchPrompt {
   position: relative; /* acima do .pausedFrame */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.75rem;
+  text-align: center;
+}
+
+.watchPromptLabel {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--lk-fg, #fff);
+  opacity: 0.85;
+  /* O tile na grade e pequeno; nome longo nao pode empurrar o botao pra fora. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.watchButton {
   display: flex;
   align-items: center;
   gap: 0.4rem;

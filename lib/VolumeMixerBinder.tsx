@@ -22,6 +22,32 @@ import { FOCUS_ATTRIBUTE, MUTED_ATTRIBUTE, encodeFocus, encodeMuted } from './au
 /** As fontes que são track do LiveKit. A soundboard é tocada localmente. */
 const APPLIED_SOURCES = ['mic', 'screenShareAudio'] as const;
 
+/**
+ * BUG DO `livekit-client` (2.20.1) QUE ISTO CONTORNA — "o mute solta sozinho".
+ *
+ * O `RemoteAudioTrack` guarda o último volume em `this.elementVolume` e, toda
+ * vez que precisa reconstruir o caminho de áudio, reaplica esse valor assim:
+ *
+ *     if (this.elementVolume) { this.setVolume(this.elementVolume); }
+ *
+ * `0` é falsy em JS. Ou seja: quem estava com volume 0 (mute individual, ou
+ * calado pelo modo foco) NÃO tem o volume reaplicado — o `GainNode` novo nasce
+ * no default 1.0 e a pessoa volta a ser ouvida no volume cheio. Está em três
+ * lugares do dist: `attach()`, `connectWebAudio()` e `getVolume()`.
+ *
+ * E esse caminho é refeito o tempo todo sem nada de errado acontecer:
+ * `Room.acquireAudioContext()` roda em todo reconnect e em todo
+ * `room.startAudio()` (o botão "Ativar áudio" da ControlBar, e no iOS o
+ * próprio SDK rechama sozinho no `visibilitychange`), e o `attach()` roda
+ * sempre que o elemento de áudio é remontado. Daí o "depois de algum tempo".
+ *
+ * A saída é não guardar 0 no LiveKit: −140 dB é inaudível (muito abaixo do
+ * piso de ruído de 16 bits) e, principalmente, é TRUTHY — então o SDK reaplica
+ * em todos os caminhos, inclusive nos que não emitem evento nenhum pra gente
+ * escutar. Corrigir por evento sozinho não resolveria: `attach()` não avisa.
+ */
+const SILENT_GAIN = 1e-7;
+
 export function VolumeMixerBinder() {
   const room = useRoomContext();
   const mixer = useVolumeMixer();
@@ -51,7 +77,7 @@ export function VolumeMixerBinder() {
           // ouvindo — calar tudo transformaria o foco em "modo surdo".
           focusMuted: source === 'mic' && current.isFocusMuted(name),
         });
-        participant.setVolume(gain, LIVEKIT_SOURCE[source]);
+        participant.setVolume(gain > 0 ? gain : SILENT_GAIN, LIVEKIT_SOURCE[source]);
       }
     }
   }, [room]);
@@ -72,6 +98,12 @@ export function VolumeMixerBinder() {
       RoomEvent.TrackPublished,
       RoomEvent.Connected,
       RoomEvent.Reconnected,
+      // Emitido no fim do `acquireAudioContext()` — é o único aviso que chega
+      // quando o `startAudio()` recria o AudioContext e, com ele, os GainNodes
+      // de todo mundo. Sem isto, um clique em "Ativar áudio" devolvia todos os
+      // volumes ajustados ao default. (O mute em si já está coberto pelo
+      // SILENT_GAIN acima; isto cobre os volumes intermediários.)
+      RoomEvent.AudioPlaybackStatusChanged,
     ];
     for (const event of events) {
       room.on(event, applyAll);
