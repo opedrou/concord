@@ -239,6 +239,7 @@ export function CallParticipantTile(props: {
           username={trackRef.participant.name || trackRef.participant.identity}
           avatarUrl={avatarUrl}
           size={96}
+          className={styles.tileAvatar}
         />
       </div>
       <div className="lk-participant-metadata">

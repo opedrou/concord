@@ -20,6 +20,12 @@
   background: transparent;
   border-top: none;
   padding: 0.75rem 1.25rem 1.35rem;
+  /* O `.lk-control-bar` da lib tem `max-height: var(--lk-control-bar-height)`
+     — uma faixa fina, do tamanho de um botao com o padding dela. A pilula
+     daqui e mais alta que isso (46px de botao + padding + borda) e o teto
+     CORTAVA o rodape dela: era a "parte reta" embaixo dos botoes. Aqui quem
+     define a altura e o conteudo. */
+  max-height: none;
 }
 
 .pill {

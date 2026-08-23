@@ -34,8 +34,29 @@
 .placeholder {
   /* A regra padrao do LiveKit e '.lk-participant-placeholder svg { height:
      100%; width: auto; padding: 10% }' — so mira em <svg>, entao o <Avatar/>
-     (que pode ser <img> ou <div> de iniciais) precisa do proprio tamanho. */
+     (que pode ser <img> ou <div> de iniciais) precisa do proprio tamanho.
+
+     `container-type: size` transforma o placeholder em unidade de medida pro
+     avatar la embaixo. Pode: ele e `position:absolute; inset:0` (regra da
+     lib), entao tem tamanho definido nos dois eixos e nao depende do
+     conteudo. */
   padding: 10%;
+  container-type: size;
+}
+
+/* A FOTO CORTADA: o <Avatar> recebia `size={96}` em pixel cravado. Num tile
+   grande isso e o tamanho do design; na faixa lateral do modo foco, que tem
+   ~120px de largura, um circulo de 96px + os 10% de padding nao cabe e a
+   foto sai cortada nas bordas.
+
+   Agora ela mede pelo MENOR lado do tile (`cqmin`) e so entao encosta no teto
+   de 96px. `!important` porque o tamanho vem em `style` inline do componente
+   (ver lib/Avatar.tsx) — e inline so perde pra `!important`. */
+.tileAvatar {
+  width: min(96px, 58cqmin) !important;
+  height: min(96px, 58cqmin) !important;
+  /* Das iniciais: mesma proporcao que o Avatar usa (0.4 do diametro). */
+  font-size: min(38px, 23cqmin) !important;
 }
 
 /* Anel de "esta falando": acelera o APAGAR.
