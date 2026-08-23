@@ -33,7 +33,14 @@ import { useAudibility } from '@/lib/useAudibility';
 import { FocusModeBanner } from '@/lib/FocusModeControl';
 import { useVolumeMixer } from '@/lib/VolumeMixerContext';
 import { peekScreenShareFrame } from '@/lib/peekScreenShareFrame';
-import { CollapseIcon, ExpandIcon, CloseIcon, SpeakerIcon } from '@/lib/icons';
+import {
+  CollapseIcon,
+  ExpandIcon,
+  CloseIcon,
+  SpeakerIcon,
+  Volume2Icon,
+  VolumeXIcon,
+} from '@/lib/icons';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ResizeHandle } from '@/lib/ResizeHandle';
 import { usePersistedSize } from '@/lib/usePersistedSize';
@@ -300,6 +307,23 @@ export function CallStage(props: {
   const mixer = useVolumeMixer();
   const audibility = useAudibility();
 
+  /* Som da transmissao em foco, pro botao do teatro. E o MESMO estado do card
+     de volume por participante (mixer, fonte `screenShareAudio`): mutar aqui e
+     mutar la, e vale so pra mim — quem transmite nao fica sabendo. Ausente
+     quando o foco nao e uma transmissao remota: a propria tela ninguem se
+     escuta. */
+  const focusAudioName =
+    focusTrack && focusTrack.source === Track.Source.ScreenShare && !focusTrack.participant.isLocal
+      ? focusTrack.participant.name || focusTrack.participant.identity
+      : null;
+  const theaterAudio = React.useMemo(() => {
+    if (!mixer || !focusAudioName) return null;
+    return {
+      muted: mixer.volumeFor(focusAudioName, 'screenShareAudio') === 0,
+      toggle: () => mixer.toggleMute(focusAudioName, 'screenShareAudio'),
+    };
+  }, [mixer, focusAudioName]);
+
   const viewersFor = React.useCallback(
     (t: TrackReferenceOrPlaceholder): number | undefined => {
       if (t.source !== Track.Source.ScreenShare || !isTrackReference(t)) {
@@ -451,6 +475,7 @@ export function CallStage(props: {
                     avatarMap={avatarMap}
                     onOpenVolume={handleOpenVolume}
                     onExpand={theater ? undefined : () => handleExpand(focusTrack)}
+                    hideActions={theater}
                     watch={watchControlFor(focusTrack)}
                     viewers={viewersFor(focusTrack)}
                     focusMuted={isFocusMuted(focusTrack)}
@@ -516,9 +541,27 @@ export function CallStage(props: {
             </div>
           )}
           {theater && fullscreen && (
-            /* Etapa 2 e saida. So aparece no teatro — fora dele o caminho e o
-               botao de expandir do proprio tile. */
+            /* Unica fileira de botoes do teatro: som da live, etapa 2 e saida.
+               O tile nao desenha a dele aqui (`hideActions`) — os dois caiam
+               no mesmo canto, um por cima do outro. Fora do teatro o caminho
+               continua sendo o botao de expandir do proprio tile. */
             <div className={styles.fullscreenControls}>
+              {theaterAudio && (
+                <button
+                  type="button"
+                  className={styles.fullscreenButton}
+                  onClick={theaterAudio.toggle}
+                  aria-pressed={theaterAudio.muted}
+                  aria-label={theaterAudio.muted ? 'Voltar o som da live' : 'Mutar o som da live'}
+                  title={
+                    theaterAudio.muted
+                      ? 'Voltar o som da live'
+                      : 'Mutar o som da live — so pra voce'
+                  }
+                >
+                  {theaterAudio.muted ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />}
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.fullscreenButton}

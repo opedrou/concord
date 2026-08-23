@@ -73,6 +73,12 @@ export function CallParticipantTile(props: {
   focusRing?: FocusRing;
   /** Esta pessoa mutou VOCE individualmente — vale fora do modo foco. */
   mutedMe?: boolean;
+  /** Esconde a fileira de acoes do tile. Serve pro teatro: la o PALCO ja
+   * desenha os seus botoes no mesmo canto superior direito, e os dois
+   * conjuntos apareciam um por cima do outro — em hovers diferentes, o do
+   * fundo e o da transmissao. Como no teatro o `<FocusToggle>` faz o mesmo que
+   * o X do palco (voltar ao layout normal), quem sai e a fileira do tile. */
+  hideActions?: boolean;
 }) {
   const {
     trackRef,
@@ -84,6 +90,7 @@ export function CallParticipantTile(props: {
     focusMuted,
     focusRing,
     mutedMe,
+    hideActions,
   } = props;
   const isCameraSource = trackRef.source === Track.Source.Camera;
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -296,40 +303,42 @@ export function CallParticipantTile(props: {
           largura do tile) pra eles se sobreporem. Num flex com `gap` quem
           calcula o espacamento e o navegador, e continua certo em qualquer
           proporcao de tela. */}
-      <div className={styles.tileActions}>
-        {watch?.watching && (
-          <button
-            type="button"
-            className={styles.tileAction}
-            // Mesmo motivo do botao de expandir: o tile inteiro tem onClick.
-            onClick={(event) => {
-              event.stopPropagation();
-              handleStopWatching();
-            }}
-            aria-label="Parar de assistir"
-            title="Parar de assistir — para de consumir banda"
-          >
-            <EyeOffIcon size={16} />
-          </button>
-        )}
-        {onExpand && (
-          <button
-            type="button"
-            className={styles.tileAction}
-            // OBRIGATORIO: o tile inteiro tem onClick (abre o card de volume por
-            // participante). Sem isso, expandir abriria o card junto.
-            onClick={(event) => {
-              event.stopPropagation();
-              onExpand();
-            }}
-            aria-label="Ver em tela cheia"
-            title="Ver em tela cheia"
-          >
-            <ExpandIcon size={16} />
-          </button>
-        )}
-        <FocusToggle trackRef={trackRef} />
-      </div>
+      {!hideActions && (
+        <div className={styles.tileActions}>
+          {watch?.watching && (
+            <button
+              type="button"
+              className={styles.tileAction}
+              // Mesmo motivo do botao de expandir: o tile inteiro tem onClick.
+              onClick={(event) => {
+                event.stopPropagation();
+                handleStopWatching();
+              }}
+              aria-label="Parar de assistir"
+              title="Parar de assistir — para de consumir banda"
+            >
+              <EyeOffIcon size={16} />
+            </button>
+          )}
+          {onExpand && (
+            <button
+              type="button"
+              className={styles.tileAction}
+              // OBRIGATORIO: o tile inteiro tem onClick (abre o card de volume por
+              // participante). Sem isso, expandir abriria o card junto.
+              onClick={(event) => {
+                event.stopPropagation();
+                onExpand();
+              }}
+              aria-label="Ver em tela cheia"
+              title="Ver em tela cheia"
+            >
+              <ExpandIcon size={16} />
+            </button>
+          )}
+          <FocusToggle trackRef={trackRef} />
+        </div>
+      )}
     </div>
   );
 }

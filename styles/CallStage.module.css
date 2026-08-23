@@ -314,6 +314,17 @@
 }
 
 .fullscreenButton:hover {
+  filter: brightness(1.4);
+}
+
+/* Som da live cortado: mesma leitura da barra de controles — vermelho suave e
+   glifo vermelho pro estado "isso aqui esta desligado". */
+.fullscreenButton[aria-pressed='true'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.fullscreenButton:hover {
   background: rgba(18, 14, 10, 0.82);
 }
 
