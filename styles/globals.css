@@ -12,9 +12,24 @@
    tokens do design. Reescrever module por module daria o MESMO resultado
    visual com 20 arquivos de diff.
 
-   O bloco `[data-lk-theme='default']` (o atributo esta no <body>, ver
-   app/layout.tsx) tem a mesma especificidade do tema da lib mas vem depois no
-   bundle — por isso ganha sem precisar de `!important`. */
+   DOIS DETALHES QUE JA MORDERAM, os dois pelo mesmo motivo — o tema da lib e
+   `[data-lk-theme=default]{...}`, especificidade (0,1,0), e essa folha e
+   importada DEPOIS desta (ver app/layout.tsx):
+
+   1. O seletor nao pode ser so `body[...]`. O atributo `data-lk-theme` esta no
+      <body>, mas TAMBEM em varios elementos internos (o shell do RoomShell, o
+      <main> de cada rota...). Custom property herda do ancestral mais PROXIMO
+      que a define — entao o `[data-lk-theme=default]` da lib, batendo nesses
+      elementos internos, sobrescrevia a definicao do <body> pra tudo que
+      estava dentro deles. Resultado: o app inteiro (sidebar, tiles, barra)
+      continuava no cinza neutro do LiveKit, e so o que usava os tokens
+      diretamente (login, fundo do palco) ficava quente. So apareceu no tema
+      claro, onde a diferenca deixou de ser sutil.
+
+   2. Por isso o atributo aparece DOBRADO abaixo: `[x][x]` casa exatamente os
+      mesmos elementos, mas sobe a especificidade pra (0,2,0) e vence a lib de
+      forma deterministica, sem depender de ordem de import nem de
+      `!important`. */
 
 :root {
   --bg: #221d18;
@@ -91,7 +106,7 @@
 }
 
 /* No claro o texto da pilula e das superficies escuras inverte junto. */
-:root[data-concord-theme='light'] body[data-lk-theme='default'] {
+:root[data-concord-theme='light'] [data-lk-theme='default'][data-lk-theme='default'] {
   --lk-bg5: #d6c8b1;
   --lk-fg4: rgba(51, 41, 31, 0.3);
   --lk-fg5: rgba(51, 41, 31, 0.18);
@@ -100,7 +115,7 @@
   --lk-drop-shadow: drop-shadow(0 2px 8px rgba(120, 96, 66, 0.18));
 }
 
-body[data-lk-theme='default'] {
+[data-lk-theme='default'][data-lk-theme='default'] {
   --lk-bg: var(--bg);
   --lk-bg2: var(--bg2);
   --lk-bg3: var(--bg3);
@@ -156,7 +171,9 @@ body[data-lk-theme='default'] {
   /* Sombra quente: preto puro em cima de papel marrom fica sujo. */
   --lk-box-shadow: 0 4px 18px rgba(20, 14, 8, 0.28);
   --lk-drop-shadow: drop-shadow(0 2px 8px rgba(20, 14, 8, 0.28));
+}
 
+body {
   font-family: var(--font-body);
   background: var(--bg);
   color: var(--fg);

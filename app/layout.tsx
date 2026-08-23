@@ -1,6 +1,10 @@
-import '../styles/globals.css';
+// ORDEM IMPORTA: o tema do LiveKit primeiro, o nosso por cima. Estava ao
+// contrario, e como as duas folhas disputam os mesmos `--lk-*` na mesma
+// especificidade, quem chegava depois (a lib) ganhava. Ver a nota longa em
+// styles/globals.css.
 import '@livekit/components-styles';
 import '@livekit/components-styles/prefabs';
+import '../styles/globals.css';
 import type { Metadata, Viewport } from 'next';
 import { AppToaster } from '@/lib/AppToaster';
 
