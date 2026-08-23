@@ -37,7 +37,10 @@
   --hover-strong: rgba(255, 238, 224, 0.1);
   --hover-soft: rgba(255, 238, 224, 0.03);
   --login-bg: radial-gradient(120% 120% at 15% 0%, #302820 0%, #241f19 45%, #1b1712 100%);
-  --stage-bg: radial-gradient(90% 80% at 50% 0%, #2c261f, #201b16);
+  /* Quase a cor da sidebar (--bg2, #2b251f), so que um degrau mais escura: o
+     palco fica no mesmo material da lateral em vez de virar outra superficie,
+     e a hierarquia continua legivel porque ele e o mais fundo dos dois. */
+  --stage-bg: #241f19;
   /* Pilula sobre video: escura e translucida, pra ler em cima de qualquer
      imagem. Nao e `--bg` com alpha — o design usa um preto mais frio. */
   --pill: rgba(18, 14, 10, 0.62);
@@ -78,7 +81,9 @@
   --hover-strong: rgba(63, 48, 33, 0.09);
   --hover-soft: rgba(63, 48, 33, 0.03);
   --login-bg: radial-gradient(120% 120% at 15% 0%, #fff7ee 0%, #faf1e5 45%, #f3e8d8 100%);
-  --stage-bg: radial-gradient(90% 80% at 50% 0%, #fdf6ec, #f6ecdd);
+  /* Mesma regra no claro, so que "mais escuro" e o tom mais fechado do papel
+     em relacao a lateral (--bg2, #f4ecdf). */
+  --stage-bg: #ede4d4;
   /* Clara e translucida: sobre video, o texto escuro precisa de fundo claro. */
   --pill: rgba(255, 253, 249, 0.86);
   --screen-bg: linear-gradient(135deg, #e8ecf5, #d7deec);

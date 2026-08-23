@@ -399,19 +399,13 @@ export function CallStage(props: {
             <span className={styles.headerCount}>
               {participants.length === 1 ? '1 na chamada' : `${participants.length} na chamada`}
             </span>
+            {/* So o chat fica no topo, encostado na direita — o modo teatro
+                desceu pro canto inferior direito, junto dos controles, que e
+                onde a mao ja esta durante a chamada. */}
             <span className={styles.headerActions}>
               <ChatToggle className={`lk-button ${styles.headerButton}`}>
                 <ChatIcon width={18} height={18} />
               </ChatToggle>
-              <button
-                type="button"
-                className={styles.headerButton}
-                onClick={() => fullscreen?.enterTheater()}
-                aria-label="Modo teatro"
-                title="Modo teatro (F)"
-              >
-                <ExpandIcon size={18} />
-              </button>
             </span>
           </header>
         )}
@@ -519,7 +513,26 @@ export function CallStage(props: {
               </button>
             </div>
           )}
-          <CallControlBar onDeviceError={props.onDeviceError} />
+          {/* Rodape em tres partes, como num player: a barra ocupa o centro
+              da largura toda e as acoes de VISUALIZACAO ficam ancoradas na
+              direita. Elas nao entram na pilula de proposito — la sao acoes
+              de midia (microfone, camera, tela), aqui e "como eu enxergo". */}
+          <div className={styles.footer}>
+            <CallControlBar onDeviceError={props.onDeviceError} />
+            {!theater && fullscreen && (
+              <div className={styles.footerRight}>
+                <button
+                  type="button"
+                  className={styles.headerButton}
+                  onClick={() => fullscreen.enterTheater()}
+                  aria-label="Modo teatro"
+                  title="Modo teatro (F)"
+                >
+                  <ExpandIcon size={18} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <Chat
           style={{ display: widgetState.showChat ? 'grid' : 'none' }}
