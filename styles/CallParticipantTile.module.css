@@ -150,6 +150,19 @@
   transition: none;
 }
 
+/* O SVG preso ao tamanho da caixa. O LiveKit poe `overflow: visible` em todo
+   `.lk-button > svg` — entao um icone maior que os 28px do botao nao e
+   cortado: ele VAZA por cima do vizinho, e a fileira parece dois icones
+   desenhados no mesmo lugar. Como os icones daqui vem de tres origens (os
+   nossos, o do <FocusToggle> da lib e o que a lib troca quando o tile ja esta
+   em foco), o tamanho e fixado aqui em vez de confiar em cada um deles. */
+.tileActions svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  overflow: hidden;
+}
+
 .tileAction:hover,
 .tileActions :global(.lk-focus-toggle-button:hover) {
   background: var(--pill);
