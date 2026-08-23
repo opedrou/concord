@@ -1,9 +1,20 @@
 /* =========================================================================
    TEMA CONCORD — fundacao
    =========================================================================
-   Vem do projeto de design (Concord.dc.html, tema `dark`): papel quente em vez
-   do cinza-neutro do LiveKit, tinta creme, acento roxo. Os tokens abaixo sao
-   copia literal dos valores de la; nada de "quase igual".
+   O ACENTO ROXO vem do projeto de design (Concord.dc.html). Todo o resto — os
+   fundos, o texto, as bordas — saiu do marrom quente do canvas e passou pra
+   paleta cinza neutra que o dono mandou: #181818, #212121, #3d3d3d, #ffffff,
+   #aaaaaa. O roxo fica ainda mais destacado em cima do cinza do que ficava em
+   cima do marrom, que ja era quente e disputava com ele.
+
+   Os tres tons cinza da paleta cobrem fundo / superficie / controle. Onde a
+   escada precisa de um degrau que a paleta nao tem (o hover de um controle
+   que ja e #3d3d3d, por exemplo), o valor e DERIVADO desses cinco — nunca uma
+   cor nova de outra familia.
+
+   As cores de ESTADO (verde de "falando", vermelho de mudo/erro, ambar de
+   aviso) continuam coloridas de proposito: nao sao decoracao, sao a unica
+   forma de ler o que esta acontecendo, e em cinza nao diriam nada.
 
    POR QUE ISTO REPINTA O APP INTEIRO DE UMA VEZ: praticamente todo CSS module
    daqui usa `var(--lk-*)` (o tema do @livekit/components-styles) em vez de cor
@@ -32,35 +43,36 @@
       `!important`. */
 
 :root {
-  --bg: #221d18;
-  --bg2: #2b251f;
-  --bg3: #372f27;
-  --surface: #43392f;
-  --border: rgba(255, 238, 224, 0.1);
-  --border2: rgba(255, 238, 224, 0.16);
-  --fg: #f7f0e7;
-  --fg2: rgba(247, 240, 231, 0.64);
-  --fg3: rgba(247, 240, 231, 0.42);
+  --bg: #181818;
+  --bg2: #212121;
+  --bg3: #2c2c2c;
+  --surface: #3d3d3d;
+  --border: rgba(255, 255, 255, 0.1);
+  --border2: rgba(255, 255, 255, 0.16);
+  --fg: #ffffff;
+  --fg2: #aaaaaa;
+  --fg3: rgba(255, 255, 255, 0.42);
   --accent: #9d4edd;
   --accent2: #c77dff;
   /* Acento a 20% — o fundo dos estados "ativo/selecionado". */
   --soft: rgba(157, 78, 221, 0.2);
+  /* Estado, nao decoracao — ver a nota no topo. */
   --green: #7ec882;
   --danger: #f0625d;
   --idle: #f0b45e;
-  --hover: rgba(255, 238, 224, 0.06);
-  --hover-strong: rgba(255, 238, 224, 0.1);
-  --hover-soft: rgba(255, 238, 224, 0.03);
-  --login-bg: radial-gradient(120% 120% at 15% 0%, #302820 0%, #241f19 45%, #1b1712 100%);
-  /* Quase a cor da sidebar (--bg2, #2b251f), so que um degrau mais escura: o
+  --hover: rgba(255, 255, 255, 0.06);
+  --hover-strong: rgba(255, 255, 255, 0.1);
+  --hover-soft: rgba(255, 255, 255, 0.03);
+  --login-bg: radial-gradient(120% 120% at 15% 0%, #242424 0%, #1c1c1c 45%, #141414 100%);
+  /* Quase a cor da sidebar (--bg2, #212121), so que um degrau mais escura: o
      palco fica no mesmo material da lateral em vez de virar outra superficie,
      e a hierarquia continua legivel porque ele e o mais fundo dos dois. */
-  --stage-bg: #241f19;
+  --stage-bg: #1b1b1b;
   /* Pilula sobre video: escura e translucida, pra ler em cima de qualquer
-     imagem. Nao e `--bg` com alpha — o design usa um preto mais frio. */
-  --pill: rgba(18, 14, 10, 0.62);
-  --screen-bg: linear-gradient(135deg, #2c3050, #212433);
-  --screen-fg: rgba(205, 213, 235, 0.62);
+     imagem — mais fechada que --bg, que sobre uma imagem clara sumiria. */
+  --pill: rgba(0, 0, 0, 0.62);
+  --screen-bg: linear-gradient(135deg, #2f2f2f, #242424);
+  --screen-fg: #aaaaaa;
 
   --font-body: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
   --font-display: 'Bricolage Grotesque', 'Hanken Grotesk', system-ui, sans-serif;
@@ -77,42 +89,40 @@
 :root[data-concord-theme='light'] {
   color-scheme: light;
 
-  --bg: #fffdf9;
-  --bg2: #f4ecdf;
-  --bg3: #eadfce;
-  --surface: #e2d6c2;
-  --border: rgba(63, 48, 33, 0.1);
-  --border2: rgba(63, 48, 33, 0.17);
-  --fg: #33291f;
-  --fg2: rgba(51, 41, 31, 0.6);
-  --fg3: rgba(51, 41, 31, 0.42);
+  --bg: #ffffff;
+  --bg2: #f4f4f4;
+  --bg3: #e8e8e8;
+  --surface: #d8d8d8;
+  --border: rgba(24, 24, 24, 0.12);
+  --border2: rgba(24, 24, 24, 0.2);
+  --fg: #181818;
+  --fg2: #5f5f5f;
+  --fg3: #aaaaaa;
   --accent: #7b2cbf;
   --accent2: #5a189a;
   --soft: rgba(123, 44, 191, 0.13);
-  --green: #4fa564;
-  --danger: #e0483f;
-  --idle: #dd9330;
-  --hover: rgba(63, 48, 33, 0.06);
-  --hover-strong: rgba(63, 48, 33, 0.09);
-  --hover-soft: rgba(63, 48, 33, 0.03);
-  --login-bg: radial-gradient(120% 120% at 15% 0%, #fff7ee 0%, #faf1e5 45%, #f3e8d8 100%);
-  /* Mesma regra no claro, so que "mais escuro" e o tom mais fechado do papel
-     em relacao a lateral (--bg2, #f4ecdf). */
-  --stage-bg: #ede4d4;
+  --green: #3f8f54;
+  --danger: #d0372e;
+  --idle: #b8760f;
+  --hover: rgba(24, 24, 24, 0.06);
+  --hover-strong: rgba(24, 24, 24, 0.1);
+  --hover-soft: rgba(24, 24, 24, 0.03);
+  --login-bg: radial-gradient(120% 120% at 15% 0%, #ffffff 0%, #f7f7f7 45%, #ededed 100%);
+  --stage-bg: #ececec;
   /* Clara e translucida: sobre video, o texto escuro precisa de fundo claro. */
-  --pill: rgba(255, 253, 249, 0.86);
-  --screen-bg: linear-gradient(135deg, #e8ecf5, #d7deec);
-  --screen-fg: rgba(60, 72, 100, 0.55);
+  --pill: rgba(255, 255, 255, 0.86);
+  --screen-bg: linear-gradient(135deg, #e4e4e4, #d4d4d4);
+  --screen-fg: #5f5f5f;
 }
 
 /* No claro o texto da pilula e das superficies escuras inverte junto. */
 :root[data-concord-theme='light'] [data-lk-theme='default'][data-lk-theme='default'] {
-  --lk-bg5: #d6c8b1;
-  --lk-fg4: rgba(51, 41, 31, 0.3);
-  --lk-fg5: rgba(51, 41, 31, 0.18);
+  --lk-bg5: #c9c9c9;
+  --lk-fg4: rgba(24, 24, 24, 0.35);
+  --lk-fg5: rgba(24, 24, 24, 0.2);
   --lk-success-fg: #ffffff;
-  --lk-box-shadow: 0 4px 18px rgba(120, 96, 66, 0.18);
-  --lk-drop-shadow: drop-shadow(0 2px 8px rgba(120, 96, 66, 0.18));
+  --lk-box-shadow: 0 4px 18px rgba(24, 24, 24, 0.14);
+  --lk-drop-shadow: drop-shadow(0 2px 8px rgba(24, 24, 24, 0.14));
 }
 
 [data-lk-theme='default'][data-lk-theme='default'] {
@@ -120,14 +130,14 @@
   --lk-bg2: var(--bg2);
   --lk-bg3: var(--bg3);
   --lk-bg4: var(--surface);
-  --lk-bg5: #4f4438;
+  --lk-bg5: #4a4a4a;
   --lk-bg-control: var(--bg3);
 
   --lk-fg: var(--fg);
   --lk-fg2: var(--fg2);
   --lk-fg3: var(--fg3);
-  --lk-fg4: rgba(247, 240, 231, 0.28);
-  --lk-fg5: rgba(247, 240, 231, 0.16);
+  --lk-fg4: rgba(255, 255, 255, 0.28);
+  --lk-fg5: rgba(255, 255, 255, 0.16);
 
   --lk-border-color: var(--border);
   --lk-border-radius: 12px;
@@ -145,7 +155,7 @@
   --lk-danger4: #9e2f28;
 
   --lk-success: var(--green);
-  --lk-success-fg: #14210f;
+  --lk-success-fg: #101810;
   --lk-success2: #6bb471;
   --lk-success3: #55965b;
   --lk-success4: #427a47;
@@ -168,9 +178,8 @@
   --lk-focus-outline-color: var(--accent2);
 
   --lk-font-family: var(--font-body);
-  /* Sombra quente: preto puro em cima de papel marrom fica sujo. */
-  --lk-box-shadow: 0 4px 18px rgba(20, 14, 8, 0.28);
-  --lk-drop-shadow: drop-shadow(0 2px 8px rgba(20, 14, 8, 0.28));
+  --lk-box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+  --lk-drop-shadow: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.38));
 }
 
 body {

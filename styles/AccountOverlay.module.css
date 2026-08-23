@@ -9,9 +9,9 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  /* Marrom translucido com desfoque, nao preto a 65%: o app por baixo continua
-     visivel como textura quente em vez de virar um bloco preto. */
-  background: rgba(50, 38, 25, 0.34);
+  /* Translucido com desfoque, nao preto a 65%: o app por baixo continua
+     visivel atras da janela em vez de virar um bloco preto. */
+  background: rgba(24, 24, 24, 0.42);
   backdrop-filter: blur(4px);
 }
 
@@ -24,7 +24,7 @@
   border-radius: 22px;
   background: var(--lk-bg);
   border: 1px solid var(--border2);
-  box-shadow: 0 40px 100px rgba(70, 52, 34, 0.28);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.42);
   overflow: hidden;
 }
 

@@ -226,7 +226,7 @@
   backdrop-filter: blur(6px);
   padding: 0.3rem 0.7rem;
   border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(20, 14, 8, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
   font-size: 0.8rem;
   font-weight: 600;
   flex-wrap: nowrap;
