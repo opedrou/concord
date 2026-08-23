@@ -387,29 +387,33 @@ export function CallStage(props: {
       data-controls-hidden={theater && !controlsVisible ? 'true' : undefined}
     >
       <LayoutContextProvider value={layoutContext} onWidgetChange={setWidgetState}>
-        {/* Cabecalho do palco (projeto de design): onde voce esta, quanta
-            gente tem, e as duas acoes que nao sao de midia — abrir o chat e
-            entrar no teatro. Elas moram AQUI e nao na barra de baixo porque
-            a barra e so microfone/camera/tela/sair; misturar "abrir painel"
-            com "ligar microfone" era o que fazia a fileira crescer sem fim. */}
-        {!theater && (
-          <header className={styles.header}>
-            <SpeakerIcon size={18} className={styles.headerIcon} />
-            <span className={styles.headerTitle}>{room?.name}</span>
-            <span className={styles.headerCount}>
-              {participants.length === 1 ? '1 na chamada' : `${participants.length} na chamada`}
-            </span>
-            {/* So o chat fica no topo, encostado na direita — o modo teatro
-                desceu pro canto inferior direito, junto dos controles, que e
-                onde a mao ja esta durante a chamada. */}
-            <span className={styles.headerActions}>
-              <ChatToggle className={`lk-button ${styles.headerButton}`}>
-                <ChatIcon width={18} height={18} />
-              </ChatToggle>
-            </span>
-          </header>
-        )}
         <div className={`lk-video-conference-inner ${styles.inner}`}>
+          {/* MORA AQUI, E NAO COMO IRMAO DO `.lk-video-conference-inner`:
+              o `.lk-video-conference` do LiveKit e `display:flex` em LINHA
+              (`align-items:stretch`), entao um <header> solto ali virava uma
+              COLUNA a esquerda do palco em vez de uma faixa no topo — foi
+              exatamente o que aconteceu. O `-inner` e que e a coluna
+              (`flex-direction:column`), e e nele que o cabecalho empilha
+              acima da grade e da barra. */}
+          {/* Cabecalho do palco (projeto de design): onde voce esta e quanta
+              gente tem. */}
+          {!theater && (
+            <header className={styles.header}>
+              <SpeakerIcon size={18} className={styles.headerIcon} />
+              <span className={styles.headerTitle}>{room?.name}</span>
+              <span className={styles.headerCount}>
+                {participants.length === 1 ? '1 na chamada' : `${participants.length} na chamada`}
+              </span>
+              {/* So o chat fica no topo, encostado na direita — o modo teatro
+                  desceu pro canto inferior direito, junto dos controles, que e
+                  onde a mao ja esta durante a chamada. */}
+              <span className={styles.headerActions}>
+                <ChatToggle className={`lk-button ${styles.headerButton}`}>
+                  <ChatIcon width={18} height={18} />
+                </ChatToggle>
+              </span>
+            </header>
+          )}
           {/* Antes de tudo no palco, impossivel de ignorar. */}
           <FocusModeBanner />
           {focusTrack ? (
