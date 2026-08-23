@@ -66,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('concord:theme');if(t==='light')document.documentElement.dataset.concordTheme='light'}catch(e){}",
+              "try{var d=document.documentElement.dataset;if(localStorage.getItem('concord:theme')==='light')d.concordTheme='light';if(localStorage.getItem('concord:ring')==='recortado')d.concordRing='recortado'}catch(e){}",
           }}
         />
         <AppToaster />

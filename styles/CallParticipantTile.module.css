@@ -62,6 +62,29 @@
   transition-duration: 0.15s;
 }
 
+/* --- O ANEL RECORTADO --------------------------------------------------
+   O anel de "falando" (e o de modo foco) e um pseudo-elemento com `border`
+   em `inset: 0`, e o raio dele vem de `--lk-border-radius` (12px). O tile
+   passou a ter canto de 18px e uma borda propria de 2px, entao a caixa que
+   o `overflow: hidden` recorta tem 16px de raio — 4px a mais que o anel.
+   Nos cantos, o anel some por baixo do recorte e sobra so o meio das
+   laterais: e o efeito de "borda quebrada" que aparecia.
+
+   O certo e o anel seguir o mesmo raio da caixa recortada. Mas o dono pediu
+   pra poder ver dos dois jeitos, entao isto e opcional: com
+   `data-concord-ring="recortado"` no <html> (Configuracoes > Aparencia, ver
+   lib/AppearanceSettings.tsx) o
+   raio antigo volta e o anel quebra de novo, de proposito. */
+.tile.tile::after,
+.tile.tile[data-concord-focus]::before {
+  border-radius: 16px;
+}
+
+:root[data-concord-ring='recortado'] .tile.tile::after,
+:root[data-concord-ring='recortado'] .tile.tile[data-concord-focus]::before {
+  border-radius: var(--lk-border-radius, 0.5rem);
+}
+
 /* Selo LIVE — texto e nao icone pelo mesmo motivo do selo da sidebar: "LIVE"
    se le de relance e nao se confunde com nenhum outro simbolo do tile. */
 .liveBadge {
@@ -79,137 +102,62 @@
   line-height: 1.2;
 }
 
-/* Botao "ver em tela cheia". Fica ao lado do <FocusToggle> do LiveKit, que o
-   CSS da lib posiciona em `top: .25rem; right: .25rem` com `opacity: 0` ate o
-   hover do tile — aqui so replicamos esse comportamento deslocado pra
-   esquerda, pros dois nao se sobreporem. */
-.expandButton {
+/* Fileira de acoes do tile (parar de assistir / ampliar / focar). Aparece no
+   hover, como o <FocusToggle> do LiveKit ja fazia sozinho.
+
+   FLEX COM GAP, nao tres `position:absolute` com `right` chutado: era assim
+   antes e os tres icones se embolavam — os offsets fixos (.25rem / 2.25rem /
+   4.25rem) foram medidos pra UM tamanho de icone e UM padding, e o botao do
+   LiveKit tem os seus proprios. O `position: static` logo abaixo e o que tira
+   o botao dele daquele canto e o poe na fila. */
+.tileActions {
   position: absolute;
-  top: 0.25rem;
-  right: 2.25rem;
-  z-index: 1;
+  top: 0.375rem;
+  right: 0.375rem;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.35rem;
-  border: none;
-  border-radius: var(--lk-border-radius, 0.5rem);
-  background: var(--pill);
-  color: var(--lk-fg, #fff);
-  cursor: pointer;
+  gap: 0.25rem;
   opacity: 0;
   transition: opacity 0.15s ease-in-out;
-  line-height: 0;
 }
 
-.tile:hover .expandButton,
-.expandButton:focus-visible {
+.tile:hover .tileActions,
+.tileActions:focus-within {
   opacity: 1;
 }
 
-.expandButton:hover {
-  background: var(--pill);
-}
-
-.expandButton:focus-visible {
-  outline: 2px solid var(--lk-accent-bg);
-  outline-offset: 1px;
-}
-
-/* --- "Parei de assistir" (ver ROADMAP item 3 e CallParticipantTile.tsx) ---
-
-   A track de video ja foi dessubscrita — nao chega mais um byte do SFU. O que
-   fica na tela e o ULTIMO quadro, capturado num canvas antes do unsubscribe,
-   borrado e escurecido: da pra reconhecer o que estava rolando sem que pareca
-   que a transmissao caiu. Mesmo tratamento que o Discord da. */
-
-.pausedLayer {
-  position: absolute;
-  inset: 0;
+.tileAction,
+.tileActions :global(.lk-focus-toggle-button) {
+  /* Alvo quadrado de 28px pros tres, no lugar de "o tamanho que der". */
+  position: static;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  border-radius: inherit;
-  /* Cor de fundo pro caso de nao ter dado pra capturar quadro nenhum (ex.: a
-     pessoa parou de assistir antes do primeiro frame chegar). */
-  background: var(--lk-bg2, #1f1f1f);
-}
-
-.pausedFrame {
-  position: absolute;
-  /* Estoura a caixa de proposito: `filter: blur` desbota as bordas, e sem a
-     folga apareceria uma moldura clara em volta do quadro. */
-  inset: -8%;
-  background-size: cover;
-  background-position: center;
-  filter: blur(14px) brightness(0.5);
-}
-
-.watchPrompt {
-  position: relative; /* acima do .pausedFrame */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0 0.75rem;
-  text-align: center;
-}
-
-.watchPromptLabel {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--lk-fg, #fff);
-  opacity: 0.85;
-  /* O tile na grade e pequeno; nome longo nao pode empurrar o botao pra fora. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.watchButton {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.9rem;
+  padding: 0;
   border: none;
-  border-radius: var(--lk-border-radius, 0.5rem);
-  background: var(--lk-accent-bg, #1f6feb);
-  color: var(--lk-accent-fg, #fff);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.watchButton:hover {
-  filter: brightness(1.15);
-}
-
-.watchButton:focus-visible {
-  outline: 2px solid var(--lk-fg, #fff);
-  outline-offset: 2px;
-}
-
-/* Mesmo canto e mesmo comportamento do .expandButton, so que mais a esquerda —
-   a fileira do canto superior direito vira, da direita pra esquerda:
-   <FocusToggle> do LiveKit, expandir, parar de assistir. */
-.stopWatchButton {
-  composes: expandButton;
-  right: 4.25rem;
-}
-
-.tile:hover .stopWatchButton,
-.stopWatchButton:focus-visible {
-  opacity: 1;
-}
-
-.stopWatchButton:hover {
+  border-radius: 8px;
   background: var(--pill);
+  color: var(--lk-fg, #fff);
+  cursor: pointer;
+  line-height: 0;
+  /* O botao da lib tem `opacity:0` proprio, com delay — dentro da fileira
+     quem controla a aparicao e o container, senao ele apareceria sozinho. */
+  opacity: 1;
+  transition: none;
 }
 
-.stopWatchButton:focus-visible {
+.tileAction:hover,
+.tileActions :global(.lk-focus-toggle-button:hover) {
+  background: var(--pill);
+  filter: brightness(1.4);
+}
+
+.tileAction:focus-visible,
+.tileActions :global(.lk-focus-toggle-button:focus-visible) {
   outline: 2px solid var(--lk-accent-bg);
   outline-offset: 1px;
 }

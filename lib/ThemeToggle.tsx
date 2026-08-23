@@ -16,6 +16,11 @@ import { SunIcon, MoonIcon } from '@/lib/icons';
 
 export const THEME_STORAGE_KEY = 'concord:theme';
 
+/** Avisa quem desenha o botao que o tema mudou em OUTRO lugar (a secao
+ *  Aparencia das configuracoes). Sem isto o icone do sol/lua ficaria mostrando
+ *  o tema antigo ate o proximo render. */
+export const THEME_CHANGE_EVENT = 'concord:theme-change';
+
 type Theme = 'dark' | 'light';
 
 function currentTheme(): Theme {
@@ -28,7 +33,12 @@ export function ThemeToggle({ className }: { className?: string }) {
   // <html> pra consultar, e devolver valores diferentes nos dois lados daria
   // erro de hidratacao.
   const [theme, setTheme] = React.useState<Theme>('dark');
-  React.useEffect(() => setTheme(currentTheme()), []);
+  React.useEffect(() => {
+    const sync = () => setTheme(currentTheme());
+    sync();
+    window.addEventListener(THEME_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, sync);
+  }, []);
 
   const toggle = React.useCallback(() => {
     const next: Theme = currentTheme() === 'light' ? 'dark' : 'light';
@@ -40,6 +50,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       // que derrubar o clique.
     }
     setTheme(next);
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
   const label = theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro';

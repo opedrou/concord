@@ -190,8 +190,8 @@ export function CallParticipantTile(props: {
       {hasLiveVideo && <VideoTrack trackRef={trackRef} />}
       {/* Selo LIVE das transmissoes, do projeto de design. Ele desenha no
           canto superior DIREITO; aqui fica no esquerdo porque a direita ja e
-          do <FocusToggle> do LiveKit e do botao de ampliar, que aparecem no
-          hover — os tres empilhados brigariam pelo mesmo canto. */}
+          da fileira de acoes do tile, que aparece no hover — os dois
+          empilhados brigariam pelo mesmo canto. */}
       {!isCameraSource && <span className={styles.liveBadge}>LIVE</span>}
       {stoppedWatching && (
         <div className={styles.pausedLayer}>
@@ -288,38 +288,47 @@ export function CallParticipantTile(props: {
           participant={trackRef.participant}
         />
       </div>
-      <FocusToggle trackRef={trackRef} />
-      {watch?.watching && (
-        <button
-          type="button"
-          className={styles.stopWatchButton}
-          // Mesmo motivo do botao de expandir: o tile inteiro tem onClick.
-          onClick={(event) => {
-            event.stopPropagation();
-            handleStopWatching();
-          }}
-          aria-label="Parar de assistir"
-          title="Parar de assistir — para de consumir banda"
-        >
-          <EyeOffIcon size={16} />
-        </button>
-      )}
-      {onExpand && (
-        <button
-          type="button"
-          className={styles.expandButton}
-          // OBRIGATORIO: o tile inteiro tem onClick (abre o card de volume por
-          // participante). Sem isso, expandir abriria o card junto.
-          onClick={(event) => {
-            event.stopPropagation();
-            onExpand();
-          }}
-          aria-label="Ver em tela cheia"
-          title="Ver em tela cheia"
-        >
-          <ExpandIcon size={16} />
-        </button>
-      )}
+      {/* UMA fileira, nao tres botoes com `right` fixo cada um.
+          Antes eram `.25rem`, `2.25rem` e `4.25rem` chutados na mao — como o
+          <FocusToggle> do LiveKit tem padding e raio proprios, os tres nunca
+          alinhavam de verdade, e bastava mudar o tamanho de um icone (ou a
+          largura do tile) pra eles se sobreporem. Num flex com `gap` quem
+          calcula o espacamento e o navegador, e continua certo em qualquer
+          proporcao de tela. */}
+      <div className={styles.tileActions}>
+        {watch?.watching && (
+          <button
+            type="button"
+            className={styles.tileAction}
+            // Mesmo motivo do botao de expandir: o tile inteiro tem onClick.
+            onClick={(event) => {
+              event.stopPropagation();
+              handleStopWatching();
+            }}
+            aria-label="Parar de assistir"
+            title="Parar de assistir — para de consumir banda"
+          >
+            <EyeOffIcon size={16} />
+          </button>
+        )}
+        {onExpand && (
+          <button
+            type="button"
+            className={styles.tileAction}
+            // OBRIGATORIO: o tile inteiro tem onClick (abre o card de volume por
+            // participante). Sem isso, expandir abriria o card junto.
+            onClick={(event) => {
+              event.stopPropagation();
+              onExpand();
+            }}
+            aria-label="Ver em tela cheia"
+            title="Ver em tela cheia"
+          >
+            <ExpandIcon size={16} />
+          </button>
+        )}
+        <FocusToggle trackRef={trackRef} />
+      </div>
     </div>
   );
 }

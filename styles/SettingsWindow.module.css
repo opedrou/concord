@@ -102,6 +102,23 @@
   color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
 }
 
+/* Nao havia <select> nesta janela ate agora; sem regra ele vinha com o visual
+   nativo do SO, branco no meio do painel escuro. */
+.field select {
+  padding: 0.45rem 0.6rem;
+  border-radius: 9px;
+  border: 1px solid var(--lk-border-color);
+  background: var(--lk-bg3);
+  color: var(--lk-fg);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.field select:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 1px;
+}
+
 .hint {
   margin: 0;
   font-size: 0.7rem;

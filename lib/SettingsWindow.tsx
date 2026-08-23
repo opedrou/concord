@@ -28,6 +28,7 @@ import { AdminDashboard } from '@/app/admin/AdminDashboard';
 import { JoinLeaveSoundsSettings } from '@/lib/JoinLeaveSounds';
 import { FocusModeSettings } from '@/lib/FocusModeControl';
 import { SoundboardSettings } from '@/lib/Soundboard';
+import { AppearanceSettings } from '@/lib/AppearanceSettings';
 import styles from '../styles/SettingsWindow.module.css';
 
 export type SettingsSection =
@@ -37,6 +38,7 @@ export type SettingsSection =
   | 'focus'
   | 'soundboard'
   | 'notifications'
+  | 'appearance'
   | 'admin';
 
 interface SectionDef {
@@ -52,6 +54,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'focus', label: 'Modo foco' },
   { id: 'soundboard', label: 'Soundboard' },
   { id: 'notifications', label: 'Notificações' },
+  { id: 'appearance', label: 'Aparência' },
   { id: 'admin', label: 'Admin', adminOnly: true },
 ];
 
@@ -110,6 +113,7 @@ export function SettingsWindow(props: {
           {current.id === 'focus' && <FocusModeSettings />}
           {current.id === 'soundboard' && <SoundboardSettings />}
           {current.id === 'notifications' && <JoinLeaveSoundsSettings />}
+          {current.id === 'appearance' && <AppearanceSettings />}
           {current.id === 'admin' && (
             <AdminDashboard currentUsername={props.username} onClose={props.onClose} />
           )}
