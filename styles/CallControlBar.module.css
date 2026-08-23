@@ -76,6 +76,16 @@
   gap: 2px;
 }
 
+/* A lib desenha o par "botao + chevron" como um segmento unico: zera os cantos
+   da DIREITA do primeiro e os da ESQUERDA do chevron. Esses seletores dela sao
+   (0,2,1) e venciam o nosso `border-radius: 13px` (0,2,0) — era o lado reto no
+   mic aceso (no cinza apagado nao da pra ver). Aqui a pilula tem gap entre os
+   dois, entao cada um e uma pastilha inteira. */
+.pill :global(.lk-button-group) > :global(.lk-button:first-child),
+.pill :global(.lk-button-group-menu) > :global(.lk-button) {
+  border-radius: 13px;
+}
+
 .pill :global(.lk-button-group-menu > .lk-button) {
   min-width: 28px;
   padding: 0 0.35rem;
