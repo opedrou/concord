@@ -338,7 +338,7 @@ export function CallParticipantTile(props: {
  * quem parou de assistir — mesma ideia do Discord. `null` quando o navegador
  * ainda nao tem quadro nenhum (`videoWidth === 0`) ou o canvas 2d falha.
  */
-function captureFrame(video: HTMLVideoElement): string | null {
+export function captureFrame(video: HTMLVideoElement): string | null {
   if (!video.videoWidth || !video.videoHeight) {
     return null;
   }

@@ -94,14 +94,9 @@ export function AppearanceSettings() {
           value={ring}
           onChange={(e) => applyRing(e.target.value as RingStyle)}
         >
-          <option value="continuo">Contínua — anel inteiro em volta do tile</option>
-          <option value="recortado">Recortada — só as laterais, como estava antes</option>
+          <option value="continuo">Contínua</option>
+          <option value="recortado">Recortada</option>
         </select>
-        <p className={styles.hint}>
-          A borda vem de um pseudo-elemento com raio próprio. Quando ele não acompanha o canto do
-          tile, os cantos do anel somem no recorte e sobra só o meio das laterais — que é a versão
-          &quot;recortada&quot;. Ficou como opcao a pedido.
-        </p>
       </div>
     </>
   );

@@ -32,6 +32,7 @@ import { useScreenShareViewers } from '@/lib/useScreenShareViewers';
 import { useAudibility } from '@/lib/useAudibility';
 import { FocusModeBanner } from '@/lib/FocusModeControl';
 import { useVolumeMixer } from '@/lib/VolumeMixerContext';
+import { peekScreenShareFrame } from '@/lib/peekScreenShareFrame';
 import { CollapseIcon, ExpandIcon, CloseIcon, SpeakerIcon } from '@/lib/icons';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ResizeHandle } from '@/lib/ResizeHandle';
@@ -190,6 +191,9 @@ export function CallStage(props: {
   // "Assistir" tiraria o sid de `unwatchedSids` e este efeito o colocaria de
   // volta no render seguinte — a transmissao nunca ligaria.
   const seenSidsRef = React.useRef<Set<string>>(new Set());
+  // Quem esta assistindo AGORA, lido de dentro do `.finally()` da espiada —
+  // que roda depois, quando `unwatchedSids` do closure ja pode estar velho.
+  const watchingSidsRef = React.useRef<Set<string>>(new Set());
   React.useEffect(() => {
     const novos = screenShareTracks.filter(
       (t) => !t.participant.isLocal && !seenSidsRef.current.has(t.publication.trackSid),
@@ -197,23 +201,44 @@ export function CallStage(props: {
     if (novos.length === 0) {
       return;
     }
-    for (const t of novos) {
-      seenSidsRef.current.add(t.publication.trackSid);
-      // Corta os bytes de verdade: sem isso o SFU continuaria empurrando o
-      // video de uma transmissao que ninguem pediu pra ver.
-      (t.publication as RemoteTrackPublication).setSubscribed(false);
-    }
+    // Marca como "nao assistindo" JA: o tile mostra o convite na hora, sem
+    // esperar a espiada abaixo terminar.
     setUnwatchedSids((prev) => {
       const next = new Set(prev);
       for (const t of novos) next.add(t.publication.trackSid);
       return next;
     });
+    for (const t of novos) {
+      const sid = t.publication.trackSid;
+      seenSidsRef.current.add(sid);
+      const publication = t.publication as RemoteTrackPublication;
+      // Espia UM quadro antes de cortar os bytes, so pra ter o que borrar
+      // atras do botao "Assistir" — sem isso o tile de uma transmissao que
+      // voce nunca viu e um retangulo liso. O custo esta descrito em
+      // lib/peekScreenShareFrame.ts: a assinatura fica de pe pelo tempo de
+      // chegar o primeiro quadro, uma vez por transmissao.
+      void peekScreenShareFrame(publication)
+        .then((frame) => {
+          if (frame) {
+            setPausedFrames((prev) => (sid in prev ? prev : { ...prev, [sid]: frame }));
+          }
+        })
+        .finally(() => {
+          // So corta se a pessoa nao tiver clicado em "Assistir" nesse meio
+          // tempo — senao a espiada derrubaria a transmissao que ela acabou
+          // de ligar.
+          if (!watchingSidsRef.current.has(sid)) {
+            publication.setSubscribed(false);
+          }
+        });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenShareTracks.map((t) => t.publication.trackSid).join()]);
 
   const stopWatching = React.useCallback(
     (trackRef: TrackReference, frame: string | null) => {
       const sid = trackRef.publication.trackSid;
+      watchingSidsRef.current.delete(sid);
       (trackRef.publication as RemoteTrackPublication).setSubscribed(false);
       setUnwatchedSids((prev) => new Set(prev).add(sid));
       setPausedFrames((prev) => (frame ? { ...prev, [sid]: frame } : prev));
@@ -229,6 +254,7 @@ export function CallStage(props: {
   const startWatching = React.useCallback(
     (trackRef: TrackReference) => {
       const sid = trackRef.publication.trackSid;
+      watchingSidsRef.current.add(sid);
       (trackRef.publication as RemoteTrackPublication).setSubscribed(true);
       setUnwatchedSids((prev) => {
         const next = new Set(prev);
