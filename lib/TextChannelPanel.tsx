@@ -15,6 +15,8 @@ import {
 import { ATTACHMENT_MAX_DIMENSION, resizeImageClientSide } from '@/lib/resizeImageClientSide';
 import { AttachmentPreview, formatBytes } from '@/lib/AttachmentPreview';
 import { CloseIcon, HashIcon } from '@/lib/icons';
+import { Avatar } from '@/lib/Avatar';
+import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import styles from '../styles/TextChannelPanel.module.css';
 
 const PAGE_SIZE = 50;
@@ -45,6 +47,9 @@ export interface TextChannelPanelProps {
  */
 export function TextChannelPanel(props: TextChannelPanelProps) {
   const { channelId } = props;
+  // Mesmo mapa que os tiles da chamada usam — chaveado por `name` limpo, ver
+  // useMembersAvatarMap.ts. Sem foto cadastrada, o <Avatar> cai nas iniciais.
+  const avatarMap = useMembersAvatarMap();
   const [messages, setMessages] = React.useState<ChannelMessage[] | null>(null);
   const [hasMore, setHasMore] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -293,42 +298,61 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
                 return (
                   <li
                     key={message.id}
-                    className={groupedWithPrevious ? styles.messageGrouped : styles.message}
+                    className={`${styles.messageRow} ${
+                      groupedWithPrevious ? styles.messageGrouped : styles.message
+                    }`}
                   >
-                    {!groupedWithPrevious && (
-                      <div className={styles.messageMeta}>
-                        <span className={styles.authorName}>{message.authorName}</span>
-                        <span
-                          className={styles.timestamp}
-                          title={formatFullDateTime(message.createdAt)}
-                        >
-                          {formatTime(message.createdAt)}
-                        </span>
+                    {/* Calha fixa a esquerda: foto na primeira mensagem de cada
+                        bloco, vazia nas seguintes. E ela que alinha o texto de
+                        todas as linhas do bloco na mesma coluna — sem isso a
+                        continuacao ficaria colada na margem. */}
+                    <div className={styles.gutter}>
+                      {!groupedWithPrevious && (
+                        <Avatar
+                          username={message.authorName}
+                          avatarUrl={avatarMap[message.authorName]}
+                          size={42}
+                        />
+                      )}
+                    </div>
+                    <div className={styles.messageMain}>
+                      {!groupedWithPrevious && (
+                        <div className={styles.messageMeta}>
+                          <span className={styles.authorName}>{message.authorName}</span>
+                          <span
+                            className={styles.timestamp}
+                            title={formatFullDateTime(message.createdAt)}
+                          >
+                            {formatTime(message.createdAt)}
+                          </span>
+                        </div>
+                      )}
+                      <div className={styles.messageBody}>
+                        {message.content && (
+                          <span className={styles.messageContent}>{message.content}</span>
+                        )}
+                        {message.attachment && (
+                          <AttachmentPreview attachment={message.attachment} />
+                        )}
+                        {groupedWithPrevious && (
+                          <span
+                            className={styles.hoverTimestamp}
+                            title={formatFullDateTime(message.createdAt)}
+                          >
+                            {formatTime(message.createdAt)}
+                          </span>
+                        )}
+                        {canDelete && (
+                          <button
+                            type="button"
+                            className={styles.deleteButton}
+                            onClick={() => handleDelete(message.id)}
+                            aria-label="Apagar mensagem"
+                          >
+                            Apagar
+                          </button>
+                        )}
                       </div>
-                    )}
-                    <div className={styles.messageBody}>
-                      {message.content && (
-                        <span className={styles.messageContent}>{message.content}</span>
-                      )}
-                      {message.attachment && <AttachmentPreview attachment={message.attachment} />}
-                      {groupedWithPrevious && (
-                        <span
-                          className={styles.hoverTimestamp}
-                          title={formatFullDateTime(message.createdAt)}
-                        >
-                          {formatTime(message.createdAt)}
-                        </span>
-                      )}
-                      {canDelete && (
-                        <button
-                          type="button"
-                          className={styles.deleteButton}
-                          onClick={() => handleDelete(message.id)}
-                          aria-label="Apagar mensagem"
-                        >
-                          Apagar
-                        </button>
-                      )}
                     </div>
                   </li>
                 );
@@ -382,7 +406,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
         />
         <button
           type="button"
-          className="lk-button"
+          className={`lk-button ${styles.composerButton}`}
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading || sending || pending !== null}
           title={pending ? 'Só um anexo por mensagem' : 'Anexar arquivo'}
@@ -410,7 +434,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
         />
         <button
           type="button"
-          className="lk-button"
+          className={`lk-button ${styles.sendButton}`}
           onClick={handleSend}
           disabled={sending || uploading || (!draft.trim() && !pending)}
         >

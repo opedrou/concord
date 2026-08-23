@@ -5,12 +5,16 @@ import { RemoteParticipant, RemoteTrackPublication, RoomEvent, Track } from 'liv
 import type { TrackReference } from '@livekit/components-react';
 import {
   Chat,
+  ChatIcon,
+  ChatToggle,
   ConnectionStateToast,
   isTrackReference,
   LayoutContextProvider,
   RoomAudioRenderer,
   useCreateLayoutContext,
+  useParticipants,
   usePinnedTracks,
+  useRoomContext,
   useTracks,
   type MessageDecoder,
   type MessageEncoder,
@@ -28,7 +32,7 @@ import { useScreenShareViewers } from '@/lib/useScreenShareViewers';
 import { useAudibility } from '@/lib/useAudibility';
 import { FocusModeBanner } from '@/lib/FocusModeControl';
 import { useVolumeMixer } from '@/lib/VolumeMixerContext';
-import { CollapseIcon, ExpandIcon, CloseIcon } from '@/lib/icons';
+import { CollapseIcon, ExpandIcon, CloseIcon, SpeakerIcon } from '@/lib/icons';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ResizeHandle } from '@/lib/ResizeHandle';
 import { usePersistedSize } from '@/lib/usePersistedSize';
@@ -81,6 +85,8 @@ export function CallStage(props: {
   onDeviceError?: (error: { source: Track.Source; error: Error }) => void;
 }) {
   const layoutContext = useCreateLayoutContext();
+  const room = useRoomContext();
+  const participants = useParticipants();
   const [widgetState, setWidgetState] = React.useState<WidgetState>({
     showChat: false,
     unreadMessages: 0,
@@ -381,6 +387,34 @@ export function CallStage(props: {
       data-controls-hidden={theater && !controlsVisible ? 'true' : undefined}
     >
       <LayoutContextProvider value={layoutContext} onWidgetChange={setWidgetState}>
+        {/* Cabecalho do palco (projeto de design): onde voce esta, quanta
+            gente tem, e as duas acoes que nao sao de midia — abrir o chat e
+            entrar no teatro. Elas moram AQUI e nao na barra de baixo porque
+            a barra e so microfone/camera/tela/sair; misturar "abrir painel"
+            com "ligar microfone" era o que fazia a fileira crescer sem fim. */}
+        {!theater && (
+          <header className={styles.header}>
+            <SpeakerIcon size={18} className={styles.headerIcon} />
+            <span className={styles.headerTitle}>{room?.name}</span>
+            <span className={styles.headerCount}>
+              {participants.length === 1 ? '1 na chamada' : `${participants.length} na chamada`}
+            </span>
+            <span className={styles.headerActions}>
+              <ChatToggle className={`lk-button ${styles.headerButton}`}>
+                <ChatIcon width={18} height={18} />
+              </ChatToggle>
+              <button
+                type="button"
+                className={styles.headerButton}
+                onClick={() => fullscreen?.enterTheater()}
+                aria-label="Modo teatro"
+                title="Modo teatro (F)"
+              >
+                <ExpandIcon size={18} />
+              </button>
+            </span>
+          </header>
+        )}
         <div className={`lk-video-conference-inner ${styles.inner}`}>
           {/* Antes de tudo no palco, impossivel de ignorar. */}
           <FocusModeBanner />

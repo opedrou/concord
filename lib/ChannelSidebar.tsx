@@ -6,9 +6,17 @@ import { fetchChannels, type Channel, type CurrentUser } from '@/lib/api-client'
 import { usePresencePolling } from '@/lib/usePresencePolling';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { Avatar } from '@/lib/Avatar';
-import { HashIcon, SpeakerIcon, SettingsIcon, MicOffIcon, VideoIcon } from '@/lib/icons';
+import {
+  HashIcon,
+  SpeakerIcon,
+  SettingsIcon,
+  MicOffIcon,
+  VideoIcon,
+  ConcordMark,
+} from '@/lib/icons';
 import { useCallState } from '@/lib/CallStateContext';
 import { SettingsWindow, type SettingsSection } from '@/lib/SettingsWindow';
+import { ThemeToggle } from '@/lib/ThemeToggle';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -151,6 +159,15 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
           : undefined
       }
     >
+      {/* Cabecalho de marca. Nao existia: a sidebar comecava direto em
+          "Canais de texto" e o nome do app so aparecia na home. No projeto de
+          design ele ancora a coluna inteira — e e o unico lugar onde a marca
+          fica visivel enquanto voce usa o app. */}
+      <div className={styles.brand}>
+        <ConcordMark size={34} />
+        <span className={styles.brandName}>Concord</span>
+      </div>
+
       {loadError && <p className={styles.error}>Nao foi possivel carregar os canais.</p>}
 
       {!loadError && channels.length === 0 && (
@@ -359,6 +376,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               </span>
             </div>
             <div className={styles.userActions}>
+              <ThemeToggle className={styles.userIconButton} />
               {/* Esta sidebar renderiza FORA da arvore do RoomContext (e irma
                   do PageClientImpl, nao descendente), entao nao da pra ler
                   estado de track aqui com os hooks do LiveKit. O

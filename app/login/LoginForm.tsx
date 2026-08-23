@@ -82,7 +82,7 @@ export function LoginForm() {
           {error}
         </p>
       )}
-      <button className="lk-button" type="submit" disabled={submitting}>
+      <button className={`lk-button ${styles.submit}`} type="submit" disabled={submitting}>
         {submitting ? 'Entrando…' : 'Entrar'}
       </button>
     </form>

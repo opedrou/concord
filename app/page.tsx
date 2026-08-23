@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChannelSidebar } from '@/lib/ChannelSidebar';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { logout } from '@/lib/api-client';
+import { ConcordMark } from '@/lib/icons';
 import styles from '../styles/Home.module.css';
 
 // A home deixou de ser a tela de "criar/entrar em sala por link" do upstream —
@@ -35,10 +36,14 @@ export default function Page() {
     <div className={styles.appShell} data-lk-theme="default">
       <ChannelSidebar user={user} onLogout={handleLogout} />
       <main className={styles.welcomePane}>
-        <img src="/images/concord-wordmark.svg" alt="Concord" width="240" height="30" />
-        <h2>Escolha um canal de voz ao lado para entrar.</h2>
+        {/* A marca desenhada no lugar do wordmark em SVG: no projeto de design
+            a home e a marca grande + uma saudacao com o SEU nome, nao um
+            letreiro do produto. */}
+        <ConcordMark size={92} className={styles.welcomeMark} />
+        <h2 className={styles.welcomeTitle}>Bem-vindo de volta, {user?.username ?? 'por aqui'}.</h2>
         <p className={styles.welcomeHint}>
-          Voce ve quem esta em cada canal antes mesmo de entrar — basta clicar no canal.
+          Escolha um canal de voz ao lado para entrar — voce ve quem ja esta la antes de clicar — ou
+          abra um canal de texto para colocar a conversa em dia.
         </p>
       </main>
     </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiErrorMessage, logout } from '@/lib/api-client';
 import { UsersPanel } from './UsersPanel';
 import { ChannelsPanel } from './ChannelsPanel';
+import { ShieldIcon } from '@/lib/icons';
 import styles from '../../styles/Admin.module.css';
 
 type Tab = 'users' | 'channels';
@@ -40,7 +41,10 @@ export function AdminDashboard({
       {!onClose && (
         <header className={styles.header}>
           <div>
-            <h1 className={styles.title}>Painel de administração</h1>
+            <h1 className={styles.title}>
+              <ShieldIcon size={20} className={styles.titleIcon} />
+              Painel de administração
+            </h1>
             <p className={styles.subtitle}>Logado como {currentUsername}</p>
           </div>
           <div className={styles.headerActions}>

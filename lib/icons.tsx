@@ -30,6 +30,75 @@ function baseProps(size: number) {
   };
 }
 
+/**
+ * A marca do Concord: tres barras de equalizador, niveis de voz subindo.
+ * Vem do projeto de design (`logoBadge` em Concord.dc.html) — 2D chapada, sem
+ * gradiente nem profundidade, e por isso funciona tanto em 34px na sidebar
+ * quanto em 92px na home.
+ *
+ * Nao usa `baseProps`: os outros icones sao traco em `currentColor` num
+ * viewBox 24; este e preenchimento solido no acento, num viewBox 100.
+ */
+export function ConcordMark({ size = 34, className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      className={className}
+      aria-hidden
+      style={{ display: 'block' }}
+    >
+      {[
+        [22, 44, 34],
+        [44, 24, 54],
+        [66, 38, 40],
+      ].map(([x, y, h]) => (
+        <rect key={x} x={x} y={y} width={12} height={h} rx={6} fill="var(--accent)" />
+      ))}
+    </svg>
+  );
+}
+
+/** Sol — tema claro. */
+export function SunIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <circle cx="12" cy="12" r="4.2" />
+      {[
+        'M12 2v2.5',
+        'M12 19.5V22',
+        'M2 12h2.5',
+        'M19.5 12H22',
+        'M4.9 4.9l1.8 1.8',
+        'M17.3 17.3l1.8 1.8',
+        'M19.1 4.9l-1.8 1.8',
+        'M6.7 17.3l-1.8 1.8',
+      ].map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}
+
+/** Lua — tema escuro. */
+export function MoonIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+    </svg>
+  );
+}
+
+/** Escudo — area de administracao do servidor. */
+export function ShieldIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
 /** Canal de texto ("#"), estilo Discord. */
 export function HashIcon({ size = 18, className }: IconProps) {
   return (

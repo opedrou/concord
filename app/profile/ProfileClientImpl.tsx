@@ -88,9 +88,17 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
 
   return (
     <div className={styles.form}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-        <Avatar username={user.username} avatarUrl={avatarUrl} size={96} />
-        <span style={{ fontWeight: 600 }}>{user.username}</span>
+      {/* Cabecalho do perfil no projeto de design: faixa em gradiente e a foto
+          grande cavalgando a borda dela. O resto desta tela continua sendo o
+          formulario de sempre (trocar foto / trocar senha) — o design desenha
+          um perfil de LEITURA, com bio e distintivos, e nada disso existe no
+          banco; inventar campos aqui seria inventar produto. */}
+      <div className={styles.profileBanner} aria-hidden="true" />
+      <div className={styles.profileIdentity}>
+        <span className={styles.profileAvatar}>
+          <Avatar username={user.username} avatarUrl={avatarUrl} size={104} />
+        </span>
+        <span className={styles.profileName}>{user.username}</span>
       </div>
 
       <div className={styles.field}>
@@ -109,12 +117,10 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
       {avatarError && <p className={styles.error}>{avatarError}</p>}
       {avatarSuccess && !avatarBusy && <p>Foto atualizada.</p>}
 
-      <hr
-        style={{ width: '100%', border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.15)' }}
-      />
+      <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border)' }} />
 
       <form className={styles.form} onSubmit={handlePasswordSubmit}>
-        <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Trocar senha</h2>
+        <h2 style={{ fontSize: '1.05rem', margin: 0 }}>Trocar senha</h2>
 
         <div className={styles.field}>
           <label htmlFor="current-password">Senha atual</label>

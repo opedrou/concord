@@ -6,6 +6,10 @@
    fluxo da barra — foi isso que fez o painel de sensibilidade estourar a
    largura e desalinhar os outros botoes. */
 
+/* A barra do projeto de design nao e uma faixa colada no rodape com borda
+   em cima (o default do `.lk-control-bar`): e uma PILULA flutuante, centrada,
+   com o palco aparecendo dos dois lados. Por isso a faixa fica transparente e
+   quem desenha a superficie e o `.pill` interno. */
 .bar {
   display: flex;
   flex-wrap: wrap;
@@ -13,6 +17,89 @@
   justify-content: center;
   gap: 0.5rem;
   row-gap: 0.5rem;
+  background: transparent;
+  border-top: none;
+  padding: 0.75rem 1.25rem 1.35rem;
+}
+
+.pill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--lk-bg2);
+  border: 1px solid var(--lk-border-color);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Botoes quadrados de 46px, canto 13px — o tamanho de alvo do design. Vale
+   pra tudo dentro da pilula: os `TrackToggle` do LiveKit, a soundboard, o
+   chat e os chevrons de dispositivo, que sem isto ficariam de tres tamanhos
+   diferentes na mesma fileira. */
+.pill :global(.lk-button) {
+  min-width: 46px;
+  height: 46px;
+  padding: 0 0.85rem;
+  border-radius: 13px;
+  background: var(--lk-bg3);
+  color: var(--fg2);
+  border: none;
+  transition:
+    filter 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.pill :global(.lk-button:hover) {
+  filter: brightness(1.12);
+  background: var(--lk-bg3);
+}
+
+/* Ligado = acento cheio. No design o mic/camera aceso e roxo solido, nao um
+   cinza um pouco mais claro — de relance da pra ver o que esta aberto. */
+.pill :global(.lk-button[data-lk-enabled='true']) {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Os chevrons de "escolher dispositivo" sao acessorio do botao ao lado, nao
+   um botao de mesmo peso: mais estreitos e colados no principal. */
+.pill :global(.lk-button-group) {
+  gap: 2px;
+}
+
+.pill :global(.lk-button-group-menu) .lk-button,
+.pill :global(.lk-button-group-menu > .lk-button) {
+  min-width: 28px;
+  padding: 0 0.35rem;
+}
+
+/* Sair: unico botao com rotulo e o unico em gradiente — e a acao de saida, e
+   o design a trata como destino, nao como mais um toggle. */
+.pill :global(.lk-disconnect-button) {
+  height: 46px;
+  padding: 0 1.25rem;
+  border-radius: 13px;
+  border: none;
+  background: linear-gradient(135deg, #f0625d, #e0483f);
+  color: #fff;
+  font-weight: 700;
+}
+
+.pill :global(.lk-disconnect-button:hover) {
+  filter: brightness(1.08);
+  background: linear-gradient(135deg, #f0625d, #e0483f);
+}
+
+/* Separador antes do "Sair", como no design. */
+.separator {
+  width: 1px;
+  height: 28px;
+  background: var(--border2);
+  margin: 0 2px;
+  flex: none;
 }
 
 .screenShareGroup {

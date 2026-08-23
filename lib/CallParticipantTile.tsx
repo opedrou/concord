@@ -188,6 +188,11 @@ export function CallParticipantTile(props: {
       }`}
     >
       {hasLiveVideo && <VideoTrack trackRef={trackRef} />}
+      {/* Selo LIVE das transmissoes, do projeto de design. Ele desenha no
+          canto superior DIREITO; aqui fica no esquerdo porque a direita ja e
+          do <FocusToggle> do LiveKit e do botao de ampliar, que aparecem no
+          hover — os tres empilhados brigariam pelo mesmo canto. */}
+      {!isCameraSource && <span className={styles.liveBadge}>LIVE</span>}
       {stoppedWatching && (
         <div className={styles.pausedLayer}>
           {watch?.frame ? (
@@ -247,7 +252,10 @@ export function CallParticipantTile(props: {
             <ScreenShareIcon style={{ marginRight: '0.25rem' }} />
           )}
           <ParticipantName participant={trackRef.participant} />
-          {!isCameraSource && <span>&apos;s screen</span>}
+          {/* Era `&apos;s screen`: em ingles, quebrando linha no meio ("casbecker
+              / 's screen") e empurrando o contador de espectadores. Um sufixo
+              curto, sem apostrofo, cabe na pilula e nao quebra. */}
+          {!isCameraSource && <span className={styles.shareSuffix}>· tela</span>}
           {/* Contador de espectadores, ao lado do nome da transmissao. So
               aparece com pelo menos uma pessoa vendo — "0 assistindo" nao
               informa nada e ainda ocuparia espaco. */}

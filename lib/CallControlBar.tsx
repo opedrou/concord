@@ -3,8 +3,6 @@
 import * as React from 'react';
 import { Track } from 'livekit-client';
 import {
-  ChatIcon,
-  ChatToggle,
   DisconnectButton,
   LeaveIcon,
   MediaDeviceMenu,
@@ -53,105 +51,110 @@ export function CallControlBar(props: {
 
   return (
     <div className={`lk-control-bar ${styles.bar}`}>
-      <div className="lk-button-group">
-        <TrackToggle
-          source={Track.Source.Microphone}
-          // `isUserInitiated` filtra as mudancas que o proprio LiveKit faz
-          // (publicar/despublicar a track na conexao, reconexao) — so a
-          // decisao consciente da pessoa merece virar preferencia salva.
-          onChange={(enabled, isUserInitiated) => {
-            if (isUserInitiated) saveAudioInputEnabled(enabled);
-          }}
-          onDeviceError={(e) =>
-            props.onDeviceError?.({ source: Track.Source.Microphone, error: e })
-          }
-        />
-        <div className="lk-button-group-menu">
-          <MediaDeviceMenu
-            kind="audioinput"
-            onActiveDeviceChange={(_kind, deviceId) => saveAudioInputDeviceId(deviceId ?? '')}
+      {/* Tudo dentro de uma pilula so — ver CallControlBar.module.css. */}
+      <div className={styles.pill}>
+        <div className="lk-button-group">
+          <TrackToggle
+            source={Track.Source.Microphone}
+            // `isUserInitiated` filtra as mudancas que o proprio LiveKit faz
+            // (publicar/despublicar a track na conexao, reconexao) — so a
+            // decisao consciente da pessoa merece virar preferencia salva.
+            onChange={(enabled, isUserInitiated) => {
+              if (isUserInitiated) saveAudioInputEnabled(enabled);
+            }}
+            onDeviceError={(e) =>
+              props.onDeviceError?.({ source: Track.Source.Microphone, error: e })
+            }
           />
+          <div className="lk-button-group-menu">
+            <MediaDeviceMenu
+              kind="audioinput"
+              onActiveDeviceChange={(_kind, deviceId) => saveAudioInputDeviceId(deviceId ?? '')}
+            />
+          </div>
         </div>
-      </div>
 
-      <div className="lk-button-group">
-        <TrackToggle
-          source={Track.Source.Camera}
-          onChange={(enabled, isUserInitiated) => {
-            if (isUserInitiated) saveVideoInputEnabled(enabled);
-          }}
-          onDeviceError={(e) => props.onDeviceError?.({ source: Track.Source.Camera, error: e })}
-        />
-        <div className="lk-button-group-menu">
-          <MediaDeviceMenu
-            kind="videoinput"
-            onActiveDeviceChange={(_kind, deviceId) => saveVideoInputDeviceId(deviceId ?? '')}
+        <div className="lk-button-group">
+          <TrackToggle
+            source={Track.Source.Camera}
+            onChange={(enabled, isUserInitiated) => {
+              if (isUserInitiated) saveVideoInputEnabled(enabled);
+            }}
+            onDeviceError={(e) => props.onDeviceError?.({ source: Track.Source.Camera, error: e })}
           />
+          <div className="lk-button-group-menu">
+            <MediaDeviceMenu
+              kind="videoinput"
+              onActiveDeviceChange={(_kind, deviceId) => saveVideoInputDeviceId(deviceId ?? '')}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Compartilhar tela + qualidade escondida atrás do chevron — só
+        {/* Compartilhar tela + qualidade escondida atrás do chevron — só
           aparece com um clique, nunca mais um painel permanente. */}
-      <div className={`lk-button-group ${styles.screenShareGroup}`}>
-        <TrackToggle
-          source={Track.Source.ScreenShare}
-          onDeviceError={(e) =>
-            props.onDeviceError?.({ source: Track.Source.ScreenShare, error: e })
-          }
-        />
-        <div className="lk-button-group-menu">
-          <button
-            type="button"
-            className="lk-button"
-            onClick={() => setQualityOpen((v) => !v)}
-            aria-expanded={qualityOpen}
-            aria-label="Qualidade da transmissão"
-            title="Qualidade da transmissão"
-          >
-            {qualityOpen ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-          </button>
+        <div className={`lk-button-group ${styles.screenShareGroup}`}>
+          <TrackToggle
+            source={Track.Source.ScreenShare}
+            onDeviceError={(e) =>
+              props.onDeviceError?.({ source: Track.Source.ScreenShare, error: e })
+            }
+          />
+          <div className="lk-button-group-menu">
+            <button
+              type="button"
+              className="lk-button"
+              onClick={() => setQualityOpen((v) => !v)}
+              aria-expanded={qualityOpen}
+              aria-label="Qualidade da transmissão"
+              title="Qualidade da transmissão"
+            >
+              {qualityOpen ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+            </button>
+          </div>
+          {qualityOpen && (
+            <>
+              <div className={styles.popoverBackdrop} onClick={() => setQualityOpen(false)} />
+              <div className={styles.qualityPopover}>
+                <ScreenShareQualityControl />
+              </div>
+            </>
+          )}
         </div>
-        {qualityOpen && (
-          <>
-            <div className={styles.popoverBackdrop} onClick={() => setQualityOpen(false)} />
-            <div className={styles.qualityPopover}>
-              <ScreenShareQualityControl />
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Antes era outro botao flutuante solto (mesma familia visual do
+        {/* Antes era outro botao flutuante solto (mesma familia visual do
           "Participantes" antigo) — agora e so mais um item da fileira. */}
-      {/* Soundboard compartilhada (ver lib/soundboardEvents.tsx). */}
-      <Soundboard />
+        {/* Soundboard compartilhada (ver lib/soundboardEvents.tsx). */}
+        <Soundboard />
 
-      <ChatToggle>
-        <ChatIcon />
-      </ChatToggle>
+        {/* O botao de chat saiu daqui: virou acao do cabecalho do palco
+            (ver lib/CallStage.tsx), junto do modo teatro. Esta barra ficou so
+            com midia + sair, como no projeto de design. */}
 
-      {/* As configuracoes de audio (sensibilidade de entrada + reducao de
+        {/* As configuracoes de audio (sensibilidade de entrada + reducao de
           ruido) NAO ficam mais aqui: viraram uma secao do painel unico aberto
           pela engrenagem da ChannelSidebar (ver lib/SettingsPanel.tsx). Havia
           duas engrenagens no app, uma em cada canto, e o dono pediu uma so.
           A barra volta a ser so botoes de acao da chamada. */}
 
-      {SHOW_SETTINGS_MENU && (
-        <button
-          type="button"
-          className="lk-button"
-          onClick={() => layoutContext?.widget.dispatch?.({ msg: 'toggle_settings' })}
-          aria-label="Dispositivos"
-        >
-          Dispositivos
-        </button>
-      )}
+        {SHOW_SETTINGS_MENU && (
+          <button
+            type="button"
+            className="lk-button"
+            onClick={() => layoutContext?.widget.dispatch?.({ msg: 'toggle_settings' })}
+            aria-label="Dispositivos"
+          >
+            Dispositivos
+          </button>
+        )}
 
-      <DisconnectButton>
-        <LeaveIcon />
-      </DisconnectButton>
+        <span className={styles.separator} aria-hidden="true" />
 
-      <StartAudio label="Ativar áudio" />
+        <DisconnectButton>
+          <LeaveIcon />
+        </DisconnectButton>
+
+        <StartAudio label="Ativar áudio" />
+      </div>
     </div>
   );
 }

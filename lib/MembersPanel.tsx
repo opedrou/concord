@@ -81,13 +81,16 @@ export function MembersPanel() {
     return set;
   }, [presence]);
 
-  const sorted = React.useMemo(() => {
-    return [...members].sort((a, b) => {
-      const aOnline = namesOnline.has(a.username);
-      const bOnline = namesOnline.has(b.username);
-      if (aOnline !== bOnline) return aOnline ? -1 : 1;
-      return a.username.localeCompare(b.username);
-    });
+  // Duas listas, nao uma lista ordenada com bolinha de status: e assim que o
+  // projeto de design separa ("Online — N" / "Offline — N"). A diferenca
+  // pratica e que da pra ver a contagem de quem esta disponivel sem contar
+  // cabeca, e os offline podem ir apagados sem sumir.
+  const { online, offline } = React.useMemo(() => {
+    const byName = (a: Member, b: Member) => a.username.localeCompare(b.username);
+    return {
+      online: members.filter((m) => namesOnline.has(m.username)).sort(byName),
+      offline: members.filter((m) => !namesOnline.has(m.username)).sort(byName),
+    };
   }, [members, namesOnline]);
 
   return (
@@ -105,25 +108,49 @@ export function MembersPanel() {
       </button>
 
       {!collapsed && (
-        <ul className={styles.list}>
-          {loadError && <li className={styles.error}>Nao foi possivel carregar os membros.</li>}
-          {sorted.map((member) => {
-            const online = namesOnline.has(member.username);
-            return (
-              <li key={member.id} className={styles.member}>
-                <span className={styles.avatarWrap}>
-                  <Avatar username={member.username} avatarUrl={member.avatarUrl} size={28} />
-                  <span
-                    className={`${styles.statusDot} ${online ? styles.statusOnline : styles.statusOffline}`}
-                    title={online ? 'Em uma chamada' : 'Offline'}
-                  />
-                </span>
-                <span className={styles.memberName}>{member.username}</span>
-              </li>
-            );
-          })}
-          {!loadError && sorted.length === 0 && <li className={styles.empty}>Nenhum membro cadastrado.</li>}
-        </ul>
+        <div className={styles.list}>
+          {loadError && <p className={styles.error}>Nao foi possivel carregar os membros.</p>}
+
+          {online.length > 0 && (
+            <>
+              <div className={styles.sectionLabel}>Online — {online.length}</div>
+              <ul className={styles.group}>
+                {online.map((member) => (
+                  <li key={member.id} className={styles.member}>
+                    <span className={styles.avatarWrap}>
+                      <Avatar username={member.username} avatarUrl={member.avatarUrl} size={34} />
+                      <span
+                        className={`${styles.statusDot} ${styles.statusOnline}`}
+                        title="Em uma chamada"
+                      />
+                    </span>
+                    <span className={styles.memberName}>{member.username}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {offline.length > 0 && (
+            <>
+              <div className={styles.sectionLabel}>Offline — {offline.length}</div>
+              <ul className={`${styles.group} ${styles.groupOffline}`}>
+                {offline.map((member) => (
+                  <li key={member.id} className={styles.member}>
+                    <span className={styles.avatarWrap}>
+                      <Avatar username={member.username} avatarUrl={member.avatarUrl} size={34} />
+                    </span>
+                    <span className={styles.memberName}>{member.username}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {!loadError && members.length === 0 && (
+            <p className={styles.empty}>Nenhum membro cadastrado.</p>
+          )}
+        </div>
       )}
     </aside>
   );

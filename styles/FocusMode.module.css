@@ -106,7 +106,7 @@
 }
 
 .item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--hover-strong);
 }
 
 /* --- Faixa de aviso no palco ---------------------------------------------- */
@@ -129,7 +129,7 @@
 .bannerButton {
   margin-left: auto;
   padding: 0.2rem 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--fg2);
   border-radius: 0.25rem;
   background: transparent;
   color: inherit;
@@ -139,7 +139,7 @@
 }
 
 .bannerButton:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border2);
 }
 
 .bannerButton:focus-visible {

@@ -27,19 +27,44 @@ export const metadata: Metadata = {
         url: '/images/concord-apple-touch.png',
         sizes: '512x512',
       },
-      { rel: 'mask-icon', url: '/images/concord-mark.svg', color: '#4c3ddb' },
+      { rel: 'mask-icon', url: '/images/concord-mark.svg', color: '#9d4edd' },
     ],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#070707',
+  // Barra do navegador no mobile, na cor do papel do tema (ver styles/globals.css).
+  themeColor: '#221d18',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
+      <head>
+        {/* As duas familias do projeto de design: Bricolage Grotesque para
+            titulos, Hanken Grotesk para texto. Via <link> e nao `next/font`
+            de proposito — `next/font` baixa a fonte no BUILD, e o build roda
+            no Coolify; um hiccup de rede la viraria deploy quebrado por causa
+            de tipografia. Aqui o pior caso e cair no system-ui. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body data-lk-theme="default">
+        {/* Aplica o tema salvo ANTES da primeira pintura. Sem isto a pagina
+            pinta escura e so vira clara quando o React monta — o "flash" que
+            todo app com tema claro/escuro tem se deixa isso pro cliente.
+            Precisa ser inline e sincrono; um efeito de componente ja e tarde.
+            Ver lib/ThemeToggle.tsx. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('concord:theme');if(t==='light')document.documentElement.dataset.concordTheme='light'}catch(e){}",
+          }}
+        />
         <AppToaster />
         {children}
       </body>

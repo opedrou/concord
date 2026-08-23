@@ -8,8 +8,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem 1rem;
-  background: rgba(0, 0, 0, 0.65);
+  padding: 2rem;
+  /* Marrom translucido com desfoque, nao preto a 65%: o app por baixo continua
+     visivel como textura quente em vez de virar um bloco preto. */
+  background: rgba(50, 38, 25, 0.34);
+  backdrop-filter: blur(4px);
 }
 
 .window {
@@ -18,10 +21,10 @@
   width: 100%;
   max-width: 900px;
   max-height: 100%;
-  border-radius: var(--lk-border-radius, 0.5rem);
-  background: var(--lk-bg2, #1f1f1f);
-  border: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.15));
-  box-shadow: var(--lk-box-shadow, 0 8px 32px rgba(0, 0, 0, 0.6));
+  border-radius: 22px;
+  background: var(--lk-bg);
+  border: 1px solid var(--border2);
+  box-shadow: 0 40px 100px rgba(70, 52, 34, 0.28);
   overflow: hidden;
 }
 
@@ -54,26 +57,30 @@
 
 .title {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .closeButton {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 2.125rem;
+  height: 2.125rem;
   padding: 0;
   border: none;
-  border-radius: 0.375rem;
-  background: transparent;
+  /* Redondo, como no design — o unico botao circular do app, e por isso le
+     como "fechar" antes de voce ler o icone. */
+  border-radius: 50%;
+  background: var(--lk-bg2);
   color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
   cursor: pointer;
 }
 
 .closeButton:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--hover-strong);
   color: var(--lk-fg, #fff);
 }
 

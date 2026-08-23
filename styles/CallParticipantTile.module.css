@@ -7,11 +7,23 @@
 
 .tile {
   cursor: pointer;
+  /* Canto de 18px e borda propria de 2px: no design o tile e um cartao, nao um
+     retangulo de video colado no vizinho. A borda vive transparente pra que
+     acender (falando / em foco) nao mexa 2px no layout. */
+  border-radius: 18px;
+  border: 2px solid transparent;
+  background: var(--lk-bg2);
+  overflow: hidden;
+}
+
+/* A superficie de quem esta transmitindo e azulada e fria, nao marrom: separa
+   "tela de alguem" de "pessoa" antes mesmo de o video carregar. */
+.tile[data-lk-source='screen_share'] {
+  background: var(--screen-bg);
 }
 
 .tile:hover {
-  outline: 2px solid var(--lk-control-hover-bg, rgba(255, 255, 255, 0.15));
-  outline-offset: -2px;
+  border-color: var(--border2);
 }
 
 .tile:focus-visible {
@@ -50,6 +62,23 @@
   transition-duration: 0.15s;
 }
 
+/* Selo LIVE — texto e nao icone pelo mesmo motivo do selo da sidebar: "LIVE"
+   se le de relance e nao se confunde com nenhum outro simbolo do tile. */
+.liveBadge {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  z-index: 1;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: var(--lk-danger);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+}
+
 /* Botao "ver em tela cheia". Fica ao lado do <FocusToggle> do LiveKit, que o
    CSS da lib posiciona em `top: .25rem; right: .25rem` com `opacity: 0` ate o
    hover do tile — aqui so replicamos esse comportamento deslocado pra
@@ -65,7 +94,7 @@
   padding: 0.35rem;
   border: none;
   border-radius: var(--lk-border-radius, 0.5rem);
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--pill);
   color: var(--lk-fg, #fff);
   cursor: pointer;
   opacity: 0;
@@ -79,7 +108,7 @@
 }
 
 .expandButton:hover {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--pill);
 }
 
 .expandButton:focus-visible {
@@ -177,7 +206,7 @@
 }
 
 .stopWatchButton:hover {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--pill);
 }
 
 .stopWatchButton:focus-visible {
@@ -185,16 +214,50 @@
   outline-offset: 1px;
 }
 
+/* A pilula do design: fundo escuro translucido COM desfoque atras, canto
+   totalmente arredondado. O `.lk-participant-metadata-item` do LiveKit ja e a
+   pilula — aqui so trocamos a materia dela.
+
+   Alem disso: e flex e deixa os filhos quebrarem, entao com nome + sufixo +
+   contador virava duas linhas desalinhadas. Uma linha so, e o nome longo
+   corta com reticencias em vez de empurrar o resto. */
+.tile :global(.lk-participant-metadata-item) {
+  background: var(--pill);
+  backdrop-filter: blur(6px);
+  padding: 0.3rem 0.7rem;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(20, 14, 8, 0.18);
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.tile :global(.lk-participant-name) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.shareSuffix {
+  margin-left: 0.25rem;
+  opacity: 0.7;
+  flex: none;
+}
+
 /* Contador de espectadores da transmissao (ver ROADMAP item 3/6). Fica na
    mesma linha do nome, dentro do `.lk-participant-metadata-item`, que o CSS do
    LiveKit ja desenha como pilula escura. */
 .viewerCount {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 0.2rem;
   margin-left: 0.4rem;
   padding-left: 0.4rem;
-  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-left: 1px solid var(--border2);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -247,13 +310,13 @@
 
 /* Em foco e AINDA me ouvindo — roxo vivo. */
 .tile.tile[data-concord-focus='listening']::before {
-  border-color: #a855f7;
+  border-color: var(--accent2);
 }
 
 /* Em foco e NAO me ouvindo — roxo apagado. O tom mais fraco e o recado: a
    pessoa esta ali, mas o que voce falar nao chega nela. */
 .tile.tile[data-concord-focus='excluded']::before {
-  border-color: #6d28d9;
+  border-color: var(--accent);
 }
 
 /* "Nao te ouve" — a pessoa mutou voce individualmente, ou esta em modo foco
@@ -263,5 +326,5 @@
   display: inline-flex;
   align-items: center;
   margin-left: 0.35rem;
-  color: #f5a524;
+  color: var(--idle);
 }

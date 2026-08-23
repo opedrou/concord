@@ -5,20 +5,99 @@
 
 .stage {
   width: 100%;
+  /* Papel quente com um halo de luz no topo, do projeto de design. Sem isto o
+     palco fica no cinza chapado do LiveKit e destoa do resto do app. */
+  background: var(--stage-bg);
 }
 
 .inner {
   min-height: 0;
 }
 
+/* Cabecalho do palco. Sem borda inferior de proposito: no design ele flutua
+   sobre o mesmo gradiente do palco, e uma linha ali cortaria o halo de luz. */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.875rem 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Verde: o canal esta ao vivo. E o mesmo verde do indicador de quem fala. */
+.headerIcon {
+  color: var(--green);
+  display: flex;
+  flex-shrink: 0;
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.03rem;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerCount {
+  font-size: 0.78rem;
+  color: var(--fg2);
+  background: var(--lk-bg3);
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.headerActions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Mesma pastilha de 34px do design. A regra vale tambem pro <ChatToggle> do
+   LiveKit, que entra aqui com a classe `lk-button` e traria o tamanho e o
+   fundo da barra de controles junto. */
+.headerButton,
+.header :global(.lk-button) {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.headerButton:hover {
+  background: var(--lk-bg3);
+  color: var(--lk-fg);
+}
+
+.headerButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 1px;
+}
+
+/* Respiro do design: 14px entre tiles e 20px de margem lateral. O default do
+   LiveKit (`--lk-grid-gap`, 0.5rem) apertava os cartoes uns nos outros e
+   colava o de fora na borda da janela. */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   grid-auto-rows: 1fr;
-  gap: var(--lk-grid-gap, 0.5rem);
+  gap: 14px;
   width: 100%;
   height: 100%;
-  padding: var(--lk-grid-gap, 0.5rem);
+  padding: 6px 20px 14px;
 }
 
 /* Com 1-2 pessoas nao faz sentido esticar os tiles pra ocupar a largura
@@ -49,6 +128,7 @@
   min-height: 0;
   min-width: 0;
   display: flex;
+  padding: 6px 0 14px 20px;
 }
 
 .focusMain > :global(.lk-participant-tile) {
@@ -59,10 +139,10 @@
 .focusStrip {
   display: flex;
   flex-direction: column;
-  gap: var(--lk-grid-gap, 0.5rem);
+  gap: 14px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--lk-grid-gap, 0.5rem);
+  padding: 6px 20px 14px 0;
   flex-shrink: 0;
 }
 
@@ -182,14 +262,14 @@
   padding: 0.4rem;
   border: none;
   border-radius: var(--lk-border-radius, 0.5rem);
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--pill);
   color: var(--lk-fg, #fff);
   cursor: pointer;
   line-height: 0;
 }
 
 .fullscreenButton:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(18, 14, 10, 0.82);
 }
 
 .fullscreenButton:focus-visible {

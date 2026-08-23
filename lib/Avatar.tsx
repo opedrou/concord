@@ -6,15 +6,21 @@ import styles from '../styles/Avatar.module.css';
 // Paleta fixa (nao aleatoria) pra cor do avatar gerado — mesmo criterio do
 // Discord/Slack: hash do nome escolhe uma cor sempre igual pra mesma pessoa,
 // sem precisar guardar nada no banco.
+//
+// Era a paleta do Discord (azul, verde limao, amarelo, rosa, ciano...). No
+// tema quente do projeto de design isso virava confete: oito cores saturadas
+// e sem parentesco nenhum com o resto da tela. A paleta agora e uma FAMILIA —
+// tons do roxo da marca, do escuro ao claro. Continua dando pra distinguir
+// duas pessoas de relance, e nada mais briga com o acento.
 const PALETTE = [
-  '#5865F2',
-  '#57F287',
-  '#FEE75C',
-  '#EB459E',
-  '#ED4245',
-  '#F97316',
-  '#22D3EE',
-  '#A855F7',
+  '#9D4EDD',
+  '#7B2CBF',
+  '#C77DFF',
+  '#5A189A',
+  '#B565E0',
+  '#8E44C7',
+  '#A05AD6',
+  '#6A2A9E',
 ];
 
 function hashString(value: string): number {
