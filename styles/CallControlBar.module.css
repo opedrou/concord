@@ -63,32 +63,56 @@
   background: var(--lk-bg3);
 }
 
-/* Ligado = acento cheio. No design o mic/camera aceso e roxo solido, nao um
-   cinza um pouco mais claro — de relance da pra ver o que esta aberto. */
-.pill :global(.lk-button[data-lk-enabled='true']) {
+/* SO a transmissao ligada ganha cor de acento: ela e a unica que muda o que
+   as outras pessoas veem, e vale gritar. Mic e camera abertos ficam neutros,
+   como no Discord — la a cor e reservada pro estado ERRADO (mutado), entao
+   cor na barra = alguma coisa esta desligada. Com mic e camera roxos quando
+   abertos, o normal do dia inteiro era roxo e a leitura ficava confusa. */
+.pill :global(.lk-button[data-lk-source='screen_share'][data-lk-enabled='true']) {
   background: var(--accent);
   color: #fff;
 }
 
-/* Os chevrons de "escolher dispositivo" sao acessorio do botao ao lado, nao
-   um botao de mesmo peso: mais estreitos e colados no principal. */
-.pill :global(.lk-button-group) {
-  gap: 2px;
+/* Mutado / camera desligada = vermelho, no botao E no chevron ao lado (no
+   Discord o segmento inteiro acende). O `:has()` e o unico jeito de o chevron
+   saber o estado do irmao — ele nao tem `data-lk-*` nenhum. Escopo preso a
+   microphone/camera de proposito: o botao de tela tambem nasce
+   `data-lk-enabled="false"` e nao ha nada de errado em nao estar
+   transmitindo. */
+.pill :global(.lk-button[data-lk-source='microphone'][data-lk-enabled='false']),
+.pill :global(.lk-button[data-lk-source='camera'][data-lk-enabled='false']),
+.pill
+  :global(.lk-button-group:has(> .lk-button[data-lk-source='microphone'][data-lk-enabled='false']))
+  :global(.lk-button),
+.pill
+  :global(.lk-button-group:has(> .lk-button[data-lk-source='camera'][data-lk-enabled='false']))
+  :global(.lk-button) {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
-/* A lib desenha o par "botao + chevron" como um segmento unico: zera os cantos
-   da DIREITA do primeiro e os da ESQUERDA do chevron. Esses seletores dela sao
-   (0,2,1) e venciam o nosso `border-radius: 13px` (0,2,0) — era o lado reto no
-   mic aceso (no cinza apagado nao da pra ver). Aqui a pilula tem gap entre os
-   dois, entao cada um e uma pastilha inteira. */
-.pill :global(.lk-button-group) > :global(.lk-button:first-child),
-.pill :global(.lk-button-group-menu) > :global(.lk-button) {
-  border-radius: 13px;
+/* "Botao + chevron" e UMA pastilha com uma divisoria no meio, como no Discord
+   — nao dois botoes soltos. Quem zera os cantos internos e a propria lib
+   (`.lk-button-group > .lk-button:first-child` e
+   `.lk-button-group-menu > .lk-button`); aqui so tiramos o gap, que abria uma
+   fresta no meio do segmento, e desenhamos a linha. A divisoria e
+   `box-shadow` inset e nao `border` de proposito: borda muda a largura do
+   chevron e desalinha a fileira. */
+.pill :global(.lk-button-group) {
+  gap: 0;
 }
 
 .pill :global(.lk-button-group-menu > .lk-button) {
-  min-width: 28px;
+  min-width: 30px;
   padding: 0 0.35rem;
+  box-shadow: inset 1px 0 0 var(--lk-bg2);
+  /* A lib ja zera estes dois, mas com a MESMA especificidade do nosso
+     `border-radius: 13px` (0,2,0) — e a nossa folha vem depois, entao o
+     chevron voltava a ser uma pastilha inteira e abria uma casquinha no meio
+     do segmento. (O botao da esquerda nao tem esse problema: la o seletor
+     dela leva um `:first-child` e ganha.) */
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 /* Sair: unico botao com rotulo e o unico em gradiente — e a acao de saida, e

@@ -59,6 +59,10 @@
   /* Estado, nao decoracao — ver a nota no topo. */
   --green: #7ec882;
   --danger: #f0625d;
+  /* Vermelho a 18% — o FUNDO do estado errado (mic mutado, camera desligada),
+     no lugar do vermelho cheio, que la seria um alarme. Mesma ideia do
+     --soft pro acento. */
+  --danger-soft: rgba(240, 98, 93, 0.18);
   --idle: #f0b45e;
   --hover: rgba(255, 255, 255, 0.06);
   --hover-strong: rgba(255, 255, 255, 0.1);
@@ -103,6 +107,7 @@
   --soft: rgba(123, 44, 191, 0.13);
   --green: #3f8f54;
   --danger: #d0372e;
+  --danger-soft: rgba(208, 55, 46, 0.14);
   --idle: #b8760f;
   --hover: rgba(24, 24, 24, 0.06);
   --hover-strong: rgba(24, 24, 24, 0.1);
