@@ -148,9 +148,15 @@
   opacity: 1;
 }
 
-.tileAction,
-.tileActions :global(.lk-focus-toggle-button) {
-  /* Alvo quadrado de 28px pros tres, no lugar de "o tamanho que der". */
+/* Os botoes da fileira. Ja foram dois conjuntos — os nossos e o
+   `.lk-focus-toggle-button` do LiveKit —, e as regras aqui precisavam dobrar a
+   classe (`.tileActions.tileActions`) pra vencer um empate de especificidade
+   com a folha da lib, senao o botao dela voltava pra `absolute` e caia EM CIMA
+   do vizinho ("dois icones no mesmo quadrado"). O <FocusToggle> saiu do tile:
+   agora ha um botao so, que alterna entre ampliar e voltar a grade, e nao ha
+   mais empate nenhum pra desfazer. */
+.tileAction {
+  /* Alvo quadrado de 28px, no lugar de "o tamanho que der". */
   position: static;
   width: 1.75rem;
   height: 1.75rem;
@@ -165,8 +171,8 @@
   color: var(--lk-fg, #fff);
   cursor: pointer;
   line-height: 0;
-  /* O botao da lib tem `opacity:0` proprio, com delay — dentro da fileira
-     quem controla a aparicao e o container, senao ele apareceria sozinho. */
+  /* Quem controla a aparicao da fileira e o container (`.tileActions`), nao
+     cada botao. */
   opacity: 1;
   transition: none;
 }
@@ -174,9 +180,8 @@
 /* O SVG preso ao tamanho da caixa. O LiveKit poe `overflow: visible` em todo
    `.lk-button > svg` — entao um icone maior que os 28px do botao nao e
    cortado: ele VAZA por cima do vizinho, e a fileira parece dois icones
-   desenhados no mesmo lugar. Como os icones daqui vem de tres origens (os
-   nossos, o do <FocusToggle> da lib e o que a lib troca quando o tile ja esta
-   em foco), o tamanho e fixado aqui em vez de confiar em cada um deles. */
+   desenhados no mesmo lugar. Fixar aqui sai mais barato que confiar no
+   tamanho que cada icone traz. */
 .tileActions svg {
   width: 16px;
   height: 16px;
@@ -184,14 +189,12 @@
   overflow: hidden;
 }
 
-.tileAction:hover,
-.tileActions :global(.lk-focus-toggle-button:hover) {
+.tileAction:hover {
   background: var(--pill);
   filter: brightness(1.4);
 }
 
-.tileAction:focus-visible,
-.tileActions :global(.lk-focus-toggle-button:focus-visible) {
+.tileAction:focus-visible {
   outline: 2px solid var(--lk-accent-bg);
   outline-offset: 1px;
 }
@@ -305,18 +308,50 @@
   flex: none;
 }
 
-/* Contador de espectadores da transmissao (ver ROADMAP item 3/6). Fica na
-   mesma linha do nome, dentro do `.lk-participant-metadata-item`, que o CSS do
-   LiveKit ja desenha como pilula escura. */
-.viewerCount {
+/* Avatares de espectadores da transmissao (U5), empilhados estilo
+   Discord/Slack. Fica na mesma linha do nome, dentro do
+   `.lk-participant-metadata-item`, que o CSS do LiveKit ja desenha como
+   pilula escura. */
+.viewerAvatars {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 0.2rem;
   margin-left: 0.4rem;
   padding-left: 0.4rem;
   border-left: 1px solid var(--border2);
-  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Cada avatar sobrepoe o anterior (margem negativa) e ganha um contorno na
+   cor da pilula pra se destacar da foto vizinha — sem o contorno os dois
+   circulos se fundem numa mancha so. O primeiro nao tem vizinho a esquerda,
+   entao a margem negativa nele so encolheria o badge a toa. */
+.viewerAvatar {
+  display: flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--pill);
+  margin-left: -0.4rem;
+}
+
+.viewerAvatar:first-child {
+  margin-left: 0;
+}
+
+/* "+N" de quem passou de MAX_VIEWER_AVATARS — mesmo tamanho e mesmo
+   contorno dos avatares, pra continuar parecendo parte da mesma pilha. */
+.viewerAvatarExtra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--pill);
+  margin-left: -0.4rem;
+  background: var(--border2);
+  color: var(--lk-fg, #fff);
+  font-size: 0.6rem;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -375,6 +410,23 @@
    pessoa esta ali, mas o que voce falar nao chega nela. */
 .tile.tile[data-concord-focus='excluded']::before {
   border-color: var(--accent);
+}
+
+/* "Conexao instavel" (U3) — so no proprio tile, so na faixa Poor de verdade
+   do livekit-client. Vermelho de aviso real (nao o ambar do notHearingBadge
+   logo abaixo): aqui e a rede que esta ruim, nao uma escolha de alguem. Icone
+   + texto, como o item pede — os vizinhos desta fileira (notHearingBadge,
+   viewerAvatars) sao so icone/avatar porque o rotulo deles ja vive no
+   title/aria-label; este pediu o texto visivel. */
+.poorConnectionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.35rem;
+  color: var(--lk-danger, #f91f31);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* "Nao te ouve" — a pessoa mutou voce individualmente, ou esta em modo foco

@@ -51,12 +51,21 @@
   font-weight: 800;
   font-size: 2rem;
   letter-spacing: -0.03em;
+  /* Evita o titulo quebrar deixando uma palavra orfa na segunda linha quando
+     o nome da pessoa e longo. */
+  text-wrap: balance;
 }
 
 .welcomeHint {
   margin: 0;
   color: var(--fg2);
-  max-width: 27.5rem;
+  /* Estreito de proposito: linha curta e mais facil de ler, e as duas frases
+     caem uma em cada linha em vez de quebrarem no meio do travessao. */
+  max-width: 24rem;
   font-size: 1rem;
-  line-height: 1.55;
+  line-height: 1.6;
+  /* `pretty` cuida so das ultimas linhas (nada de palavra sozinha no fim);
+     `balance` aqui deixaria as tres linhas do mesmo tamanho e desmancharia a
+     separacao entre as duas frases. */
+  text-wrap: pretty;
 }

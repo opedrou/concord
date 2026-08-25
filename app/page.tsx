@@ -42,7 +42,7 @@ export default function Page() {
         <ConcordMark size={92} className={styles.welcomeMark} />
         <h2 className={styles.welcomeTitle}>Bem-vindo de volta, {user?.username ?? 'por aqui'}.</h2>
         <p className={styles.welcomeHint}>
-          Escolha um canal de voz ao lado para entrar — voce ve quem ja esta la antes de clicar — ou
+          Escolha um canal de voz ao lado para entrar — você vê quem já está lá antes de clicar. Ou
           abra um canal de texto para colocar a conversa em dia.
         </p>
       </main>

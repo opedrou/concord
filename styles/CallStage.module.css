@@ -132,25 +132,72 @@
   outline-offset: 1px;
 }
 
-/* Respiro do design: 14px entre tiles e 20px de margem lateral. O default do
+/* GRADE 2x2 COM TILES EM 16:9 (U1).
+   Antes: `repeat(auto-fit, minmax(220px, 1fr))` + `grid-auto-rows: 1fr`. Com 4
+   pessoas numa tela larga isso cabia tudo em UMA fileira — quatro tiles
+   estreitos e altos como a chamada inteira, que era a reclamacao. Agora sao
+   duas colunas fixas, e a PROPORCAO manda no tamanho em vez de a altura
+   disponivel esticar o tile.
+
+   Como a proporcao e garantida sem JS: a caixa da grade tem `height: 100%` e
+   `aspect-ratio`, entao a LARGURA dela sai da altura util do palco — e como as
+   celulas sao 2 colunas x 2 fileiras iguais, cada uma nasce em 16:9 (2x16 por
+   2x9 = 16/9, a mesma proporcao da caixa). O `max-width: 100%` e o unico
+   limite: em janela estreita e alta a caixa bate na largura, para de crescer e
+   os tiles ficam mais altos que 16:9 — degrada pro comportamento antigo em vez
+   de vazar pra fora do palco.
+
+   O `.lk-grid-layout-wrapper` do LiveKit e um flex column com
+   `align-items: center`, entao a grade ja se centraliza sozinha na horizontal
+   — por isso `width` fica em `auto` (e PRECISA ficar: e dele que a
+   `aspect-ratio` deriva a largura).
+
+   Respiro do design: 14px entre tiles e 20px de margem lateral. O default do
    LiveKit (`--lk-grid-gap`, 0.5rem) apertava os cartoes uns nos outros e
-   colava o de fora na borda da janela. */
+   colava o de fora na borda da janela.
+
+   NAO vale pro modo transmissao: la a faixa de gente e `.focusStrip`, outro
+   layout. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   gap: 14px;
-  width: 100%;
   height: 100%;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
   padding: 6px 20px 14px;
 }
 
-/* Com 1-2 pessoas nao faz sentido esticar os tiles pra ocupar a largura
-   inteira em telas grandes — mantem um tamanho legivel, centralizado. */
-.grid[data-count='1'],
+/* Uma pessoa so: uma coluna, uma fileira — a caixa 16/9 herdada ja e o tile. */
+.grid[data-count='1'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Duas: lado a lado numa fileira so. Duas celulas 16:9 lado a lado formam uma
+   caixa 32:9 — sem isto elas virariam meia-altura cada uma. */
 .grid[data-count='2'] {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 480px));
-  justify-content: center;
+  aspect-ratio: 32 / 9;
+}
+
+/* 3 e 4 usam a regra base (2x2). Com 3, a ultima celula fica vazia — os tres
+   tiles continuam do mesmo tamanho, que e o ponto. */
+
+/* 5-6: duas colunas dariam tres fileiras e tiles pequenos demais. Tres
+   colunas x duas fileiras = caixa 48:18 (8/3). */
+.grid[data-count='5'],
+.grid[data-count='6'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  aspect-ratio: 8 / 3;
+}
+
+/* 7-9: tres colunas x tres fileiras — volta a dar 16/9 de caixa. Acima disso
+   (nao e o publico deste app, ver HANDOFF: 2-5 pessoas) a grade base assume e
+   os tiles ficam mais baixos que 16:9, sem estourar o palco. */
+.grid[data-count='7'],
+.grid[data-count='8'],
+.grid[data-count='9'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* Modo foco (screen share ativo): video a esquerda ocupando o maximo de
@@ -249,12 +296,40 @@
   height: 100%;
 }
 
+/* U7 — no teatro a faixa de gente sai da COLUNA a direita e vira uma BANDA
+   deitada embaixo do video. A altura dela e arrastavel (JS: `stripHeight`) e
+   os tiles ficam centrados, entao com duas ou tres pessoas a banda nao se
+   estica de borda a borda: e uma faixa, nao um segundo palco. */
+.stage[data-fullscreen='true'] .focusWrapper {
+  flex-direction: column;
+}
+
+.stage[data-fullscreen='true'] .focusMain {
+  padding: 0;
+}
+
 .stage[data-fullscreen='true'] .focusStrip {
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+  padding: 0 20px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Deitados, quem manda e a ALTURA da banda: a largura sai da proporcao. */
+.stage[data-fullscreen='true'] .focusStrip > :global(.lk-participant-tile) {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 16 / 10;
+}
+
+/* Tela cheia NATIVA: so o video — a faixa e a alca dela somem. */
+.stage[data-native-fullscreen='true'] .focusStrip {
   display: none;
 }
 
-/* Alca entre o video e a faixa: sem faixa, nao ha o que redimensionar. */
-.stage[data-fullscreen='true'] :global(.lk-focus-layout-wrapper) > [role='separator'] {
+.stage[data-native-fullscreen='true'] :global(.lk-focus-layout-wrapper) > [role='separator'] {
   display: none;
 }
 
@@ -329,6 +404,88 @@
 }
 
 .fullscreenButton:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 1px;
+}
+
+/* --- Cartaz de "A transmissao terminou" (U8) -----------------------------
+   Fixo e centrado, por cima de tudo: quando ele aparece o tile da transmissao
+   ja sumiu da arvore, entao nao ha caixa no layout onde ancorar. `fixed`
+   tambem continua valendo dentro da tela cheia nativa, porque o cartaz e
+   descendente do proprio `.stage`, que e o elemento em fullscreen.
+   O container nao intercepta cliques — so os cartoes. */
+.endedShares {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+.endedCard {
+  position: relative;
+  overflow: hidden;
+  width: min(22rem, 100%);
+  border-radius: 14px;
+  border: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.14));
+  background: var(--lk-bg2, #1c1917);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+/* Mesmo tratamento do tile pausado: o quadro estoura a caixa pra que o blur
+   nao desbote as bordas, e escurece pro texto ficar legivel por cima. */
+.endedFrame {
+  position: absolute;
+  inset: -20px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(14px) brightness(0.4);
+}
+
+.endedBody {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1.5rem 1.25rem 1.25rem;
+  text-align: center;
+}
+
+.endedTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--lk-fg, #fff);
+}
+
+.endedName {
+  font-size: 0.82rem;
+  color: var(--fg2);
+}
+
+.endedClose {
+  margin-top: 0.6rem;
+  padding: 0.4rem 1.1rem;
+  border: none;
+  border-radius: 9px;
+  background: var(--pill);
+  color: var(--lk-fg, #fff);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.endedClose:hover {
+  filter: brightness(1.4);
+}
+
+.endedClose:focus-visible {
   outline: 2px solid var(--lk-accent-bg);
   outline-offset: 1px;
 }

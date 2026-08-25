@@ -324,6 +324,16 @@
   outline-offset: 1px;
 }
 
+/* Estado ligado dos botoes de mic/fone do rodape: mudo e surdo sao estados
+   NEGATIVOS, mesma cor do icone de mudo na lista de canais logo acima. */
+.userIconButtonDanger {
+  color: var(--lk-danger, #f91f31);
+}
+
+.userIconButtonDanger:hover {
+  color: var(--lk-danger, #f91f31);
+}
+
 /* O antigo menu de conta (Perfil / Admin / Sair) e o popover de audio viraram
    secoes da janela unica de configuracoes — ver lib/SettingsWindow.tsx. O
    wrapper de posicionamento e o backdrop que existiam aqui sumiram junto: a

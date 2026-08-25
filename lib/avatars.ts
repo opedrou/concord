@@ -143,3 +143,17 @@ export function avatarUrlFor(userId: number, avatarPath: string | null): string 
   if (!avatarPath) return null;
   return `/api/avatars/${userId}?v=${encodeURIComponent(avatarPath)}`;
 }
+
+/**
+ * Valida a cor dominante que o CLIENTE calculou (ver lib/dominantColor.ts).
+ * É entrada de usuário como qualquer outra: só passa `#rrggbb`, e devolve
+ * sempre em minúsculo. Qualquer outra coisa — `red`, `rgb(...)`, `#abc`,
+ * `#fff onmouseover=...` — vira null, e a coluna fica vazia (o tile cai no
+ * `--accent`). Assim o valor que sai do banco pro `style` do tile nunca é
+ * texto arbitrário de quem enviou a foto.
+ */
+export function normalizeAvatarColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : null;
+}

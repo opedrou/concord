@@ -36,31 +36,45 @@ interface UserRow {
   id: number;
   username: string;
   is_admin: number;
+  session_version: number;
 }
 
 /**
  * Resolve o usuário autenticado a partir do cookie de sessão da requisição.
- * Sempre relê username/is_admin do banco (o cookie só guarda o id) — assim
- * exclusão, troca de senha ou promoção/despromoção de admin valem na próxima
+ * Sempre relê username/is_admin do banco (o cookie só guarda id e versão) —
+ * assim exclusão ou promoção/despromoção de admin valem na próxima
  * requisição, sem esperar a sessão expirar.
+ *
+ * É aqui, e só aqui, que a versão de sessão do token é conferida contra a do
+ * banco: versão diferente = cookie revogado (senha trocada, ou "sair de todos
+ * os dispositivos"), e a requisição vira não-autenticada. Ficando em
+ * `getAuthUser`, vale de uma vez para `requireUser`, `requireAdmin` e
+ * `/api/auth/me`. O middleware (Edge, sem banco) não faz essa checagem — ele
+ * é só UX, como o comentário dele já diz.
  */
 export async function getAuthUser(request: NextRequest): Promise<AuthUser | null> {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const uid = await verifySession(token);
-  if (uid === null) return null;
+  const session = await verifySession(token);
+  if (!session) return null;
 
   const db = getDb();
-  const row = db.prepare('SELECT id, username, is_admin FROM users WHERE id = ?').get(uid) as
-    | UserRow
-    | undefined;
+  const row = db
+    .prepare('SELECT id, username, is_admin, session_version FROM users WHERE id = ?')
+    .get(session.uid) as UserRow | undefined;
   if (!row) return null;
+  if (row.session_version !== session.sessionVersion) return null;
 
   return { id: row.id, username: row.username, isAdmin: row.is_admin === 1 };
 }
 
-/** Monta o header `Set-Cookie` de login. */
-export async function buildSessionCookie(uid: number): Promise<string> {
-  const token = await signSession(uid);
+/**
+ * Monta o header `Set-Cookie` de login. A versão de sessão vem por parâmetro:
+ * quem chama já tem a linha do usuário em mãos (login) ou acabou de
+ * incrementá-la (troca de senha), então reler do banco aqui seria só um
+ * SELECT a mais.
+ */
+export async function buildSessionCookie(uid: number, sessionVersion: number): Promise<string> {
+  const token = await signSession(uid, sessionVersion);
   return serializeCookie(SESSION_COOKIE_NAME, token, SESSION_TTL_SECONDS);
 }
 
@@ -70,7 +84,13 @@ export function buildLogoutCookie(): string {
 }
 
 function serializeCookie(name: string, value: string, maxAgeSeconds: number): string {
-  const attrs = [`${name}=${value}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAgeSeconds}`];
+  const attrs = [
+    `${name}=${value}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${maxAgeSeconds}`,
+  ];
   if (process.env.NODE_ENV === 'production') {
     attrs.push('Secure');
   }

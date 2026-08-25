@@ -1,6 +1,8 @@
 'use client';
 
-// Quantas pessoas estao assistindo cada transmissao de tela.
+// Quem esta assistindo cada transmissao de tela (U5: antes so a contagem
+// numerica, agora a identidade de cada espectador — o badge desenha
+// avatares empilhados, e pra isso precisa saber QUEM, nao so QUANTOS).
 //
 // O ROADMAP DIZIA QUE ESSE DADO JA EXISTIA NO LIVEKIT. NAO EXISTE.
 // ----------------------------------------------------------------
@@ -45,14 +47,23 @@ function parseWatching(value: string | undefined): string[] {
   return value.split(',').filter(Boolean);
 }
 
+/** Um espectador identificado. `name` e o que casa com `useMembersAvatarMap`
+ * (chave e `participant.name`, nao `identity` — ver o hook de avatares). */
+export interface ScreenShareViewer {
+  identity: string;
+  name: string;
+}
+
 /**
  * @param watchedSids sids das transmissoes REMOTAS que este cliente esta
  *   assistindo agora. A ordem nao importa; o hook normaliza.
- * @returns mapa `trackSid -> numero de pessoas assistindo` (inclui voce).
+ * @returns mapa `trackSid -> lista de quem esta assistindo` (inclui voce).
  */
-export function useScreenShareViewers(watchedSids: readonly string[]): Record<string, number> {
+export function useScreenShareViewers(
+  watchedSids: readonly string[],
+): Record<string, ScreenShareViewer[]> {
   const room = useRoomContext();
-  const [viewers, setViewers] = React.useState<Record<string, number>>({});
+  const [viewers, setViewers] = React.useState<Record<string, ScreenShareViewer[]>>({});
 
   // Chave estavel: `watchedSids` costuma ser um array novo a cada render (vem
   // de um filter), e usar o array direto na dep do efeito republicaria o
@@ -103,23 +114,31 @@ export function useScreenShareViewers(watchedSids: readonly string[]): Record<st
     // escolha (e mesmo motivo) do CallStateBinder: com 2-5 pessoas o custo e
     // irrelevante e um evento perdido nao deixa o estado torto pra sempre.
     const recompute = () => {
-      const counts: Record<string, number> = {};
-      const tally = (attributes: Record<string, string> | undefined) => {
-        for (const sid of parseWatching(attributes?.[WATCHING_ATTRIBUTE])) {
-          counts[sid] = (counts[sid] ?? 0) + 1;
-        }
+      const result: Record<string, ScreenShareViewer[]> = {};
+      const add = (sid: string, viewer: ScreenShareViewer) => {
+        (result[sid] ??= []).push(viewer);
       };
-      // O local tambem conta: se so eu estou vendo, o numero e 1, nao 0. Uso o
-      // valor ao vivo em vez do atributo publicado porque o debounce faz o
-      // atributo chegar meio segundo atrasado — o proprio contador nao pode
-      // piscar por causa disso.
+      // O local tambem conta: se so eu estou vendo, a lista tem 1 nome, nao
+      // fica vazia. Uso o valor ao vivo em vez do atributo publicado porque o
+      // debounce faz o atributo chegar meio segundo atrasado — o proprio
+      // contador nao pode piscar por causa disso.
+      const localViewer: ScreenShareViewer = {
+        identity: room.localParticipant.identity,
+        name: room.localParticipant.name || room.localParticipant.identity,
+      };
       for (const sid of parseWatching(watchingKey)) {
-        counts[sid] = (counts[sid] ?? 0) + 1;
+        add(sid, localViewer);
       }
       for (const remote of room.remoteParticipants.values()) {
-        tally(remote.attributes);
+        const remoteViewer: ScreenShareViewer = {
+          identity: remote.identity,
+          name: remote.name || remote.identity,
+        };
+        for (const sid of parseWatching(remote.attributes?.[WATCHING_ATTRIBUTE])) {
+          add(sid, remoteViewer);
+        }
       }
-      setViewers(counts);
+      setViewers(result);
     };
 
     const events: RoomEvent[] = [

@@ -64,20 +64,6 @@
   line-height: 1;
 }
 
-.brandTagline {
-  margin: 0;
-  color: var(--fg2);
-  font-size: 0.9rem;
-}
-
-.loginFooter {
-  margin: 1.25rem 0 0;
-  text-align: center;
-  color: var(--fg3);
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
 .card {
   width: 100%;
   max-width: 400px;

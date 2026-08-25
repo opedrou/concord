@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
+import { usePersistentUserChoices } from '@livekit/components-react';
 import { fetchChannels, type Channel, type CurrentUser } from '@/lib/api-client';
 import { usePresencePolling } from '@/lib/usePresencePolling';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
@@ -10,13 +11,18 @@ import {
   HashIcon,
   SpeakerIcon,
   SettingsIcon,
+  MicIcon,
   MicOffIcon,
+  HeadphonesIcon,
+  HeadphonesOffIcon,
   VideoIcon,
   ConcordMark,
 } from '@/lib/icons';
 import { useCallState } from '@/lib/CallStateContext';
+import { getDeafenPrefs, setDeafened, setMicMuted, useDeafenPrefs } from '@/lib/deafenPrefs';
+import { stopAllSfx } from '@/lib/sfx';
+import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import { SettingsWindow, type SettingsSection } from '@/lib/SettingsWindow';
-import { ThemeToggle } from '@/lib/ThemeToggle';
 import styles from '../styles/ChannelSidebar.module.css';
 
 export interface ChannelSidebarProps {
@@ -62,6 +68,36 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   const callState = useCallState();
   const avatarMap = useMembersAvatarMap();
   const router = useRouter();
+  // Fone (surdo) e microfone do rodape. O estado NAO vem do Room — vem de uma
+  // store de modulo (lib/deafenPrefs.ts), justamente porque esta sidebar
+  // tambem renderiza fora de uma call. Ver o comentario no rodape.
+  const { deafened, micMuted } = useDeafenPrefs();
+  // A mesma chave `lk-user-choices` que a ControlBar da call grava e o
+  // PageClientImpl le pra decidir se publica o microfone ao conectar (ver
+  // lib/userChoices.ts). Sem gravar aqui, mutar fora da call e entrar num
+  // canal abriria o microfone por um instante antes de o <DeafenBinder />
+  // mutar de volta.
+  const { saveAudioInputEnabled } = usePersistentUserChoices({ defaults: DEFAULT_USER_CHOICES });
+
+  const handleToggleMic = React.useCallback(() => {
+    setMicMuted(!getDeafenPrefs().micMuted);
+    saveAudioInputEnabled(!getDeafenPrefs().micMuted);
+  }, [saveAudioInputEnabled]);
+
+  const handleToggleDeafen = React.useCallback(() => {
+    const next = !getDeafenPrefs().deafened;
+    setDeafened(next);
+    if (next) {
+      // Um som da soundboard pode estar tocando agora; o `playSfx` so barra os
+      // proximos. Cortar o que ja esta no ar e o resto de "nada entra".
+      stopAllSfx();
+    }
+    // Ficar surdo muta junto, e sair do surdo devolve o microfone ao estado
+    // anterior — os dois casos mexem no mute, entao a preferencia salva
+    // acompanha.
+    saveAudioInputEnabled(!getDeafenPrefs().micMuted);
+  }, [saveAudioInputEnabled]);
+
   // A janela de configuracoes abre SOBREPOSTA, nunca por navegacao: navegar
   // desmontaria o PageClientImpl e derrubaria a chamada em andamento. Mesmo
   // motivo e mesma solucao do canal de texto (ver RoomShell.tsx). O estado
@@ -103,21 +139,29 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
         return;
       }
       if (props.activeChannelSlug && props.activeChannelSlug !== channel.slug) {
-        // Trocando de canal de voz com uma chamada em andamento: MANTIDO o
-        // reload completo mesmo depois do PageClientImpl passar a chamar
-        // room.disconnect() no unmount (ver nota la, bug da pessoa duplicada
-        // na lista). Motivo: as duas URLs batem no MESMO segmento de rota
-        // (`/rooms/[roomName]`) — o App Router do Next NAO desmonta a arvore
-        // de componentes so porque o parametro dinamico mudou, ele so
-        // re-renderiza o mesmo RoomShell/PageClientImpl com `roomName` novo.
-        // Como o `Room` vem de um `useMemo` com deps VAZIAS (de proposito,
-        // pra nao cair a chamada — ver PageClientImpl.tsx), o cleanup de
-        // unmount SIMPLESMENTE NÃO DISPARARIA numa troca client-side entre
-        // dois canais de voz: o `<Room>` velho continuaria conectado no
-        // canal errado enquanto a UI mostra o novo. Forcar um reload
-        // completo continua sendo o unico jeito seguro de garantir que a
-        // pagina inteira (e o Room) e recriada do zero.
-        window.location.href = `/rooms/${encodeURIComponent(channel.slug)}`;
+        // Trocando de canal de voz com uma chamada em andamento. Isto aqui ja
+        // foi um `window.location.href` (reload completo da pagina) e hoje e
+        // navegacao client-side normal — mas so funciona por causa de uma
+        // peca no RoomShell, entao vale o comentario:
+        //
+        // As duas URLs batem no MESMO segmento de rota (`/rooms/[roomName]`),
+        // e o App Router do Next NAO desmonta a arvore de componentes so
+        // porque o parametro dinamico mudou — ele re-renderiza o mesmo
+        // RoomShell/PageClientImpl com `roomName` novo. Como o `Room` vem de
+        // um `useMemo` com deps VAZIAS (de proposito, pra nao cair a chamada
+        // — ver PageClientImpl.tsx), o cleanup de unmount que chama
+        // `room.disconnect()` nao dispararia sozinho nessa troca: o `<Room>`
+        // velho continuaria conectado no canal errado enquanto a UI ja mostra
+        // o novo. Por isso o RoomShell da uma `key={roomName}` ao
+        // PageClientImpl: a troca de canal vira desmontar + montar de novo,
+        // o disconnect roda e um `Room` novo e criado pro canal novo. Ver o
+        // comentario no RoomShell.tsx.
+        //
+        // Fecha tambem o painel de texto aberto por cima da call, se houver:
+        // quem clica num canal de voz quer ir PRA CALL. O reload fazia isso
+        // de graca (estado local morria junto com a pagina).
+        onReturnToCall?.();
+        router.push(`/rooms/${encodeURIComponent(channel.slug)}`);
         return;
       }
       router.push(`/rooms/${encodeURIComponent(channel.slug)}`);
@@ -280,7 +324,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                             >
                               <Avatar
                                 username={cleanName}
-                                avatarUrl={avatarMap[cleanName] ?? null}
+                                avatarUrl={avatarMap[cleanName]?.avatarUrl ?? null}
                                 size={24}
                               />
                             </span>
@@ -337,11 +381,11 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
       )}
 
       {/* Rodape estilo Discord: foto redonda + bolinha de status, nome em
-          cima e "Online" embaixo, icones de mic/fone/engrenagem a direita.
-          Mic e fone aqui sao so indicadores visuais (ver relatorio: esta
-          sidebar tambem renderiza fora de uma call, sem Room por perto pra
-          ter estado real de mute/deafen) — a engrenagem e o unico botao de
-          verdade, abre o menu com Perfil/Admin/Sair. */}
+          cima e "Online" embaixo, botoes de mic/fone/tema/engrenagem a
+          direita. Mic e fone sao botoes DE VERDADE e funcionam tambem fora de
+          uma call: o estado deles nao mora no Room, mora numa store de modulo
+          persistida (lib/deafenPrefs.ts), e quem aplica ao Room — quando ha um
+          — e o <DeafenBinder />. */}
       <div className={styles.userBar}>
         {props.user ? (
           <>
@@ -363,7 +407,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               <span className={styles.avatarWrap}>
                 <Avatar
                   username={props.user.username}
-                  avatarUrl={avatarMap[props.user.username] ?? null}
+                  avatarUrl={avatarMap[props.user.username]?.avatarUrl ?? null}
                   size={32}
                 />
                 <span className={styles.statusDot} aria-hidden="true" />
@@ -376,15 +420,43 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               </span>
             </div>
             <div className={styles.userActions}>
-              <ThemeToggle className={styles.userIconButton} />
               {/* Esta sidebar renderiza FORA da arvore do RoomContext (e irma
                   do PageClientImpl, nao descendente), entao nao da pra ler
-                  estado de track aqui com os hooks do LiveKit. O
-                  <SettingsPanel /> contorna isso lendo o
-                  MicProcessorContext, que fica ACIMA das duas arvores (ver
-                  RoomShell) e e alimentado pelo <MicProcessorBinder />. Ligar
-                  e desligar o proprio microfone continua sendo na ControlBar
-                  da call — aqui so ficam as configuracoes. */}
+                  estado de track aqui com os hooks do LiveKit. Estes dois
+                  botoes contornam isso pela store de modulo: eles so escrevem
+                  a escolha, e o <DeafenBinder /> (montado dentro do
+                  RoomContext, ao lado do <MicProcessorBinder />) e quem muta o
+                  microfone de verdade e quem espelha de volta o que for
+                  decidido na ControlBar da call — os dois nunca discordam.
+                  Sem atalho de teclado, de proposito. */}
+              <button
+                type="button"
+                className={`${styles.userIconButton} ${
+                  micMuted ? styles.userIconButtonDanger : ''
+                }`}
+                aria-label={micMuted ? 'Ligar o microfone' : 'Desligar o microfone'}
+                aria-pressed={micMuted}
+                title={micMuted ? 'Ligar o microfone' : 'Desligar o microfone'}
+                onClick={handleToggleMic}
+              >
+                {micMuted ? <MicOffIcon size={16} /> : <MicIcon size={16} />}
+              </button>
+              <button
+                type="button"
+                className={`${styles.userIconButton} ${
+                  deafened ? styles.userIconButtonDanger : ''
+                }`}
+                aria-label={deafened ? 'Voltar a ouvir' : 'Parar de ouvir'}
+                aria-pressed={deafened}
+                title={
+                  deafened
+                    ? 'Voltar a ouvir (devolve o microfone ao estado anterior)'
+                    : 'Parar de ouvir (silencia tudo e muta voce junto)'
+                }
+                onClick={handleToggleDeafen}
+              >
+                {deafened ? <HeadphonesOffIcon size={16} /> : <HeadphonesIcon size={16} />}
+              </button>
               {/* Uma engrenagem, uma janela. Antes isto abria um popover de
                   20rem que so tinha audio + links de conta; tudo virou secao
                   da mesma janela (ver lib/SettingsWindow.tsx). */}

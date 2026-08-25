@@ -1,6 +1,7 @@
 // Camada fina sobre as rotas de API da ONDA 1 (auth + canais).
 // Contrato confirmado lendo app/api/auth/{me,logout}/route.ts e
 // app/api/channels/{route,presence/route}.ts.
+import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy';
 
 export interface CurrentUser {
   // Adicionado pela ONDA C — necessario pra montar a URL do proprio avatar
@@ -11,6 +12,9 @@ export interface CurrentUser {
   // Aditivo (correção do bug do F5 na foto de perfil) — já vem versionada
   // (?v=...), pronta pra usar direto num <img src>. Ver app/api/auth/me.
   avatarUrl: string | null;
+  /** Cor dominante da propria foto, `#rrggbb` (U1). null com `avatarUrl`
+   * preenchido = foto anterior a esta coluna, ainda sem cor calculada. */
+  avatarColor: string | null;
 }
 
 /** 'voice' = canal com sala no LiveKit (como ja existia). 'text' = canal `#` com historico de mensagens (ONDA A). */
@@ -108,24 +112,29 @@ export interface AdminUser {
 export class ApiError extends Error {
   code: string;
   status: number;
-  constructor(code: string, status: number) {
+  /** Motivo legivel que algumas rotas mandam junto (ex.: regra de senha, ver lib/passwordPolicy.ts). */
+  reason?: string;
+  constructor(code: string, status: number, reason?: string) {
     super(code);
     this.name = 'ApiError';
     this.code = code;
     this.status = status;
+    this.reason = reason;
   }
 }
 
 async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let code = 'unknown_error';
+    let reason: string | undefined;
     try {
-      const body = (await res.json()) as { error?: unknown };
+      const body = (await res.json()) as { error?: unknown; reason?: unknown };
       if (body && typeof body.error === 'string') code = body.error;
+      if (body && typeof body.reason === 'string') reason = body.reason;
     } catch {
       // resposta sem corpo JSON (ex.: erro de rede) — mantem o codigo generico
     }
-    throw new ApiError(code, res.status);
+    throw new ApiError(code, res.status, reason);
   }
   return (await res.json()) as T;
 }
@@ -133,6 +142,11 @@ async function parseJsonOrThrow<T>(res: Response): Promise<T> {
 /** Traduz um erro de chamada admin numa mensagem legivel em pt-BR pra UI. */
 export function apiErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
+    // As rotas de senha mandam o motivo pronto (lib/passwordPolicy.ts); usar ele
+    // em vez de repetir a regra aqui.
+    if (err.reason && (err.code === 'password_too_short' || err.code === 'password_too_weak')) {
+      return err.reason;
+    }
     switch (err.code) {
       case 'invalid_body':
         return 'Dados inválidos. Confira os campos preenchidos.';
@@ -165,7 +179,9 @@ export function apiErrorMessage(err: unknown): string {
       case 'wrong_password':
         return 'Senha atual incorreta.';
       case 'password_too_short':
-        return 'A nova senha precisa ter pelo menos 8 caracteres.';
+        return `A nova senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+      case 'password_too_weak':
+        return 'A nova senha é fraca demais. Escolha outra.';
       case 'password_mismatch':
         return 'A confirmação não bate com a nova senha.';
       default:
@@ -267,6 +283,10 @@ export interface Member {
   username: string;
   /** URL pra GET /api/avatars/:id, ou null se a pessoa nao tem foto (usar avatar gerado). */
   avatarUrl: string | null;
+  /** Cor dominante da foto em `#rrggbb` (U1), pro fundo do tile de camera
+   * desligada. null = sem foto ou cor ainda nao calculada; quem desenha usa o
+   * `--accent` do tema nesse caso. */
+  avatarColor: string | null;
 }
 
 /** Lista todo mundo cadastrado (nao so quem esta numa call agora). */
@@ -275,16 +295,41 @@ export async function fetchMembers(): Promise<Member[]> {
   return parseJsonOrThrow<Member[]>(res);
 }
 
-/** Envia a foto de perfil do proprio usuario logado. `file` deve vir de um <input type="file">. */
-export async function uploadAvatar(file: File | Blob): Promise<{ avatarUrl: string }> {
+/**
+ * Envia a foto de perfil do proprio usuario logado. `file` deve vir de um
+ * <input type="file">. `color` e a cor dominante ja calculada no cliente (ver
+ * lib/dominantColor.ts) — opcional: sem ela a foto entra sem cor e o tile usa
+ * o `--accent`.
+ */
+export async function uploadAvatar(
+  file: File | Blob,
+  color?: string | null,
+): Promise<{ avatarUrl: string; avatarColor: string | null }> {
   const formData = new FormData();
   formData.append('avatar', file);
+  if (color) {
+    formData.append('color', color);
+  }
   const res = await fetch('/api/avatars', {
     method: 'POST',
     credentials: 'same-origin',
     body: formData,
   });
-  return parseJsonOrThrow<{ avatarUrl: string }>(res);
+  return parseJsonOrThrow<{ avatarUrl: string; avatarColor: string | null }>(res);
+}
+
+/**
+ * Backfill da cor da PROPRIA foto (U1). So preenche quando a coluna esta
+ * vazia — o servidor ignora o resto (ver PATCH /api/avatars). Silencioso de
+ * proposito: e um detalhe cosmetico, nunca vale mostrar erro por causa dele.
+ */
+export async function backfillMyAvatarColor(color: string): Promise<void> {
+  await fetch('/api/avatars', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ color }),
+  });
 }
 
 // ---------------------------------------------------------------------------

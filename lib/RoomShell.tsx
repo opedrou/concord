@@ -37,12 +37,10 @@ export function RoomShell(props: {
   const router = useRouter();
   // Canal de texto aberto por cima da chamada, se algum. Guardado como
   // estado local (nao rota) de proposito: navegar pra /channels/[slug]
-  // desmontaria PageClientImpl — e ele nao chama room.disconnect() no
-  // unmount (debito conhecido, ver HANDOFF.md) — entao a chamada de voz
-  // ficaria pendurada. Abrindo como overlay dentro desta mesma arvore, o
-  // <Room> do PageClientImpl nunca desmonta: a chamada continua tocando
-  // exatamente como no Discord (entrar num canal de texto nao desconecta a
-  // chamada em andamento).
+  // desmontaria PageClientImpl e a chamada de voz cairia. Abrindo como
+  // overlay dentro desta mesma arvore, o <Room> do PageClientImpl nunca
+  // desmonta: a chamada continua tocando exatamente como no Discord (entrar
+  // num canal de texto nao desconecta a chamada em andamento).
   const [openTextChannel, setOpenTextChannel] = React.useState<Channel | null>(null);
 
   // Largura da sidebar de canais, arrastavel pelo usuario e persistida —
@@ -110,7 +108,24 @@ export function RoomShell(props: {
                   style={{ display: openTextChannel ? 'none' : 'block' }}
                   aria-hidden={openTextChannel ? true : undefined}
                 >
+                  {/* `key` por canal: e o que faz a troca de canal de voz
+                      funcionar sem reload da pagina. As duas URLs caem no
+                      MESMO segmento de rota (`/rooms/[roomName]`) e o App
+                      Router do Next nao desmonta a arvore quando so o
+                      parametro dinamico muda — ele re-renderiza este mesmo
+                      PageClientImpl com `roomName` novo. Como o `Room` dele
+                      vem de um `useMemo` com deps VAZIAS, sem a `key` o
+                      cleanup de unmount (`room.disconnect()`) nunca rodaria e
+                      o `<Room>` velho ficaria conectado no canal errado. Com
+                      a `key`, o React desmonta a arvore antiga (o disconnect
+                      roda) e monta uma nova com um `Room` novo.
+
+                      A `key` e SO o `roomName`, de proposito: abrir um canal
+                      de texto por cima da call nao muda `roomName`, entao
+                      nada remonta e a chamada continua de pe (o overlay so
+                      esconde esta camada via CSS, logo acima). */}
                   <PageClientImpl
+                    key={props.roomName}
                     roomName={props.roomName}
                     region={props.region}
                     hq={props.hq}

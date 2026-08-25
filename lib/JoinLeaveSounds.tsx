@@ -3,8 +3,12 @@
 import * as React from 'react';
 import { useRoomContext } from '@livekit/components-react';
 import { ConnectionState, RoomEvent, Track } from 'livekit-client';
-import type { RemoteTrackPublication, RemoteParticipant } from 'livekit-client';
-import { closeSfxContext, playSfx, preloadSfx } from '@/lib/sfx';
+import type {
+  LocalTrackPublication,
+  RemoteTrackPublication,
+  RemoteParticipant,
+} from 'livekit-client';
+import { closeSfxContextSoon, playSfx, preloadSfx } from '@/lib/sfx';
 import { getSoundPrefs, setSoundMuted, setSoundVolume, useSoundPrefs } from '@/lib/soundPrefs';
 import windowStyles from '../styles/SettingsWindow.module.css';
 
@@ -31,10 +35,20 @@ const ALL_SOUNDS = [SOUND_JOIN, SOUND_LEAVE, SOUND_STREAM_START, SOUND_STREAM_ST
  * Sons de presenca da call, estilo Discord: alguem entrou, alguem saiu,
  * alguem comecou a transmitir, alguem parou.
  *
- * So reage a participante REMOTO. Voce nao precisa de um som pra descobrir
- * que voce mesmo entrou no canal ou apertou "compartilhar tela" — e no caso
- * da transmissao isso seria pior que inutil, porque o som dispararia junto com
- * o fechamento da caixinha de selecao de tela do navegador.
+ * Reage a participante remoto E as proprias quatro acoes (entrar, sair,
+ * comecar a transmitir, parar de transmitir):
+ *
+ * - O de entrada da propria pessoa toca assim que a sala fica "connected" (ou
+ *   na hora se o componente ja monta com a sala conectada), sem esperar o
+ *   `armReadyTimer` — esse temporizador existe pra nao anunciar quem JA
+ *   estava na sala quando voce chega, nao pra atrasar o aviso da sua propria
+ *   entrada.
+ * - O de comecar a transmitir soa junto com o fechamento da caixinha de
+ *   selecao de tela do navegador. E esperado e foi aceito.
+ * - O de sair toca no cleanup do efeito de eventos (agora que trocar de canal
+ *   e um unmount de componente, nao mais um reload de pagina — ver
+ *   lib/RoomShell.tsx) e o fechamento do AudioContext dos efeitos, logo
+ *   abaixo, e adiado pra dar tempo do som terminar antes do contexto fechar.
  *
  * O audio em si mora em lib/sfx.ts, num AudioContext separado do da chamada —
  * ver o porque no topo daquele arquivo.
@@ -54,12 +68,15 @@ export function JoinLeaveSounds() {
     preloadSfx(ALL_SOUNDS);
   }, []);
 
-  /** Toca respeitando o mute e o intervalo minimo POR SOM. Le a preferencia
-   * na hora (nao pela prop reativa) pra o callback poder ter deps vazias e nao
-   * reassinar os eventos do Room a cada ajuste de volume. */
-  const play = React.useCallback((url: string) => {
+  /** Toca respeitando o mute e o intervalo minimo POR SOM, mas SEM esperar o
+   * temporizador de prontidao — pras quatro acoes que sao a MINHA propria (a
+   * gente sabe de cara que acabou de acontecer, nao tem "salva de estado
+   * antigo" pra filtrar). Le a preferencia na hora (nao pela prop reativa) pra
+   * o callback poder ter deps vazias e nao reassinar os eventos do Room a
+   * cada ajuste de volume. */
+  const playRaw = React.useCallback((url: string) => {
     const { muted: isMuted, volume } = getSoundPrefs();
-    if (isMuted || !readyRef.current) {
+    if (isMuted) {
       return;
     }
     const now = Date.now();
@@ -70,9 +87,32 @@ export function JoinLeaveSounds() {
     playSfx(url, { gain: volume });
   }, []);
 
+  /** Mesma coisa, mas SO depois do temporizador de prontidao — pros eventos
+   * de participante REMOTO, que podem ser so o SDK entregando o estado atual
+   * da sala (ver READY_DELAY_MS acima). */
+  const play = React.useCallback(
+    (url: string) => {
+      if (!readyRef.current) {
+        return;
+      }
+      playRaw(url);
+    },
+    [playRaw],
+  );
+
   React.useEffect(() => {
     let readyTimeout: ReturnType<typeof setTimeout> | undefined;
     readyRef.current = false;
+    // Garante que o som de entrada da PROPRIA pessoa toca uma unica vez por
+    // montagem, mesmo que `handleConnected` dispare de novo numa reconexao.
+    let playedOwnJoin = false;
+    const playOwnJoinOnce = () => {
+      if (playedOwnJoin) {
+        return;
+      }
+      playedOwnJoin = true;
+      playRaw(SOUND_JOIN);
+    };
 
     const armReadyTimer = () => {
       if (readyTimeout) {
@@ -85,19 +125,36 @@ export function JoinLeaveSounds() {
 
     // Se o componente monta com a sala ja conectada (caso comum: o Room e
     // criado e conecta antes do React terminar de montar a arvore), arma o
-    // temporizador na hora. Senao, espera o evento Connected.
+    // temporizador na hora e toca o som de entrada. Senao, espera o evento
+    // Connected.
     if (room.state === ConnectionState.Connected) {
       armReadyTimer();
+      playOwnJoinOnce();
     }
 
-    const handleConnected = () => armReadyTimer();
+    const handleConnected = () => {
+      armReadyTimer();
+      playOwnJoinOnce();
+    };
     const handleParticipantConnected = () => play(SOUND_JOIN);
     const handleParticipantDisconnected = () => play(SOUND_LEAVE);
+    // Screen share da PROPRIA pessoa: toca junto com o fechamento da caixinha
+    // de selecao de tela do navegador — esperado, ver comentario no topo.
+    const handleLocalTrackPublished = (publication: LocalTrackPublication) => {
+      if (publication.source === Track.Source.ScreenShare) {
+        playRaw(SOUND_STREAM_START);
+      }
+    };
+    const handleLocalTrackUnpublished = (publication: LocalTrackPublication) => {
+      if (publication.source === Track.Source.ScreenShare) {
+        playRaw(SOUND_STREAM_STOP);
+      }
+    };
 
     // Os dois handlers de tela recebem a publicacao e o participante; so
-    // interessa screen share de gente remota. O tipo dos parametros vem do
-    // proprio RoomEvent (TrackPublished/TrackUnpublished sao sempre remotos —
-    // os locais tem eventos proprios, que de proposito NAO escutamos aqui).
+    // interessa screen share de gente remota — a propria (acima,
+    // handleLocalTrackPublished/Unpublished) usa os eventos Local* dedicados,
+    // que carregam LocalTrackPublication em vez de RemoteTrackPublication.
     const handleTrackPublished = (publication: RemoteTrackPublication) => {
       if (publication.source === Track.Source.ScreenShare) {
         play(SOUND_STREAM_START);
@@ -122,6 +179,8 @@ export function JoinLeaveSounds() {
     room.on(RoomEvent.ParticipantDisconnected, handleParticipantLeftWhileSharing);
     room.on(RoomEvent.TrackPublished, handleTrackPublished);
     room.on(RoomEvent.TrackUnpublished, handleTrackUnpublished);
+    room.on(RoomEvent.LocalTrackPublished, handleLocalTrackPublished);
+    room.on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
     return () => {
       if (readyTimeout) {
@@ -133,13 +192,22 @@ export function JoinLeaveSounds() {
       room.off(RoomEvent.ParticipantDisconnected, handleParticipantLeftWhileSharing);
       room.off(RoomEvent.TrackPublished, handleTrackPublished);
       room.off(RoomEvent.TrackUnpublished, handleTrackUnpublished);
+      room.off(RoomEvent.LocalTrackPublished, handleLocalTrackPublished);
+      room.off(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+      // Som de SAIDA da propria pessoa — toca aqui, e nao num evento do Room,
+      // porque sair do canal e ISTO: o desmonte deste componente (RoomShell
+      // troca de canal com `key={roomName}`, ver lib/RoomShell.tsx, entao nao
+      // e mais um reload de pagina que mataria a call antes do som sair).
+      playRaw(SOUND_LEAVE);
     };
-  }, [room, play]);
+  }, [room, play, playRaw]);
 
   // Fecha o AudioContext dos efeitos ao sair da call, pra nao vazar recurso.
+  // O adiamento (e o cancelamento dele quando isto remonta na troca de canal)
+  // mora em lib/sfx.ts, que e o dono do recurso.
   React.useEffect(() => {
     return () => {
-      closeSfxContext();
+      closeSfxContextSoon();
     };
   }, []);
 

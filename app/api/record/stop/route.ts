@@ -1,16 +1,24 @@
+// GET /api/record/stop
+//   Para gravação de uma sala. Requer autenticação.
+//   Query params: roomName (string, obrigatório)
+//   200: gravação interrompida com sucesso
+//   401: não autenticado
+//   403: parâmetro roomName ausente
+//   404: nenhuma gravação ativa encontrada para essa sala
+//   500: erro ao parar gravação (problema com EgressClient)
 import { EgressClient } from 'livekit-server-sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/api-auth';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const roomName = req.nextUrl.searchParams.get('roomName');
+    const auth = await requireUser(req);
+    if ('response' in auth) return auth.response;
 
-    /**
-     * CAUTION:
-     * for simplicity this implementation does not authenticate users and therefore allows anyone with knowledge of a roomName
-     * to start/stop recordings for that room.
-     * DO NOT USE THIS FOR PRODUCTION PURPOSES AS IS
-     */
+    const roomName = req.nextUrl.searchParams.get('roomName');
 
     if (roomName === null) {
       return new NextResponse('Missing roomName parameter', { status: 403 });

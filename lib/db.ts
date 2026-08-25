@@ -36,6 +36,19 @@ export interface DbUser {
   // por iniciais no cliente). Coluna adicionada pela ONDA C — ver
   // migrateAvatarColumn().
   avatar_path: string | null;
+  // Versão da sessão (S5). Entra no payload do cookie e é conferida a cada
+  // request em lib/auth.ts; trocar a senha incrementa, invalidando na hora
+  // todos os cookies emitidos antes. Coluna adicionada por
+  // migrateSessionVersionColumn().
+  session_version: number;
+  // Cor dominante do avatar em `#rrggbb`, calculada UMA vez no cliente na
+  // hora do upload (ver lib/dominantColor.ts) e só guardada aqui — o
+  // servidor não decodifica imagem, pelo mesmo motivo que o
+  // redimensionamento também é no cliente (nada de sharp no build Alpine).
+  // NULL = ainda não calculada (avatar antigo, ou pessoa sem foto); o tile
+  // cai no roxo de acento do tema. Coluna adicionada por
+  // migrateAvatarColorColumn().
+  avatar_color: string | null;
 }
 
 // Tipo de canal. `voice` é o que já existia (sala do LiveKit); `text` é novo
@@ -158,6 +171,8 @@ export function getDb(): DatabaseSync {
   migrateSoundTrimColumns(db);
   migrateChannelTypeColumn(db);
   migrateAttachmentColumns(db);
+  migrateSessionVersionColumn(db);
+  migrateAvatarColorColumn(db);
 
   globalThis.__appDb = db;
   return db;
@@ -258,6 +273,44 @@ function migrateChannelTypeColumn(db: DatabaseSync): void {
   if (!hasTypeColumn) {
     db.exec("ALTER TABLE channels ADD COLUMN type TEXT NOT NULL DEFAULT 'voice';");
     console.log("[migrate] coluna channels.type adicionada (canais existentes viraram 'voice').");
+  }
+}
+
+/**
+ * Migração aditiva (S5): coluna `session_version` em `users`, usada para
+ * invalidar cookies de sessão server-side (trocar a senha incrementa, e todo
+ * cookie assinado com a versão antiga deixa de valer). Mesmo padrão das
+ * migrações acima: PRAGMA table_info antes do ALTER, porque node:sqlite não
+ * aceita "ADD COLUMN IF NOT EXISTS". `NOT NULL DEFAULT 1` já preenche as
+ * linhas existentes. Não destrutivo.
+ */
+function migrateSessionVersionColumn(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(users)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const hasSessionVersionColumn = columns.some((c) => c.name === 'session_version');
+  if (!hasSessionVersionColumn) {
+    db.exec('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1;');
+    console.log('[migrate] coluna users.session_version adicionada (usuários existentes = 1).');
+  }
+}
+
+/**
+ * Migração aditiva (U1 — cor de fundo do tile): coluna `avatar_color` em
+ * `users`, com a cor dominante da foto de perfil em `#rrggbb`. Mesmo padrão
+ * das migrações acima: PRAGMA table_info antes do ALTER, porque node:sqlite
+ * não aceita "ADD COLUMN IF NOT EXISTS". Anulável de propósito — quem já
+ * tinha foto entra com NULL e o próprio cliente preenche depois (backfill,
+ * ver PATCH /api/avatars). Não destrutivo.
+ */
+function migrateAvatarColorColumn(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(users)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const hasAvatarColorColumn = columns.some((c) => c.name === 'avatar_color');
+  if (!hasAvatarColorColumn) {
+    db.exec('ALTER TABLE users ADD COLUMN avatar_color TEXT;');
+    console.log('[migrate] coluna users.avatar_color adicionada.');
   }
 }
 

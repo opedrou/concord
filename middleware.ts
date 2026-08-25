@@ -5,6 +5,11 @@
 // Isso é só a camada de UX (redireciona pra /login em vez de mostrar uma
 // tela quebrada). A autorização de verdade é checada em cada rota de API
 // (ver lib/api-auth.ts) — nunca confiar só nisso aqui.
+//
+// Em particular: aqui só dá pra saber que o token é bem formado e não
+// expirou. A versão de sessão (users.session_version, S5) precisa do banco e
+// só é conferida no runtime Node, em lib/auth.ts. Um cookie revogado pode
+// passar por este middleware; ele morre na primeira chamada de API.
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE_NAME, verifySession } from '@/lib/session';
 
@@ -25,9 +30,9 @@ export const config = {
 
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const uid = await verifySession(token);
+  const session = await verifySession(token);
 
-  if (uid === null) {
+  if (!session) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }

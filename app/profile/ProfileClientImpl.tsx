@@ -4,7 +4,9 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { uploadAvatar, changePassword, apiErrorMessage } from '@/lib/api-client';
+import { PASSWORD_MIN_LENGTH, checkPassword } from '@/lib/passwordPolicy';
 import { resizeImageClientSide } from '@/lib/resizeImageClientSide';
+import { dominantColorFromBlob } from '@/lib/dominantColor';
 import { Avatar } from '@/lib/Avatar';
 import styles from '../../styles/Login.module.css';
 
@@ -48,7 +50,13 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
     setAvatarSuccess(false);
     try {
       const resized = await resizeImageClientSide(file);
-      const result = await uploadAvatar(resized);
+      // Cor dominante calculada AQUI, uma vez na vida da foto, e mandada junto
+      // do upload — e o que pinta o tile de camera desligada na chamada (U1).
+      // Fica no cliente pelo mesmo motivo do redimensionamento acima: o
+      // servidor nao ganha dependencia de decodificacao de imagem. Se falhar,
+      // vem null e a foto entra sem cor (o tile usa o `--accent`).
+      const color = await dominantColorFromBlob(resized);
+      const result = await uploadAvatar(resized, color);
       // Resposta do upload ja vem com a URL versionada com o arquivo novo
       // (ver avatarUrlFor) — troca o estado direto, sem gambiarra de
       // timestamp, e a foto nova aparece na hora nesta mesma pagina.
@@ -64,9 +72,15 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
   const handlePasswordSubmit = React.useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      setPasswordBusy(true);
       setPasswordError(null);
       setPasswordSuccess(false);
+      // Feedback de UX — quem decide e o servidor (POST /api/auth/change-password).
+      const problem = checkPassword(newPassword, user?.username);
+      if (problem) {
+        setPasswordError(problem.reason);
+        return;
+      }
+      setPasswordBusy(true);
       try {
         await changePassword({ currentPassword, newPassword, confirmPassword });
         setPasswordSuccess(true);
@@ -79,7 +93,7 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
         setPasswordBusy(false);
       }
     },
-    [currentPassword, newPassword, confirmPassword],
+    [currentPassword, newPassword, confirmPassword, user?.username],
   );
 
   if (loading || !user) {
@@ -141,7 +155,7 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
             id="new-password"
             type="password"
             autoComplete="new-password"
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             disabled={passwordBusy}
@@ -155,7 +169,7 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
             id="confirm-password"
             type="password"
             autoComplete="new-password"
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={passwordBusy}

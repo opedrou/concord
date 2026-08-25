@@ -310,7 +310,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
                       {!groupedWithPrevious && (
                         <Avatar
                           username={message.authorName}
-                          avatarUrl={avatarMap[message.authorName]}
+                          avatarUrl={avatarMap[message.authorName]?.avatarUrl ?? null}
                           size={42}
                         />
                       )}

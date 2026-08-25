@@ -19,6 +19,7 @@ import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import { CallStateBinder } from '@/lib/CallStateBinder';
 import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
 import { VolumeMixerBinder } from '@/lib/VolumeMixerBinder';
+import { DeafenBinder } from '@/lib/DeafenBinder';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
 import {
@@ -297,6 +298,28 @@ function VideoConferenceComponent(props: {
 
   const [e2eeSetupComplete, setE2eeSetupComplete] = React.useState(false);
 
+  // O AudioContext do webAudioMix (ver roomOptions logo abaixo) nasce aqui,
+  // num useMemo de deps VAZIAS, pra viver exatamente o mesmo ciclo que o
+  // `room` — e morrer junto com ele, no cleanup la embaixo.
+  //
+  // Por que fechar virou necessario: o RoomShell passa `key={roomName}` ao
+  // PageClientImpl, entao trocar de canal de voz DESMONTA e remonta esta
+  // arvore (antes era reload de pagina inteira, que recolhia tudo sozinho). E
+  // a livekit-client so fecha o AudioContext que ELA cria — no cleanup do
+  // Room ela testa `typeof options.webAudioMix === 'boolean'`, e o nosso cai
+  // no ramo do objeto. Sem o close, cada troca de canal deixaria um contexto
+  // aberto pra sempre, e o Chrome corta perto de 6 simultaneos (ver
+  // lib/TileErrorBoundary.tsx): o sintoma seria audio que so volta no F5.
+  //
+  // Criar aqui e nao dentro do roomOptions tambem evita um vazamento menor: o
+  // roomOptions recalcula quando as props mudam, mas so o PRIMEIRO chega a
+  // virar `new Room(...)` — os contextos dos recalculos seguintes nasceriam
+  // orfaos.
+  const audioContext = React.useMemo(
+    () => createAudioContextForDenoise() ?? new AudioContext(),
+    [],
+  );
+
   const roomOptions = React.useMemo((): RoomOptions => {
     let videoCodec: VideoCodec | undefined = props.options.codec ? props.options.codec : 'vp9';
     if (e2eeEnabled && (videoCodec === 'av1' || videoCodec === 'vp9')) {
@@ -352,11 +375,11 @@ function VideoConferenceComponent(props: {
       // reducao de ruido neural (RNNoise/GTCRN) sempre indisponivel pra quem
       // usa fone Bluetooth. O navegador reamostra isso na borda sem custo
       // perceptivel.
-      webAudioMix: { audioContext: createAudioContextForDenoise() ?? new AudioContext() },
+      webAudioMix: { audioContext },
       e2ee: keyProvider && worker && e2eeEnabled ? { keyProvider, worker } : undefined,
       singlePeerConnection: props.options.singlePeerConnection,
     };
-  }, [props.userChoices, props.options.hq, props.options.codec]);
+  }, [audioContext, props.userChoices, props.options.hq, props.options.codec]);
 
   const room = React.useMemo(() => new Room(roomOptions), []);
 
@@ -383,14 +406,11 @@ function VideoConferenceComponent(props: {
         // Aviso PROATIVO, antes da caixinha do navegador abrir — a maior
         // fonte de "o audio nao funciona" e a pessoa escolher janela/tela
         // cheia ou esquecer de marcar a caixinha de audio.
-        toast(
-          'Pra levar áudio junto: escolha compartilhar uma ABA (não janela nem tela inteira) e marque "Compartilhar áudio da guia/aba" na caixinha do navegador.',
-          {
-            id: 'screen-share-audio-hint',
-            duration: 6000,
-            icon: <Volume2Icon size={18} />,
-          },
-        );
+        toast('Compartilhe uma ABA pra levar áudio', {
+          id: 'screen-share-audio-hint',
+          duration: 1500,
+          icon: <Volume2Icon size={18} />,
+        });
       }
       // Qualidade escolhida pela pessoa no dropdown. Precisa ser lida AQUI, no
       // momento do compartilhamento, e nao no `publishDefaults` do Room: o
@@ -635,6 +655,11 @@ function VideoConferenceComponent(props: {
   // `__XXXX` aleatorio e de proposito, ver ChannelSidebar.tsx) — e a pessoa
   // aparecia duas vezes na lista de ocupantes ate a sessao fantasma expirar.
   //
+  // Este cleanup tambem e o que sustenta a troca de canal de voz sem reload
+  // da pagina: o RoomShell da uma `key={roomName}` ao PageClientImpl, entao
+  // trocar de canal desmonta esta arvore (rodando o disconnect abaixo) e
+  // monta outra, com um `Room` novo pro canal novo. Ver RoomShell.tsx.
+  //
   // A correcao e este efeito, em SEPARADO do efeito de connect logo acima,
   // com `[room]` como UNICA dependencia — de proposito, por dois motivos:
   //
@@ -676,6 +701,31 @@ function VideoConferenceComponent(props: {
     };
   }, [room]);
 
+  // Cleanup do AudioContext do webAudioMix (o porque esta no comentario de
+  // onde ele e criado, mais acima). Fica num efeito separado do disconnect de
+  // proposito — aquele ali esta pronto e revisado, e este so precisa rodar no
+  // mesmo momento: o unmount da arvore da call, que hoje acontece a cada
+  // troca de canal por causa da `key` do RoomShell.
+  //
+  // A guarda do `state !== 'closed'` existe porque close() num contexto ja
+  // fechado lanca InvalidStateError. Ela tambem cobre o StrictMode do React,
+  // que em dev desmonta e remonta de proposito reaproveitando o mesmo useMemo
+  // — o remonte reencontraria este contexto fechado. Neste projeto isso nao
+  // chega a acontecer: `reactStrictMode: false` no next.config.js faz o
+  // `next dev` ter o mesmo ciclo de producao. Se alguem religar o StrictMode,
+  // este e o ponto a revisar (o contexto precisaria ser recriado no remonte).
+  React.useEffect(() => {
+    return () => {
+      if (audioContext.state === 'closed') {
+        return;
+      }
+      audioContext.close().catch((error) => {
+        // Mesmo estilo do cleanup vizinho: nada de rejeicao solta escapando.
+        console.error('Erro ao fechar o AudioContext do webAudioMix no unmount:', error);
+      });
+    };
+  }, [audioContext]);
+
   React.useEffect(() => {
     if (lowPowerMode) {
       console.warn('Low power mode enabled');
@@ -700,6 +750,9 @@ function VideoConferenceComponent(props: {
             volume individual + volume geral + modo foco. Ver
             lib/VolumeMixerContext.tsx. */}
         <VolumeMixerBinder />
+        {/* Idem: e quem aplica o mute do rodape da sidebar (e o mute que
+            vem junto com o surdo) ao microfone. Ver lib/deafenPrefs.ts. */}
+        <DeafenBinder />
         {/* Tambem sem UI: toca os sons de entrar/sair/transmitir. O liga e
             desliga fica na janela de configuracoes, secao Notificacoes. */}
         <JoinLeaveSounds />

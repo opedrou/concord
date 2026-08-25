@@ -1,8 +1,10 @@
 // POST /api/auth/change-password   (qualquer usuário logado — só a própria senha)
 //   Body: { currentPassword: string, newPassword: string, confirmPassword: string }
-//   200: { ok: true }
+//   200: { ok: true }   + Set-Cookie: session (reemitido, ver abaixo)
 //   400: { error: 'invalid_body' } — corpo malformado ou campo faltando
-//   400: { error: 'password_too_short' } — newPassword com menos de 8 caracteres
+//   400: { error: 'password_too_short', reason } — newPassword menor que o mínimo (lib/passwordPolicy.ts)
+//   400: { error: 'password_too_weak', reason } — senha comum, sequência de teclado,
+//        caractere repetido, ou contendo o próprio nome de usuário
 //   400: { error: 'password_mismatch' } — confirmPassword != newPassword
 //   401: { error: 'not_authenticated' } — sem sessão
 //   401: { error: 'wrong_password' } — currentPassword não bate com o hash salvo
@@ -12,10 +14,17 @@
 // aqui. Exige a senha atual pra evitar que um cookie de sessão roubado vire
 // sequestro permanente da conta (troca de senha some com o acesso de quem
 // não tem a senha, mesmo com o cookie).
+//
+// Trocar a senha incrementa users.session_version (S5), o que mata na hora
+// todos os cookies emitidos antes — inclusive o roubado, e inclusive os
+// outros dispositivos da própria pessoa. Por isso a resposta reemite o cookie
+// de quem acabou de trocar, já com a versão nova: senão ela seria deslogada
+// de si mesma no próximo request.
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api-auth';
-import { hashPassword, verifyPassword } from '@/lib/auth';
+import { buildSessionCookie, hashPassword, verifyPassword } from '@/lib/auth';
 import { DbUser, getDb } from '@/lib/db';
+import { checkPassword } from '@/lib/passwordPolicy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,9 +53,10 @@ export async function POST(request: NextRequest) {
   ) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
-  // mesma regra minima que POST/PATCH /api/users (ver app/api/users/route.ts)
-  if (newPassword.length < 8) {
-    return NextResponse.json({ error: 'password_too_short' }, { status: 400 });
+  // mesma regra que POST/PATCH /api/users (ver lib/passwordPolicy.ts)
+  const problem = checkPassword(newPassword, user.username);
+  if (problem) {
+    return NextResponse.json({ error: problem.code, reason: problem.reason }, { status: 400 });
   }
   if (newPassword !== confirmPassword) {
     return NextResponse.json({ error: 'password_mismatch' }, { status: 400 });
@@ -67,7 +77,10 @@ export async function POST(request: NextRequest) {
   }
 
   const newHash = hashPassword(newPassword);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+  db.prepare(
+    'UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?',
+  ).run(newHash, user.id);
 
-  return NextResponse.json({ ok: true });
+  const cookie = await buildSessionCookie(user.id, row.session_version + 1);
+  return NextResponse.json({ ok: true }, { status: 200, headers: { 'Set-Cookie': cookie } });
 }

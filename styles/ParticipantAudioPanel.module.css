@@ -105,12 +105,6 @@
   line-height: 1.15;
 }
 
-.volumeDb {
-  font-size: 0.68rem;
-  opacity: 0.65;
-  font-variant-numeric: tabular-nums;
-}
-
 /* Linha de uma fonte que o MODO FOCO esta calando. Substitui o slider: um
    controle que nao muda nada e pior que nenhum controle — a pessoa arrasta,
    nada acontece, e conclui que o app quebrou. */

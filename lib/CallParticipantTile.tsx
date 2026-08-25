@@ -1,22 +1,30 @@
 'use client';
 
 import * as React from 'react';
-import { RemoteParticipant, Track } from 'livekit-client';
+import { ConnectionQuality, RemoteParticipant, Track } from 'livekit-client';
 import {
-  ConnectionQualityIndicator,
-  FocusToggle,
   isTrackReference,
   ParticipantName,
   ScreenShareIcon,
   TrackMutedIndicator,
+  useConnectionQualityIndicator,
   useParticipantTile,
   useParticipantTracks,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { Avatar } from '@/lib/Avatar';
-import { ExpandIcon, EyeIcon, EyeOffIcon, VolumeXIcon } from '@/lib/icons';
+import {
+  AlertTriangleIcon,
+  CollapseIcon,
+  ExpandIcon,
+  EyeIcon,
+  EyeOffIcon,
+  VolumeXIcon,
+} from '@/lib/icons';
 import { useSpeakingIndicator } from '@/lib/useSpeakingIndicator';
+import type { MemberAvatar } from '@/lib/useMembersAvatarMap';
+import type { ScreenShareViewer } from '@/lib/useScreenShareViewers';
 import type { FocusRing } from '@/lib/audibility';
 import styles from '../styles/CallParticipantTile.module.css';
 
@@ -54,18 +62,36 @@ export interface WatchControl {
   onStart: () => void;
 }
 
+/** Acima disso os avatares empilhados viram "+N" (ver U5 no roadmap). */
+const MAX_VIEWER_AVATARS = 3;
+
+/** Texto que o `title`/`aria-label` do badge de espectadores anuncia — o
+ * empilhamento visual esconde os nomes depois do terceiro avatar, mas o
+ * rotulo continua listando todo mundo, pra quem usa leitor de tela. */
+function viewersLabel(viewers: readonly ScreenShareViewer[]): string {
+  if (viewers.length === 1) {
+    return `${viewers[0].name} está assistindo`;
+  }
+  return `${viewers.length} pessoas assistindo: ${viewers.map((v) => v.name).join(', ')}`;
+}
+
 export function CallParticipantTile(props: {
   trackRef: TrackReferenceOrPlaceholder;
-  avatarMap: Record<string, string | null>;
+  avatarMap: Record<string, MemberAvatar>;
   onOpenVolume: (participant: RemoteParticipant, anchor: { x: number; y: number }) => void;
   /** Coloca ESTA transmissao em tela cheia. Ausente = sem botao (ex.: o tile
    * que ja esta em tela cheia nao precisa oferecer o proprio botao). */
   onExpand?: () => void;
+  /** Este tile JA esta ampliado — o botao dele vira "voltar a grade". Quando
+   * presente, substitui o botao de ampliar: um botao so, um significado por
+   * vez. Antes havia dois (o nosso e o <FocusToggle> da lib), lado a lado,
+   * com desenhos parecidos e acoes diferentes conforme o estado. */
+  onCollapse?: () => void;
   /** Ausente = nao ha o que assistir/parar de assistir neste tile. */
   watch?: WatchControl;
-  /** Quantas pessoas estao vendo ESTA transmissao. Ausente fora de screen
-   * share, ou quando o dado nao pode ser obtido (ver useScreenShareViewers). */
-  viewers?: number;
+  /** Quem esta vendo ESTA transmissao. Ausente fora de screen share, ou
+   * quando o dado nao pode ser obtido (ver useScreenShareViewers). */
+  viewers?: ScreenShareViewer[];
   /** O modo foco esta calando a voz desta pessoa (so pra mim). */
   focusMuted?: boolean;
   /** ESTA pessoa esta em modo foco — e se eu continuo sendo ouvido por ela.
@@ -76,8 +102,8 @@ export function CallParticipantTile(props: {
   /** Esconde a fileira de acoes do tile. Serve pro teatro: la o PALCO ja
    * desenha os seus botoes no mesmo canto superior direito, e os dois
    * conjuntos apareciam um por cima do outro — em hovers diferentes, o do
-   * fundo e o da transmissao. Como no teatro o `<FocusToggle>` faz o mesmo que
-   * o X do palco (voltar ao layout normal), quem sai e a fileira do tile. */
+   * fundo e o da transmissao. No teatro o X do palco ja e o "voltar ao layout
+   * normal", entao quem sai e a fileira do tile. */
   hideActions?: boolean;
 }) {
   const {
@@ -85,6 +111,7 @@ export function CallParticipantTile(props: {
     avatarMap,
     onOpenVolume,
     onExpand,
+    onCollapse,
     watch,
     viewers,
     focusMuted,
@@ -157,6 +184,18 @@ export function CallParticipantTile(props: {
     ? 'Não está te ouvindo — mutou você'
     : 'Não está te ouvindo — modo foco ligado';
 
+  // U3: aviso de conexao instavel, so no PROPRIO tile. O enum do livekit-client
+  // (ConnectionQuality) so tem Excellent/Good/Poor/Lost/Unknown. O aviso acende
+  // em Poor e Lost (o ruim de verdade), mas nao em Good/Excellent que oscilam
+  // entre si com frequencia e fariam o aviso piscar à toa.
+  const { quality: connectionQuality } = useConnectionQualityIndicator({
+    participant: trackRef.participant,
+  });
+  const showPoorConnection =
+    isCameraSource &&
+    trackRef.participant.isLocal &&
+    (connectionQuality === ConnectionQuality.Poor || connectionQuality === ConnectionQuality.Lost);
+
   const hasLiveVideo =
     !stoppedWatching &&
     isTrackReference(trackRef) &&
@@ -170,7 +209,15 @@ export function CallParticipantTile(props: {
     const video = containerRef.current?.querySelector('video');
     watch?.onStop(video ? captureFrame(video) : null);
   }, [watch]);
-  const avatarUrl = avatarMap[trackRef.participant.name || trackRef.participant.identity];
+  const member = avatarMap[trackRef.participant.name || trackRef.participant.identity];
+  const avatarUrl = member?.avatarUrl ?? null;
+  // Fundo do tile de camera desligada (U1): a cor DOMINANTE da foto, chapada.
+  // Quem nao tem foto (ou cuja cor ainda nao foi calculada) fica com o roxo de
+  // acento do tema — de proposito, nao uma cor gerada a partir do nome: cor por
+  // nome vira arco-iris aleatorio e nao diz nada sobre a pessoa.
+  // `background` (shorthand) e nao `background-color`: zera de quebra qualquer
+  // imagem/degrade que venha do CSS, garantindo a cor chapada que o design pede.
+  const placeholderBackground = member?.avatarColor ?? 'var(--accent)';
 
   return (
     <div
@@ -241,7 +288,10 @@ export function CallParticipantTile(props: {
           data-lk-video-muted="true" e data-lk-source="camera", nunca no
           screen share), a gente so troca o conteudo: SVG generico -> foto
           real (ou iniciais, se a pessoa nao tiver foto — ver Avatar.tsx). */}
-      <div className={`lk-participant-placeholder ${styles.placeholder}`}>
+      <div
+        className={`lk-participant-placeholder ${styles.placeholder}`}
+        style={{ background: placeholderBackground }}
+      >
         <Avatar
           username={trackRef.participant.name || trackRef.participant.identity}
           avatarUrl={avatarUrl}
@@ -264,16 +314,49 @@ export function CallParticipantTile(props: {
               / 's screen") e empurrando o contador de espectadores. Um sufixo
               curto, sem apostrofo, cabe na pilula e nao quebra. */}
           {!isCameraSource && <span className={styles.shareSuffix}>· tela</span>}
-          {/* Contador de espectadores, ao lado do nome da transmissao. So
-              aparece com pelo menos uma pessoa vendo — "0 assistindo" nao
-              informa nada e ainda ocuparia espaco. */}
-          {!isCameraSource && viewers !== undefined && viewers > 0 && (
+          {/* Avatares de espectadores, empilhados, ao lado do nome da
+              transmissao. So aparece com pelo menos uma pessoa vendo — um
+              badge vazio nao informa nada e ainda ocuparia espaco. Acima de
+              MAX_VIEWER_AVATARS os extras viram um "+N" em vez de mais
+              avatares (empilhar demais vira ilegivel). `role="img"` +
+              `aria-label` (mesmo padrao do `notHearingBadge` abaixo) fazem o
+              conjunto ser anunciado como uma unidade so — os avatares
+              individuais ficam `aria-hidden`, senao um leitor de tela leria
+              o alt de cada foto por cima do rotulo. */}
+          {!isCameraSource && viewers !== undefined && viewers.length > 0 && (
             <span
-              className={styles.viewerCount}
-              title={viewers === 1 ? '1 pessoa assistindo' : `${viewers} pessoas assistindo`}
+              className={styles.viewerAvatars}
+              role="img"
+              aria-label={viewersLabel(viewers)}
+              title={viewersLabel(viewers)}
             >
-              <EyeIcon size={13} />
-              {viewers}
+              {viewers.slice(0, MAX_VIEWER_AVATARS).map((viewer) => {
+                const viewerMember = avatarMap[viewer.name];
+                return (
+                  <span key={viewer.identity} className={styles.viewerAvatar} aria-hidden="true">
+                    <Avatar
+                      username={viewer.name}
+                      avatarUrl={viewerMember?.avatarUrl ?? null}
+                      size={18}
+                    />
+                  </span>
+                );
+              })}
+              {viewers.length > MAX_VIEWER_AVATARS && (
+                <span className={styles.viewerAvatarExtra} aria-hidden="true">
+                  +{viewers.length - MAX_VIEWER_AVATARS}
+                </span>
+              )}
+            </span>
+          )}
+          {/* Conexao instavel (U3): so no proprio tile, so em Poor de verdade
+              (ver comentario acima de showPoorConnection). Some sozinho quando
+              a qualidade volta — nao ha timer nem estado guardado, e reflexo
+              direto do valor atual do hook. */}
+          {showPoorConnection && (
+            <span className={styles.poorConnectionBadge} role="status">
+              <AlertTriangleIcon size={14} />
+              Conexão instável
             </span>
           )}
           {/* "Nao te ouve". Icone de ALTO-FALANTE cortado, nao de microfone:
@@ -287,22 +370,17 @@ export function CallParticipantTile(props: {
               aria-label={notHearingLabel}
               title={notHearingLabel}
             >
-              <VolumeXIcon size={13} />
+              <VolumeXIcon size={16} />
             </span>
           )}
         </div>
-        <ConnectionQualityIndicator
-          className="lk-participant-metadata-item"
-          participant={trackRef.participant}
-        />
       </div>
-      {/* UMA fileira, nao tres botoes com `right` fixo cada um.
-          Antes eram `.25rem`, `2.25rem` e `4.25rem` chutados na mao — como o
-          <FocusToggle> do LiveKit tem padding e raio proprios, os tres nunca
-          alinhavam de verdade, e bastava mudar o tamanho de um icone (ou a
-          largura do tile) pra eles se sobreporem. Num flex com `gap` quem
-          calcula o espacamento e o navegador, e continua certo em qualquer
-          proporcao de tela. */}
+      {/* UMA fileira, nao botoes com `right` fixo cada um. Antes eram
+          `.25rem`, `2.25rem` e `4.25rem` chutados na mao e nunca alinhavam de
+          verdade — bastava mudar o tamanho de um icone (ou a largura do tile)
+          pra eles se sobreporem. Num flex com `gap` quem calcula o
+          espacamento e o navegador, e continua certo em qualquer proporcao de
+          tela. */}
       {!hideActions && (
         <div className={styles.tileActions}>
           {watch?.watching && (
@@ -320,23 +398,39 @@ export function CallParticipantTile(props: {
               <EyeOffIcon size={16} />
             </button>
           )}
-          {onExpand && (
+          {/* UM botao, dois estados — nunca os dois ao mesmo tempo. O
+              `stopPropagation` e OBRIGATORIO nos dois: o tile inteiro tem
+              onClick (abre o card de volume por participante), e sem isso o
+              clique no botao abriria o card junto. */}
+          {onCollapse ? (
             <button
               type="button"
               className={styles.tileAction}
-              // OBRIGATORIO: o tile inteiro tem onClick (abre o card de volume por
-              // participante). Sem isso, expandir abriria o card junto.
               onClick={(event) => {
                 event.stopPropagation();
-                onExpand();
+                onCollapse();
               }}
-              aria-label="Ver em tela cheia"
-              title="Ver em tela cheia"
+              aria-label="Voltar à grade"
+              title="Voltar à grade"
             >
-              <ExpandIcon size={16} />
+              <CollapseIcon size={16} />
             </button>
+          ) : (
+            onExpand && (
+              <button
+                type="button"
+                className={styles.tileAction}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onExpand();
+                }}
+                aria-label="Ampliar"
+                title="Ampliar"
+              >
+                <ExpandIcon size={16} />
+              </button>
+            )
           )}
-          <FocusToggle trackRef={trackRef} />
         </div>
       )}
     </div>

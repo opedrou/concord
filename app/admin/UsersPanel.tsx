@@ -9,6 +9,7 @@ import {
   fetchUsers,
   updateUser,
 } from '@/lib/api-client';
+import { PASSWORD_MIN_LENGTH, checkPassword } from '@/lib/passwordPolicy';
 import styles from '../../styles/Admin.module.css';
 
 function formatDate(ts: number): string {
@@ -52,8 +53,14 @@ export function UsersPanel({ currentUsername }: { currentUsername: string }) {
   const onCreate: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
     setActionError(null);
-    if (!newUsername.trim() || newPassword.length < 8) {
-      setActionError('Informe um usuário e uma senha com pelo menos 8 caracteres.');
+    if (!newUsername.trim()) {
+      setActionError('Informe um nome de usuário.');
+      return;
+    }
+    // Feedback de UX — quem decide é o servidor (POST /api/users).
+    const problem = checkPassword(newPassword, newUsername);
+    if (problem) {
+      setActionError(problem.reason);
       return;
     }
     setCreating(true);
@@ -95,10 +102,11 @@ export function UsersPanel({ currentUsername }: { currentUsername: string }) {
     setResetPassword('');
   };
 
-  const onSubmitReset = async (id: number) => {
+  const onSubmitReset = async (id: number, username: string) => {
     setActionError(null);
-    if (resetPassword.length < 8) {
-      setActionError('A nova senha precisa ter pelo menos 8 caracteres.');
+    const problem = checkPassword(resetPassword, username);
+    if (problem) {
+      setActionError(problem.reason);
       return;
     }
     setBusyId(id);
@@ -161,7 +169,7 @@ export function UsersPanel({ currentUsername }: { currentUsername: string }) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
-              minLength={8}
+              minLength={PASSWORD_MIN_LENGTH}
               required
             />
           </div>
@@ -219,18 +227,18 @@ export function UsersPanel({ currentUsername }: { currentUsername: string }) {
                     <span className={styles.inlineForm}>
                       <input
                         type="password"
-                        placeholder="Nova senha (mín. 8)"
+                        placeholder={`Nova senha (mín. ${PASSWORD_MIN_LENGTH})`}
                         value={resetPassword}
                         onChange={(e) => setResetPassword(e.target.value)}
                         autoComplete="new-password"
-                        minLength={8}
+                        minLength={PASSWORD_MIN_LENGTH}
                         autoFocus
                       />
                       <button
                         className="lk-button"
                         type="button"
                         disabled={rowBusy}
-                        onClick={() => onSubmitReset(user.id)}
+                        onClick={() => onSubmitReset(user.id, user.username)}
                       >
                         Salvar
                       </button>
@@ -248,11 +256,7 @@ export function UsersPanel({ currentUsername }: { currentUsername: string }) {
                     className="lk-button"
                     type="button"
                     disabled={rowBusy || (isSelf && user.isAdmin)}
-                    title={
-                      isSelf && user.isAdmin
-                        ? 'Você não pode se despromover.'
-                        : undefined
-                    }
+                    title={isSelf && user.isAdmin ? 'Você não pode se despromover.' : undefined}
                     onClick={() => onToggleAdmin(user)}
                   >
                     {user.isAdmin ? 'Remover admin' : 'Tornar admin'}

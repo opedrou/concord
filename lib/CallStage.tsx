@@ -28,7 +28,7 @@ import { TileErrorBoundary } from '@/lib/TileErrorBoundary';
 import { ParticipantVolumeCard, useScreenShareAudioIdentities } from '@/lib/ParticipantAudioPanel';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { useFullscreen } from '@/lib/FullscreenContext';
-import { useScreenShareViewers } from '@/lib/useScreenShareViewers';
+import { useScreenShareViewers, type ScreenShareViewer } from '@/lib/useScreenShareViewers';
 import { useAudibility } from '@/lib/useAudibility';
 import { FocusModeBanner } from '@/lib/FocusModeControl';
 import { useVolumeMixer } from '@/lib/VolumeMixerContext';
@@ -36,6 +36,7 @@ import { peekScreenShareFrame } from '@/lib/peekScreenShareFrame';
 import {
   CollapseIcon,
   ExpandIcon,
+  TheaterIcon,
   CloseIcon,
   SpeakerIcon,
   Volume2Icon,
@@ -53,6 +54,25 @@ const SHOW_SETTINGS_MENU = process.env.NEXT_PUBLIC_SHOW_SETTINGS_MENU == 'true';
 const STRIP_DEFAULT_WIDTH = 220;
 const STRIP_MIN_WIDTH = 160;
 const STRIP_MAX_WIDTH = 420;
+
+// No teatro (U7) a mesma faixa vira uma BANDA horizontal embaixo do video, e o
+// que se arrasta passa a ser a ALTURA dela. E outra medida, com outra chave no
+// localStorage: a largura boa pra uma coluna lateral nao diz nada sobre a
+// altura boa pra uma banda.
+const STRIP_DEFAULT_HEIGHT = 150;
+const STRIP_MIN_HEIGHT = 90;
+const STRIP_MAX_HEIGHT = 320;
+
+/** Uma transmissao que acabou enquanto eu assistia (ver `endedShares`). */
+interface EndedShare {
+  identity: string;
+  name: string;
+  /** Ultimo quadro congelado, se houver — vira o fundo do cartaz. */
+  frame?: string;
+  /** Estava ampliada (era a `focusTrack`) quando caiu? Decide se a volta
+   * reabre em foco ou so de volta na grade. */
+  focused: boolean;
+}
 
 function trackRefKey(t: TrackReferenceOrPlaceholder): string {
   return `${t.participant.identity}_${t.source}`;
@@ -127,6 +147,11 @@ export function CallStage(props: {
     .filter(isTrackReference)
     .filter((t) => t.source === Track.Source.ScreenShare);
 
+  // Assinatura da lista de transmissoes pra dependencia de efeito: o array e
+  // outro a cada render, a string so muda quando alguem comeca ou para de
+  // transmitir.
+  const shareSidsKey = screenShareTracks.map((t) => t.publication.trackSid).join();
+
   const pinned = usePinnedTracks(layoutContext);
   const focusTrack = pinned?.[0];
   // ANTES: um efeito aqui replicava o <VideoConference> do LiveKit e focava
@@ -165,6 +190,13 @@ export function CallStage(props: {
     STRIP_DEFAULT_WIDTH,
     STRIP_MIN_WIDTH,
     STRIP_MAX_WIDTH,
+  );
+  // Altura da MESMA faixa quando ela esta deitada embaixo do video (teatro).
+  const [stripHeight, setStripHeight] = usePersistedSize(
+    'concord:participantStripHeight',
+    STRIP_DEFAULT_HEIGHT,
+    STRIP_MIN_HEIGHT,
+    STRIP_MAX_HEIGHT,
   );
 
   // --- Parar de assistir a transmissao (ROADMAP item 3) -------------------
@@ -258,26 +290,131 @@ export function CallStage(props: {
     [focusTrack, layoutContext],
   );
 
+  // Voltar a assistir SEM mexer no foco: assina de volta e marca o sid como
+  // assistido. E a metade comum entre o clique em "Assistir" e a volta de uma
+  // transmissao que estava so na grade quando caiu (U8).
+  //
+  // O quadro espiado FICA guardado de proposito (antes era apagado aqui). Ele
+  // nao aparece enquanto se assiste — o tile so desenha o congelado quando
+  // `watching` e falso — e sobrevivendo ele serve de fundo pro cartaz de
+  // "transmissao terminou" (U8) e de rede de seguranca pro "parar de assistir"
+  // quando a captura do ultimo quadro falha.
+  const resumeWatching = React.useCallback((trackRef: TrackReference) => {
+    const sid = trackRef.publication.trackSid;
+    watchingSidsRef.current.add(sid);
+    (trackRef.publication as RemoteTrackPublication).setSubscribed(true);
+    setUnwatchedSids((prev) => {
+      const next = new Set(prev);
+      next.delete(sid);
+      return next;
+    });
+  }, []);
+
   const startWatching = React.useCallback(
     (trackRef: TrackReference) => {
-      const sid = trackRef.publication.trackSid;
-      watchingSidsRef.current.add(sid);
-      (trackRef.publication as RemoteTrackPublication).setSubscribed(true);
-      setUnwatchedSids((prev) => {
-        const next = new Set(prev);
-        next.delete(sid);
-        return next;
-      });
-      setPausedFrames((prev) => {
-        const { [sid]: _removed, ...rest } = prev;
-        return rest;
-      });
+      resumeWatching(trackRef);
       // Clicar em "Assistir" e o UNICO caminho que poe uma transmissao em
-      // foco — nao ha mais auto-foco pra fazer isso por voce.
+      // foco por vontade de quem clica — nao ha mais auto-foco pra fazer isso
+      // por voce. A volta de uma transmissao esperada so passa por aqui se ela
+      // ja estava ampliada quando caiu (U8).
       layoutContext.pin.dispatch?.({ msg: 'set_pin', trackReference: trackRef });
     },
-    [layoutContext],
+    [layoutContext, resumeWatching],
   );
+
+  // --- "A transmissao terminou" (U8) --------------------------------------
+  //
+  // Quem PARA de transmitir some da lista de tracks sem avisar ninguem: quem
+  // estava assistindo simplesmente via o tile evaporar. O cartaz cobre esse
+  // buraco, e vale pra todo mundo que estava assistindo — nao so pra quem
+  // estava com a transmissao ampliada.
+  //
+  // A CHAVE E A IDENTIDADE DE QUEM TRANSMITIA, nao o `trackSid`. O sid morre
+  // junto com a transmissao: quando a pessoa recomeca, o LiveKit publica outra
+  // track, com outro sid, e uma espera guardada por sid nunca reconheceria a
+  // volta. A pessoa e o que sobrevive — e "esperar a transmissao do fulano
+  // voltar" e exatamente o que a espera significa. Por tabela isso ja da de
+  // graca o requisito de que a transmissao de OUTRA pessoa nao tire ninguem da
+  // espera: a chave dela e outra, e ela aparece normal na grade.
+  const [endedShares, setEndedShares] = React.useState<Record<string, EndedShare>>({});
+  // O que eu estava assistindo no render anterior, por sid — a unica forma de
+  // saber, quando uma track some, se EU estava vendo aquilo (o cartaz nao vale
+  // pra quem nunca clicou em "Assistir"). Guarda tambem o quadro congelado,
+  // que serve de fundo do cartaz, e se a transmissao estava ampliada, pra ela
+  // voltar do jeito que estava.
+  const watchedSharesRef = React.useRef<Map<string, EndedShare>>(new Map());
+
+  React.useEffect(() => {
+    const remotas = screenShareTracks.filter((t) => !t.participant.isLocal);
+    const presentes = new Set(remotas.map((t) => t.publication.trackSid));
+
+    // 1. Sumiu uma transmissao que eu estava assistindo => cartaz.
+    for (const [sid, info] of watchedSharesRef.current) {
+      if (presentes.has(sid)) continue;
+      watchedSharesRef.current.delete(sid);
+      setEndedShares((prev) => ({ ...prev, [info.identity]: info }));
+    }
+
+    // 2. Voltou a transmissao de quem eu estava esperando => reabre sozinha,
+    //    sem clique, DO JEITO QUE ESTAVA quando caiu: quem estava com ela
+    //    ampliada volta ampliado (`startWatching`, o mesmo caminho do clique
+    //    em "Assistir": assina e poe em foco); quem estava so acompanhando na
+    //    grade volta pra grade (`resumeWatching`, sem `set_pin`) — senao a
+    //    volta roubaria a tela de quem nao pediu foco nenhum. Os dois marcam o
+    //    sid em `watchingSidsRef`, o que impede a espiada do efeito de cima de
+    //    derrubar a assinatura que acabamos de ligar.
+    for (const t of remotas) {
+      const espera = endedShares[t.participant.identity];
+      if (!espera) continue;
+      setEndedShares((prev) => {
+        const { [t.participant.identity]: _voltou, ...rest } = prev;
+        return rest;
+      });
+      if (espera.focused) {
+        startWatching(t);
+      } else {
+        resumeWatching(t);
+      }
+    }
+
+    // 3. Anota o que estou assistindo AGORA, pro passo 1 do proximo render.
+    //    Quem eu parei de assistir sai da lista: se a transmissao acabar
+    //    depois disso, o cartaz nao tem por que aparecer.
+    for (const t of remotas) {
+      const sid = t.publication.trackSid;
+      if (unwatchedSids.has(sid)) {
+        watchedSharesRef.current.delete(sid);
+        continue;
+      }
+      watchedSharesRef.current.set(sid, {
+        identity: t.participant.identity,
+        name: t.participant.name || t.participant.identity,
+        frame: pausedFrames[sid],
+        focused: isSameTrackRef(t, focusTrack),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    shareSidsKey,
+    unwatchedSids,
+    pausedFrames,
+    endedShares,
+    focusTrack,
+    startWatching,
+    resumeWatching,
+  ]);
+
+  /** So o botao de fechar tira o cartaz — a espera nao tem timeout de
+   * proposito: quem saiu pra buscar cafe enquanto o outro reinicia o OBS
+   * precisa achar a transmissao de volta quando voltar. */
+  const dismissEndedShare = React.useCallback((identity: string) => {
+    setEndedShares((prev) => {
+      const { [identity]: _fechado, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  const endedShareList = React.useMemo(() => Object.values(endedShares), [endedShares]);
 
   /** `undefined` pra tudo que nao seja transmissao de OUTRA pessoa — a propria
    * tela nao vem pela rede, e camera de terceiro esta fora do escopo. */
@@ -303,7 +440,7 @@ export function CallStage(props: {
     .filter((t) => !t.participant.isLocal && !unwatchedSids.has(t.publication.trackSid))
     .map((t) => t.publication.trackSid);
   const viewersBySid = useScreenShareViewers(watchedSids);
-  /** Numero de espectadores de um tile, ou `undefined` se nao for transmissao. */
+  /** Espectadores de um tile, ou `undefined` se nao for transmissao. */
   const mixer = useVolumeMixer();
   const audibility = useAudibility();
 
@@ -325,7 +462,7 @@ export function CallStage(props: {
   }, [mixer, focusAudioName]);
 
   const viewersFor = React.useCallback(
-    (t: TrackReferenceOrPlaceholder): number | undefined => {
+    (t: TrackReferenceOrPlaceholder): ScreenShareViewer[] | undefined => {
       if (t.source !== Track.Source.ScreenShare || !isTrackReference(t)) {
         return undefined;
       }
@@ -366,6 +503,17 @@ export function CallStage(props: {
   const fullscreen = useFullscreen();
   const theater = fullscreen?.mode === 'theater';
   const stageRef = React.useRef<HTMLDivElement | null>(null);
+  /** Transmissao AMPLIADA: e o que a tecla F leva pro monitor inteiro, e o
+   * unico caso em que ela faz alguma coisa (U7). */
+  const theaterShare = theater && focusTrack?.source === Track.Source.ScreenShare;
+
+  /** Solta o tile ampliado e volta pra grade. E o par do `handleExpand`: o
+   * botao do tile alterna entre os dois, em vez de conviver com o
+   * <FocusToggle> da lib (que ficava ao lado, parecido, e mudava de acao
+   * sozinho conforme o estado). */
+  const handleCollapse = React.useCallback(() => {
+    layoutContext.pin.dispatch?.({ msg: 'clear_pin' });
+  }, [layoutContext]);
 
   const handleExpand = React.useCallback(
     (trackReference: TrackReferenceOrPlaceholder) => {
@@ -416,8 +564,15 @@ export function CallStage(props: {
       }
       if (event.key === 'f' || event.key === 'F') {
         if (event.ctrlKey || event.metaKey || event.altKey) return;
+        // U7: o F passou a ser TELA CHEIA DE VERDADE (o monitor inteiro, via
+        // Fullscreen API) em vez do teatro, e so vale com uma transmissao ja
+        // ampliada — sem isso nao ha o que levar pro monitor inteiro, e o
+        // caminho pro teatro continua sendo o segundo clique no tile (ou o
+        // botao do rodape). O keydown ja e o gesto do usuario que o
+        // `requestFullscreen` exige.
+        if (!theaterShare) return;
         event.preventDefault();
-        fullscreen.toggleTheater();
+        fullscreen.toggleNative(stageRef.current);
       } else if (event.key === 'Escape' && fullscreen.mode === 'theater') {
         // Se o fullscreen nativo estiver ativo, o navegador consome o Esc
         // antes de chegar aqui — este caso e so o teatro puro.
@@ -427,13 +582,17 @@ export function CallStage(props: {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fullscreen]);
+  }, [fullscreen, theaterShare]);
 
   return (
     <div
       ref={stageRef}
       className={`lk-video-conference ${styles.stage}`}
       data-fullscreen={theater ? 'true' : undefined}
+      // Tela cheia NATIVA: so o video. A faixa de gente e a alca dela somem
+      // (U7) — quem pediu o monitor inteiro pediu pra transmissao, nao pra
+      // continuar vendo as cabecas embaixo.
+      data-native-fullscreen={fullscreen?.native ? 'true' : undefined}
       data-controls-hidden={theater && !controlsVisible ? 'true' : undefined}
     >
       <LayoutContextProvider value={layoutContext} onWidgetChange={setWidgetState}>
@@ -475,6 +634,10 @@ export function CallStage(props: {
                     avatarMap={avatarMap}
                     onOpenVolume={handleOpenVolume}
                     onExpand={theater ? undefined : () => handleExpand(focusTrack)}
+                    // Este e o tile ampliado: o botao dele volta pra grade
+                    // (solta o pin). O CLIQUE no tile continua sendo
+                    // `onExpand` — e o segundo clique que leva ao teatro.
+                    onCollapse={theater ? undefined : () => handleCollapse()}
                     hideActions={theater}
                     watch={watchControlFor(focusTrack)}
                     viewers={viewersFor(focusTrack)}
@@ -487,19 +650,25 @@ export function CallStage(props: {
               {otherTracks.length > 0 && (
                 <>
                   {/* Alca entre o video e a faixa — a faixa fica DEPOIS dela
-                      (a direita), entao `invert` pra arrastar pra esquerda
-                      aumentar o espaco da faixa. Some sozinha em telas
-                      estreitas (ver ResizeHandle.module.css). */}
+                      (a direita no layout normal, EMBAIXO no teatro), entao
+                      `invert` nos dois casos: arrastar em direcao ao video
+                      aumenta o espaco da faixa. Some sozinha em telas
+                      estreitas (ver ResizeHandle.module.css).
+                      No teatro a mesma alca so vira horizontal e passa a
+                      mexer na altura — e o MESMO componente, nao um segundo. */}
                   <ResizeHandle
-                    orientation="vertical"
-                    value={stripWidth}
-                    min={STRIP_MIN_WIDTH}
-                    max={STRIP_MAX_WIDTH}
-                    onChange={setStripWidth}
+                    orientation={theater ? 'horizontal' : 'vertical'}
+                    value={theater ? stripHeight : stripWidth}
+                    min={theater ? STRIP_MIN_HEIGHT : STRIP_MIN_WIDTH}
+                    max={theater ? STRIP_MAX_HEIGHT : STRIP_MAX_WIDTH}
+                    onChange={theater ? setStripHeight : setStripWidth}
                     invert
                     label="Redimensionar faixa de participantes"
                   />
-                  <div className={styles.focusStrip} style={{ width: stripWidth }}>
+                  <div
+                    className={styles.focusStrip}
+                    style={theater ? { height: stripHeight } : { width: stripWidth }}
+                  >
                     {otherTracks.map((t) => (
                       <TileErrorBoundary key={trackRefKey(t)}>
                         <CallParticipantTile
@@ -599,9 +768,12 @@ export function CallStage(props: {
                   className={styles.headerButton}
                   onClick={() => fullscreen.enterTheater()}
                   aria-label="Modo teatro"
-                  title="Modo teatro (F)"
+                  // Sem "(F)": desde o U7 o F e TELA CHEIA DO NAVEGADOR, e so
+                  // com uma transmissao ja ampliada. Dizer que ele liga o
+                  // teatro virou mentira.
+                  title="Modo teatro"
                 >
-                  <ExpandIcon size={18} />
+                  <TheaterIcon size={18} />
                 </button>
               </div>
             )}
@@ -625,6 +797,37 @@ export function CallStage(props: {
       {/* Sem isso ninguem ouve ninguem — ver nota no topo do arquivo. */}
       <RoomAudioRenderer />
       <ConnectionStateToast />
+      {/* Cartaz de transmissao encerrada (U8). Fica por cima do palco, e nao
+          no lugar do tile: o tile ja nao existe mais quando ele aparece. */}
+      {endedShareList.length > 0 && (
+        <div className={styles.endedShares}>
+          {endedShareList.map((share) => (
+            <div key={share.identity} className={styles.endedCard} role="status">
+              {/* Ultimo quadro congelado como fundo, borrado — mesma ideia do
+                  tile de "parei de assistir". Pode nao existir (a espiada
+                  falhou), e ai o cartaz fica no fundo chapado. */}
+              {share.frame && (
+                <div
+                  className={styles.endedFrame}
+                  style={{ backgroundImage: `url(${share.frame})` }}
+                  aria-hidden="true"
+                />
+              )}
+              <div className={styles.endedBody}>
+                <span className={styles.endedTitle}>A transmissão terminou</span>
+                <span className={styles.endedName}>{share.name}</span>
+                <button
+                  type="button"
+                  className={styles.endedClose}
+                  onClick={() => dismissEndedShare(share.identity)}
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {volumeTarget && (
         <ParticipantVolumeCard
           participant={volumeTarget.participant}

@@ -289,6 +289,18 @@ export function HeadphonesIcon({ size = 18, className }: IconProps) {
   );
 }
 
+/** Fone cortado (modo surdo ligado: nada entra). */
+export function HeadphonesOffIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <rect x="2.5" y="13" width="4" height="7" rx="1.5" />
+      <rect x="17.5" y="13" width="4" height="7" rx="1.5" />
+      <line x1="4" y1="3" x2="20" y2="21" />
+    </svg>
+  );
+}
+
 /** Engrenagem (configuracoes da conta, rodape de perfil). */
 export function SettingsIcon({ size = 18, className }: IconProps) {
   return (
@@ -323,6 +335,20 @@ export function ExpandIcon({ size = 18, className }: IconProps) {
       <path d="M15 3h6v6" />
       <path d="M9 21H3v-6" />
       <path d="M15 21h6v-6" />
+    </svg>
+  );
+}
+
+/** Retangulo cheio — "modo teatro": o video ocupa a janela, sem sair da aba.
+ * Deliberadamente DIFERENTE do ExpandIcon (que virou so "ampliar o tile") e do
+ * par expandir/recolher da tela cheia do navegador: eram tres acoes com o
+ * mesmo desenho, e ninguem sabia qual botao fazia o que. */
+export function TheaterIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M6 19v2" />
+      <path d="M18 19v2" />
     </svg>
   );
 }

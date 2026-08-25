@@ -18,6 +18,7 @@ import { useRoomContext } from '@livekit/components-react';
 import { useVolumeMixer } from './VolumeMixerContext';
 import { LIVEKIT_SOURCE, effectiveGain } from './participantVolumes';
 import { FOCUS_ATTRIBUTE, MUTED_ATTRIBUTE, encodeFocus, encodeMuted } from './audibility';
+import { useDeafenPrefs } from './deafenPrefs';
 
 /** As fontes que são track do LiveKit. A soundboard é tocada localmente. */
 const APPLIED_SOURCES = ['mic', 'screenShareAudio'] as const;
@@ -58,6 +59,16 @@ export function VolumeMixerBinder() {
   const mixerRef = React.useRef(mixer);
   mixerRef.current = mixer;
 
+  // Surdo (botão de fone do rodapé da sidebar, lib/deafenPrefs.ts): zera o que
+  // ENTRA. Entra aqui, e não num lugar novo, porque este binder já é o único
+  // dono do `setVolume` — e já cobre as duas fontes remotas que existem, a voz
+  // e o áudio de compartilhamento de tela. Os sons de presença e a soundboard
+  // não passam por `setVolume` (têm AudioContext próprio) e são silenciados no
+  // `playSfx`.
+  const { deafened } = useDeafenPrefs();
+  const deafenedRef = React.useRef(deafened);
+  deafenedRef.current = deafened;
+
   const applyAll = React.useCallback(() => {
     const current = mixerRef.current;
     if (!room || !current) {
@@ -69,14 +80,18 @@ export function VolumeMixerBinder() {
       const name = participant.name || participant.identity;
       current.ensureLoaded(name);
       for (const source of APPLIED_SOURCES) {
-        const gain = effectiveGain({
-          individual: current.volumeFor(name, source),
-          master: current.master,
-          // O modo foco cala só a VOZ. Em jogo competitivo o áudio da
-          // transmissão costuma ser exatamente o que se quer continuar
-          // ouvindo — calar tudo transformaria o foco em "modo surdo".
-          focusMuted: source === 'mic' && current.isFocusMuted(name),
-        });
+        // O surdo, ao contrário do modo foco, cala TUDO — inclusive o áudio
+        // da transmissão. É o ponto do botão: nada entra.
+        const gain = deafenedRef.current
+          ? 0
+          : effectiveGain({
+              individual: current.volumeFor(name, source),
+              master: current.master,
+              // O modo foco cala só a VOZ. Em jogo competitivo o áudio da
+              // transmissão costuma ser exatamente o que se quer continuar
+              // ouvindo — calar tudo transformaria o foco em "modo surdo".
+              focusMuted: source === 'mic' && current.isFocusMuted(name),
+            });
         participant.setVolume(gain > 0 ? gain : SILENT_GAIN, LIVEKIT_SOURCE[source]);
       }
     }
@@ -85,7 +100,7 @@ export function VolumeMixerBinder() {
   // Reaplica quando o estado do mixer muda (slider, master, foco).
   React.useEffect(() => {
     applyAll();
-  }, [applyAll, mixer?.master, mixer?.focus, mixer?.volumeFor]);
+  }, [applyAll, deafened, mixer?.master, mixer?.focus, mixer?.volumeFor]);
 
   // Reaplica quando a sala muda de forma (gente nova, track nova).
   React.useEffect(() => {

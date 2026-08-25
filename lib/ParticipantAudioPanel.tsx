@@ -93,7 +93,7 @@ export function VolumeControl(props: {
         aria-valuetext={`${Math.round(volume * 100)} por cento, ${formatDb(volume)}`}
       />
       <span className={styles.volumeValue} title={`Ganho linear ${volume.toFixed(2)}×`}>
-        {Math.round(volume * 100)}%<small className={styles.volumeDb}>{formatDb(volume)}</small>
+        {Math.round(volume * 100)}%
       </span>
     </div>
   );

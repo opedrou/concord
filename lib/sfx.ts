@@ -22,14 +22,38 @@
 // descartavel — que e exatamente o caso de uso (sons curtos, repetidos, que
 // podem se sobrepor).
 //
+// SURDO: este arquivo e o ponto unico dos sons que NAO passam pelo mixer da
+// call (entrar, sair, transmissao, soundboard) — eles tem AudioContext
+// proprio, entao o `setVolume` do VolumeMixerBinder nao os alcanca. Por isso o
+// `playSfx` consulta a store do fone antes de tocar (ver lib/deafenPrefs.ts).
+//
 // REGRA DE OURO DESTE ARQUIVO: som nunca quebra a call. Toda falha aqui
 // (rede, decode, autoplay bloqueado, navegador sem Web Audio) e engolida em
 // silencio — no pior caso a pessoa fica sem o efeito sonoro.
 
+import { getDeafenPrefs } from './deafenPrefs';
+
 let sfxContext: AudioContext | null = null;
+
+// Fechamento adiado pendente (ver `closeSfxContextSoon`). Fica aqui, ao lado
+// do recurso, pra poder ser CANCELADO quando alguem volta a pedir o contexto
+// antes do prazo.
+let pendingClose: ReturnType<typeof setTimeout> | null = null;
+
+function cancelPendingClose(): void {
+  if (pendingClose !== null) {
+    clearTimeout(pendingClose);
+    pendingClose = null;
+  }
+}
 
 /** `null` se o navegador nao tem Web Audio ou se a criacao falhou. */
 function getSfxContext(): AudioContext | null {
+  // Apareceu um consumidor novo: o fechamento adiado perde a razao de ser.
+  // E isso que faz a troca rapida de canal (desmonte + remonte do
+  // JoinLeaveSounds, sem reload) nao matar o contexto do componente novo nem
+  // limpar o cache de buffers dele.
+  cancelPendingClose();
   if (sfxContext) {
     return sfxContext;
   }
@@ -105,6 +129,13 @@ export function loadSoundBuffer(url: string): Promise<AudioBuffer | null> {
  * (alguem entrou na sala).
  */
 export function preloadSfx(urls: readonly string[]): void {
+  // Chamado na montagem de quem usa os sons — e por isso o sinal mais direto
+  // de "apareceu um consumidor novo", inclusive quando ele nao vai criar nada
+  // (na troca de canal o contexto e o cache ainda estao vivos e `loadBuffer`
+  // sai pelo cache sem tocar no `getSfxContext`). Cancelar aqui e o que faz a
+  // REMONTAGEM — e nao o primeiro som, que so vem quando o Room novo conecta,
+  // bem depois do prazo — desarmar o fechamento adiado do componente velho.
+  cancelPendingClose();
   for (const url of urls) {
     void loadBuffer(url);
   }
@@ -124,6 +155,11 @@ export interface PlaySfxOptions {
  * fazer com a falha.
  */
 export function playSfx(url: string, options: PlaySfxOptions = {}): void {
+  // Surdo: nada entra. Lido na hora (nao por prop reativa) porque quem chama
+  // aqui costuma ser um callback com deps vazias.
+  if (getDeafenPrefs().deafened) {
+    return;
+  }
   const ctx = getSfxContext();
   if (!ctx) {
     return;
@@ -199,6 +235,7 @@ export function stopAllSfx(): void {
 
 /** Fecha o contexto compartilhado. So faz sentido ao sair da call. */
 export function closeSfxContext(): void {
+  cancelPendingClose();
   const ctx = sfxContext;
   sfxContext = null;
   playing.clear();
@@ -206,4 +243,21 @@ export function closeSfxContext(): void {
   // nao servem, entao o cache vai junto.
   buffers.clear();
   ctx?.close().catch(() => {});
+}
+
+/**
+ * Agenda o fechamento do contexto pra daqui a `delayMs`. Existe porque o som
+ * de SAIDA e tocado no desmonte de quem esta indo embora e e assincrono
+ * (fetch + decode + Web Audio): fechar na mesma passada sincrona cortaria o
+ * som. O adiamento e CANCELADO se um consumidor novo aparecer nesse
+ * meio-tempo — no `preloadSfx` (a montagem, que e o caso da troca de canal) ou
+ * no `getSfxContext`. Trocar de canal e desmontar e remontar: o componente
+ * novo nao pode ser fechado pelo timer do velho.
+ */
+export function closeSfxContextSoon(delayMs = 700): void {
+  cancelPendingClose();
+  pendingClose = setTimeout(() => {
+    pendingClose = null;
+    closeSfxContext();
+  }, delayMs);
 }

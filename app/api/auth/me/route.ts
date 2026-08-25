@@ -1,5 +1,5 @@
 // GET /api/auth/me
-// 200: { id: number, username: string, isAdmin: boolean, avatarUrl: string | null }
+// 200: { id, username, isAdmin, avatarUrl: string | null, avatarColor: string | null }
 // 401: { error: 'not_authenticated' }
 //
 // Campo `id` adicionado pela ONDA C — precisa dele pra montar a URL do
@@ -25,14 +25,17 @@ export async function GET(request: NextRequest) {
   if ('response' in auth) return auth.response;
 
   const db = getDb();
-  const row = db.prepare('SELECT avatar_path FROM users WHERE id = ?').get(auth.user.id) as
-    | { avatar_path: string | null }
-    | undefined;
+  const row = db
+    .prepare('SELECT avatar_path, avatar_color FROM users WHERE id = ?')
+    .get(auth.user.id) as { avatar_path: string | null; avatar_color: string | null } | undefined;
 
   return NextResponse.json({
     id: auth.user.id,
     username: auth.user.username,
     isAdmin: auth.user.isAdmin,
     avatarUrl: avatarUrlFor(auth.user.id, row?.avatar_path ?? null),
+    // U1: null com foto cadastrada significa "cor ainda nao calculada" — e o
+    // gatilho do backfill em lib/useCurrentUser.ts.
+    avatarColor: row?.avatar_color ?? null,
   });
 }

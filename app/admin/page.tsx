@@ -19,19 +19,22 @@ export const dynamic = 'force-dynamic';
 export default async function AdminPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const uid = await verifySession(token);
-  if (uid === null) {
+  const session = await verifySession(token);
+  if (!session) {
     redirect('/login');
   }
 
   const db = getDb();
-  const row = db.prepare('SELECT username, is_admin FROM users WHERE id = ?').get(uid) as
-    | { username: string; is_admin: number }
+  const row = db
+    .prepare('SELECT username, is_admin, session_version FROM users WHERE id = ?')
+    .get(session.uid) as
+    | { username: string; is_admin: number; session_version: number }
     | undefined;
 
-  // Conta pode ter sido apagada entre a assinatura da sessão e agora, ou não
-  // ser admin — nos dois casos, não mostra o painel.
-  if (!row || row.is_admin !== 1) {
+  // Conta pode ter sido apagada entre a assinatura da sessão e agora, não ser
+  // admin, ou a sessão ter sido revogada (session_version, S5) — nos três
+  // casos, não mostra o painel.
+  if (!row || row.is_admin !== 1 || row.session_version !== session.sessionVersion) {
     redirect('/');
   }
 
