@@ -2,7 +2,7 @@
 
 import React from 'react';
 import toast from 'react-hot-toast';
-import { decodePassphrase } from '@/lib/client-utils';
+import { decodePassphrase, getTabSessionId } from '@/lib/client-utils';
 import { DebugMode } from '@/lib/Debug';
 import { AlertTriangleIcon, MicOffIcon, Volume2Icon, VideoIcon } from '@/lib/icons';
 import { CallStage } from '@/lib/CallStage';
@@ -220,6 +220,14 @@ export function PageClientImpl(props: {
     url.searchParams.append('participantName', username);
     if (props.region) {
       url.searchParams.append('region', props.region);
+    }
+    // Sufixo da identity do LiveKit: o MESMO em toda reconexao desta aba, pro
+    // servidor derrubar sozinho a sessao anterior (ver getTabSessionId e
+    // app/api/connection-details/route.ts). Se vier `null` (sessionStorage
+    // bloqueado) o parametro nem vai e o servidor sorteia um, como antes.
+    const tabSessionId = getTabSessionId();
+    if (tabSessionId) {
+      url.searchParams.append('tabSessionId', tabSessionId);
     }
     fetch(url.toString())
       .then(async (resp) => {
