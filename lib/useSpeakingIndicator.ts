@@ -41,8 +41,10 @@ export type SpeakingIndicatorTrack = LocalAudioTrack | RemoteAudioTrack | TrackR
 export interface UseSpeakingIndicatorOptions {
   /** Nivel (0..1, RMS aproximado que o useTrackVolume calcula) acima do qual
    * consideramos que a pessoa COMECOU a falar. Mais alto que o de descida de
-   * proposito — histerese classica, evita que ruido de fundo ou respiracao
-   * fiquem cruzando o limiar pra frente e pra tras. */
+   * proposito — histerese classica. Em tracks remotas isso e so um detector
+   * de "tem sinal", nao um detector de "e fala": o noise gate por pessoa
+   * (micProcessor.ts) ja decidiu isso na origem antes de publicar — ver o
+   * bloco de calibracao no topo do arquivo. */
   riseThreshold?: number;
   /** Nivel abaixo do qual, mantido por `holdMs`, consideramos que a pessoa
    * PAROU de falar. Mais baixo que `riseThreshold`. */
@@ -55,15 +57,18 @@ export interface UseSpeakingIndicatorOptions {
   /** Quanto tempo (ms) o servidor pode dizer "esta falando" sem que o nosso
    * nivel local nunca tenha cruzado `riseThreshold`, antes de desistirmos do
    * caminho local (analyser quebrado/travado por algum motivo silencioso —
-   * ver "watchdog" no corpo do hook) e usarmos so o sinal do servidor dali
-   * em diante, pro resto da vida desse mount. */
+   * ver "watchdog" no corpo do hook) e usarmos o sinal do servidor. O
+   * watchdog pode disparar de novo depois disso — ver "nova chance" no
+   * corpo do hook — nao e mais definitivo pro resto do mount. */
   watchdogMs?: number;
   /** Piso (dBFS) da janela que o AnalyserNode mapeia linearmente pra
    * 0..255 via `getByteFrequencyData` — ver o bloco de calibração no topo
    * do arquivo pra entender por que isso existe. Anda junto com
-   * `maxDecibels`/`riseThreshold`/`fallThreshold`: mudar só este aqui
-   * descalibra os outros três. Overridável só pra dar pra varrer valores
-   * durante uma calibração sem recompilar — não é pra UI normal mexer. */
+   * `maxDecibels`: mudar só este aqui descalibra o outro (`riseThreshold`/
+   * `fallThreshold` sao baixos o bastante hoje que nao precisam recalcular
+   * junto — ver bloco de calibração). Overridável só pra dar pra varrer
+   * valores durante uma verificação sem recompilar — não é pra UI normal
+   * mexer. */
   minDecibels?: number;
   /** Teto (dBFS) da janela — ver `minDecibels`. */
   maxDecibels?: number;
@@ -84,7 +89,7 @@ export interface SpeakingIndicatorResult {
 }
 
 // ---------------------------------------------------------------------------
-// Bloco de calibração — estes quatro valores andam JUNTOS
+// Bloco de calibração — o que esses quatro valores precisam fazer mudou
 // ---------------------------------------------------------------------------
 //
 // `minDecibels`/`maxDecibels` definem a janela de decibéis que o
@@ -98,24 +103,58 @@ export interface SpeakingIndicatorResult {
 // satura em 255, então o nível 0..1 cola perto de 0 ou perto de 1 e quase
 // não varia no meio — o oposto do que o JSDoc de `SpeakingIndicatorResult`
 // promete ("RMS aproximado"). Essa é a causa raiz do "não aparece"/"não sai
-// do lugar" documentada no plano (PLANO-2.md, item R2).
+// do lugar" documentada no plano (PLANO-2.md, item R2). -70/-25 (mantido)
+// foi escolhido olhando a faixa de referência que o gate de mic já usa neste
+// projeto (`METER_FLOOR_DB = -65` / `METER_CEIL_DB = -5` em
+// micProcessor.ts:117-118, a melhor âncora empírica disponível aqui).
 //
-// -70/-25 abaixo é só um PONTO DE PARTIDA — não um valor validado com áudio
-// real. Foi escolhido olhando a faixa de referência que o gate de mic já usa
-// neste projeto (`METER_FLOOR_DB = -65` / `METER_CEIL_DB = -5` em
-// micProcessor.ts:117-118, a melhor âncora empírica disponível aqui), mas
-// NUNCA passou por uma call de verdade medindo esse hook especificamente.
+// `riseThreshold`/`fallThreshold`: o plano original de calibrar esses dois
+// contra fala real numa call foi CANCELADO — não porque virou desnecessário
+// calibrar, mas porque a pergunta que eles respondem mudou. Este hook mede
+// tracks REMOTAS (o tile local já não usa mais threshold nenhum — segue o
+// `gateOpen` do próprio gate, ver `CallParticipantTile.tsx`). E toda track
+// remota, antes de chegar aqui, já passou pelo noise gate por pessoa de
+// `micProcessor.ts`: denoise neural → AnalyserNode → GainNode (o gate) →
+// publicação no SFU (`LocalAudioTrack.setProcessor`). O gate está LIGADO por
+// padrão pra todo mundo (`DEFAULT_GATE_THRESHOLD = 12`, `GATE_MIN = 0` —
+// só desliga quem arrasta o slider até 0) e, quando fecha, faz
+// `gainNode.gain.linearRampToValueAtTime(0, ...)`: o que chega no navegador
+// de quem está ouvindo NÃO é "som baixo", é silêncio de verdade.
 //
-// `riseThreshold`/`fallThreshold` abaixo foram calibrados contra a escala
-// ANTIGA (-100/-80). Trocar a janela muda o que 0..1 SIGNIFICA, então esses
-// dois números ficam PENDENTES de recalibração — não são um valor
-// definitivo, são só o que já estava aqui. Use o modo de calibração mais
-// abaixo (`loadCalibrationModeEnabled`) pra gerar números reais antes de
-// mudar qualquer um dos quatro.
+// Ou seja: a pessoa remota já escolheu, na origem, o que conta como "sinal"
+// — é o threshold do gate DELA. Este hook não precisa mais decidir "isso é
+// fala ou ruído de fundo?" (o gate já decidiu isso antes de publicar); ele
+// só precisa decidir "está passando áudio, ou está em zero?". Essa é uma
+// pergunta muito mais fácil, e é por isso que não faz mais sentido gastar
+// uma calibração fina em cima dela.
+//
+// Os dois valores abaixo refletem isso: BAIXOS de propósito, porque
+// qualquer coisa "alta" cortaria fala baixa que o gate já deixou passar
+// intencionalmente (a pessoa que fala baixo e configurou o gate pra deixar
+// passar não pode ter o indicador apagado por um threshold nosso mais
+// rigoroso que o dela). Um threshold baixo não reintroduz o problema de
+// ruído de fundo que motivava um valor mais alto na leitura antiga do
+// hook: o que sobra pra medir aqui já passou por denoise neural E pelo
+// gate na origem — se não há fala, o nível que chega é ~0, não "ruído
+// baixo mas presente".
+//
+// São ESTIMATIVAS DE ENGENHARIA, não medições — nunca passaram por uma call
+// de verdade medindo especificamente este hook. O modo de calibração
+// (`loadCalibrationModeEnabled` abaixo) continua no arquivo, mas mudou de
+// papel: deixou de ser pré-requisito pra mexer nesses números e virou
+// ferramenta de VERIFICAÇÃO — usar pra confirmar que o nível cai perto de
+// zero quando o gate de alguém fecha e sobe claramente acima do threshold
+// quando ela fala, não pra descobrir o valor do zero.
 const DEFAULT_MIN_DECIBELS = -70;
 const DEFAULT_MAX_DECIBELS = -25;
-const DEFAULT_RISE_THRESHOLD = 0.08; // PENDENTE — calibrado contra a escala antiga (-100/-80 dBFS), não a de cima.
-const DEFAULT_FALL_THRESHOLD = 0.03; // PENDENTE — idem.
+// 0.02: só precisa ficar acima do que um gate fechado (nível ~0, rampa de
+// RELEASE_RAMP_MS=220ms em micProcessor.ts) deixa passar durante a rampa de
+// descida, sem cortar fala baixa que o gate de origem já deixou passar.
+const DEFAULT_RISE_THRESHOLD = 0.02;
+// 0.01: mais baixo que riseThreshold só pela histerese clássica (subida >
+// descida evita ida-e-volta no limiar); não precisa de mais distância que
+// isso porque a fonte já não tem ruído de fundo pra confundir a descida.
+const DEFAULT_FALL_THRESHOLD = 0.01;
 // Era 300ms. Investigando o "lag" relatado (ver notas no relatorio): o CSS
 // do proprio LiveKit (@livekit/components-styles,
 // .lk-participant-tile::after) ja aplica `transition-delay: .5s` +
@@ -133,6 +172,11 @@ const DEFAULT_HOLD_MS = 150;
 // caminho local (ver logica do watchdog abaixo), e desiste mais cedo de um
 // analyser que nao esta funcionando.
 const DEFAULT_WATCHDOG_MS = 1000;
+// Quantas vezes o watchdog aceita dar nova chance ao caminho local numa
+// fronteira limpa (servidor: parou -> voltou a falar) antes de desistir de
+// vez pro resto do mount — ver comentário completo junto ao watchdog. Fixo
+// (não é opção do hook): não há indício de que precise variar por chamador.
+const WATCHDOG_MAX_RETRIES = 3;
 
 // fftSize baixo de proposito: e o mesmo default que o useTrackVolume ja usa
 // (32 — ver hooks-C7fu1g_i.mjs dentro do pacote), só estamos sendo explicitos
@@ -157,27 +201,29 @@ const ANALYSER_SMOOTHING_TIME_CONSTANT = 0.15;
 // denoise.ts, `loadQualityPref` em screenShareQuality.ts): leitura com
 // try/catch, cai no default (desligado) se falhar.
 //
-// COMO USAR (pra calibrar riseThreshold/fallThreshold com áudio real):
+// COMO USAR (pra VERIFICAR riseThreshold/fallThreshold contra o gate real —
+// não mais pra descobrir o valor deles do zero, ver bloco acima):
 //  1. No console do Chrome, ANTES de entrar na call:
 //       localStorage.setItem('concord-speaking-calibration', '1')
 //     e dê F5 — a flag só é lida uma vez, no mount do hook (mesmo padrão do
 //     `audioApiSupported` logo abaixo), não muda em runtime.
 //  2. Entre na call com o mic de quem reclamou do indicador. Fale NORMAL
 //     por uns 30s (conversa comum, nem grito nem sussurro), depois fique
-//     30s em silêncio de verdade (sem digitar, sem mexer no mic).
+//     30s em silêncio deixando o GATE fechar de verdade (sem digitar, sem
+//     mexer no mic) — é o gate fechado que interessa verificar, não
+//     silêncio com gate aberto.
 //  3. O console imprime uma linha a cada CALIBRATION_LOG_INTERVAL_MS por
 //     participante com fonte local ativa, tipo:
 //       [concord-calibração] joao nível min=0.021 max=0.183 média=0.096 (n=58)
 //     Separe mentalmente as linhas de quando você estava falando das de
-//     quando estava em silêncio (o timestamp do console já ajuda nisso).
-//  4. Escolha os thresholds a partir disso:
-//       - `fallThreshold`: um pouco ACIMA do `max` típico das linhas de
-//         SILÊNCIO — senão ruído de fundo nunca deixa "parar de falar".
-//       - `riseThreshold`: um pouco ABAIXO do `min` típico das linhas de
-//         FALA — senão começos de frase mais baixos não acendem o indicador.
-//     Se as duas faixas se sobrepõem (silêncio e fala produzindo números
-//     parecidos), o problema não são os thresholds — é a janela
-//     `minDecibels`/`maxDecibels` que precisa mudar primeiro.
+//     quando o gate estava fechado (o timestamp do console já ajuda nisso).
+//  4. O que checar: com o gate fechado, o nível deve ficar perto de zero
+//     (bem abaixo de `fallThreshold`); falando normal, deve ficar claramente
+//     acima de `riseThreshold`. Se as duas faixas se sobrepõem — silêncio
+//     com gate fechado produzindo número parecido com fala — o suspeito
+//     não são mais os thresholds (já são baixos de propósito), é a janela
+//     `minDecibels`/`maxDecibels`, ou o gate daquela pessoa configurado
+//     baixo demais (sensibilidade em 0, efetivamente desligado).
 //  5. Desligue com `localStorage.removeItem('concord-speaking-calibration')`
 //     + F5 quando terminar. Não deixar ligado em uso normal.
 //
@@ -263,9 +309,9 @@ function resolveRawTrack(
  * @param options Limiares/tempos de histerese, watchdog e a janela de dB do
  *   analyser — ver o "Bloco de calibração" no topo do arquivo. `holdMs`/
  *   `watchdogMs` foram calibrados pra "parecer natural" numa call de voz
- *   normal; `riseThreshold`/`fallThreshold` estão PENDENTES de recalibração
- *   contra a nova janela `minDecibels`/`maxDecibels` (ver comentários nos
- *   defaults).
+ *   normal; `riseThreshold`/`fallThreshold` são estimativas de engenharia
+ *   (não medições) apoiadas no noise gate por pessoa que já roda antes da
+ *   publicação — ver comentários nos defaults.
  */
 export function useSpeakingIndicator(
   participant: Participant | undefined,
@@ -331,14 +377,53 @@ export function useSpeakingIndicator(
   // falando" por tempo suficiente, algo está errado silenciosamente (ex:
   // getByteFrequencyData sempre zerado por alguma peculiaridade do device) —
   // não é algo que dá pra detectar com try/catch, então comparamos com a
-  // verdade do servidor. Uma vez acionado, fica acionado (não volta a
-  // confiar no local nesse mount) — evita alternar de fonte no meio de uma
-  // fala, o que seria mais confuso que só ficar no fallback.
+  // verdade do servidor.
+  //
+  // Enquanto o servidor continua dizendo "está falando", o watchdog fica
+  // acionado sem exceção — nunca volta a confiar no local NO MEIO de uma
+  // fala, que seria a própria definição de "alternar de fonte" e mais
+  // confuso que só ficar no fallback.
+  //
+  // NOVA CHANCE (R3 do plano): fora do meio de uma fala, "acionado pra
+  // sempre" tinha um efeito colateral ruim — quem tem mic mais fraco, ganho
+  // de entrada baixo ou denoise agressivo caía no caminho lento do servidor
+  // PERMANENTEMENTE, só pra aquela pessoa, pelo resto da call, mesmo que o
+  // caminho local estivesse são o tempo todo depois daquele primeiro
+  // tropeço. A correção: só numa FRONTEIRA limpa relatada pelo servidor —
+  // "estava falando" (false) virou "está falando" (true), ou seja, o
+  // servidor confirmou que uma fala nova está começando agora — o caminho
+  // local ganha nova chance. Isso é seguro porque é exatamente a mesma
+  // condição em que o indicador já ia acender do zero de qualquer forma;
+  // não há "meio de fala" pra atravessar.
+  //
+  // Limite de tentativas (WATCHDOG_MAX_RETRIES): sem isso, um device
+  // genuinamente com problema (analyser sempre zerado) tropeçaria de novo a
+  // cada início de fala, e o indicador ficaria pingue-pongando entre
+  // 'local-volume' e 'server-events' a cada boundary — a forma mais simples
+  // de evitar isso é parar de dar chances depois de N tropeços. Passado o
+  // limite, o comportamento antigo volta: acionado pro resto do mount.
   const watchdogTrippedRef = React.useRef(false);
+  const watchdogRetriesRef = React.useRef(0);
   const serverSpeakingSinceRef = React.useRef<number | null>(null);
+  const prevServerIsSpeakingRef = React.useRef(false);
 
   React.useEffect(() => {
+    const isCleanRiseBoundary = serverIsSpeaking && !prevServerIsSpeakingRef.current;
+    prevServerIsSpeakingRef.current = serverIsSpeaking;
+
+    if (
+      watchdogTrippedRef.current &&
+      isCleanRiseBoundary &&
+      watchdogRetriesRef.current < WATCHDOG_MAX_RETRIES
+    ) {
+      watchdogTrippedRef.current = false;
+      watchdogRetriesRef.current += 1;
+    }
+
     if (!canUseLocalVolume || watchdogTrippedRef.current) {
+      if (!serverIsSpeaking) {
+        serverSpeakingSinceRef.current = null;
+      }
       return;
     }
     if (!serverIsSpeaking) {
