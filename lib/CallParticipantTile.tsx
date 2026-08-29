@@ -23,6 +23,8 @@ import {
   VolumeXIcon,
 } from '@/lib/icons';
 import { useSpeakingIndicator } from '@/lib/useSpeakingIndicator';
+import { useMicProcessor } from '@/lib/MicProcessorContext';
+import { GATE_MIN } from '@/lib/micProcessor';
 import type { MemberAvatar } from '@/lib/useMembersAvatarMap';
 import type { ScreenShareViewer } from '@/lib/useScreenShareViewers';
 import type { FocusRing } from '@/lib/audibility';
@@ -167,10 +169,38 @@ export function CallParticipantTile(props: {
   // desenha a borda, so trocamos a fonte do dado). Se o caminho local falhar,
   // o proprio hook cai no isSpeaking do servidor — nunca fica sem indicador.
   const micTracks = useParticipantTracks([Track.Source.Microphone], trackRef.participant.identity);
-  const { isSpeaking, source: speakingSource } = useSpeakingIndicator(
+  const { isSpeaking: localVolumeIsSpeaking, source: localVolumeSource } = useSpeakingIndicator(
     trackRef.participant,
     micTracks[0],
   );
+
+  // SO no proprio tile: o anel de "falando" segue o MESMO gate (threshold de
+  // sensibilidade) que a pessoa configurou no slider, em vez de um limiar
+  // independente do useSpeakingIndicator — pedido do Pedro. `mic.threshold`
+  // e o valor cru (0-100) do slider; GATE_MIN (0) significa gate DESLIGADO,
+  // e nesse caso MicProcessorChain.tick() mantem `open` sempre `true` (ver
+  // comentario em micProcessor.ts), entao usar o gate ali deixaria o anel
+  // permanentemente aceso — pior que o comportamento antigo. Cai pro
+  // useSpeakingIndicator de sempre sempre que: nao ha processor (`mic` nulo,
+  // fora do provider), ele nao esta ativo/falhou, ou o gate esta desligado.
+  // Participantes REMOTOS nunca entram aqui: o threshold e uma preferencia
+  // local de cada um (localStorage, nao propagada), entao so dá pra aplicar
+  // no PROPRIO tile.
+  const mic = useMicProcessor();
+  const gateSignalAvailable =
+    trackRef.participant.isLocal &&
+    !!mic &&
+    mic.active &&
+    !mic.processorFailed &&
+    mic.threshold > GATE_MIN;
+  // Mutado: o microfone nao esta te ouvindo, entao o anel nao pode acender
+  // mesmo que o gate esteja aberto (o gate ainda mede o mic FISICO, que
+  // continua captando som mesmo com a track LiveKit mutada). Mesma checagem
+  // que ja protege o caminho antigo hoje (com a track mutada o nivel medido
+  // pelo useTrackVolume tende a zero, mas aqui e explicito).
+  const localMicMuted = micTracks[0]?.publication?.isMuted ?? false;
+  const isSpeaking = gateSignalAvailable ? mic.gateOpen && !localMicMuted : localVolumeIsSpeaking;
+  const speakingSource = gateSignalAvailable ? 'mic-gate' : localVolumeSource;
 
   // `watch` presente e desligado => a track esta com `setSubscribed(false)`, o
   // SFU parou de mandar bytes e `publication.track` e undefined. Renderizar o

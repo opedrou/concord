@@ -1,0 +1,63 @@
+/* Modal de "chamar pessoas" (lib/CallPeoplePanel.tsx). Mesma linguagem de
+   linha da lista de membros do admin (ver .row em Admin.module.css) — não
+   importamos aquele module porque é escopo de outra página; o padrão visual
+   é copiado, não a folha. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.muted {
+  color: var(--lk-fg4, rgba(255, 255, 255, 0.6));
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.error {
+  margin: 0;
+  color: var(--lk-danger, #ff6352);
+  font-size: 0.875rem;
+}
+
+.success {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.row {
+  background-color: var(--lk-bg2, #1f1f1f);
+  border: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.15));
+  border-radius: var(--lk-border-radius, 0.5rem);
+}
+
+/* O `<label>` cobre a linha inteira — clicar em qualquer lugar (avatar, nome,
+   espaço vazio) marca o checkbox, não só a caixinha de 16px. */
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.rowName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

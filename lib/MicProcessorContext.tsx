@@ -66,6 +66,17 @@ interface ReportedState {
   browserTier: NoiseSuppressionTier;
   monitorDevice: boolean;
   processorFailed: boolean;
+  /** Estado ATUAL do gate (ver MicGateLiveState.open em micProcessor.ts) —
+   * usado pelo CallParticipantTile pra acender o anel de "falando" do PROPRIO
+   * tile seguindo o mesmo threshold que a pessoa configurou, em vez de um
+   * limiar independente. So muda quando o gate de fato abre/fecha (com
+   * histerese + hold de 400ms ja aplicados por MicProcessorChain.tick), entao
+   * vira estado do React sem virar re-render a ~33Hz — quem emite (ver
+   * MicProcessorBinder) so chama report() quando o booleano muda. Nao confie
+   * nisto sozinho: com o threshold em GATE_MIN o gate fica sempre aberto (ver
+   * comentario em micProcessor.ts tick()), entao quem consome precisa
+   * verificar tambem `threshold > GATE_MIN` antes de usar este valor. */
+  gateOpen: boolean;
 }
 
 export interface MicProcessorContextValue extends ReportedState {
@@ -123,6 +134,9 @@ export function MicProcessorProvider(props: { children: React.ReactNode }) {
     browserTier: 'unavailable',
     monitorDevice: false,
     processorFailed: false,
+    // Mesmo default do `gateOpen` inicial em MicProcessorChain — evita um
+    // instante de anel "fechado" antes do primeiro tick reportar.
+    gateOpen: true,
   });
 
   // As prefs vivem no localStorage, que nao existe no servidor. Ler no primeiro

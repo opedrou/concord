@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { apiErrorMessage, logout } from '@/lib/api-client';
 import { UsersPanel } from './UsersPanel';
 import { ChannelsPanel } from './ChannelsPanel';
+import { IntegrationsPanel } from './IntegrationsPanel';
 import { ShieldIcon } from '@/lib/icons';
 import styles from '../../styles/Admin.module.css';
 
-type Tab = 'users' | 'channels';
+type Tab = 'users' | 'channels' | 'integrations';
 
 export function AdminDashboard({
   currentUsername,
@@ -80,10 +81,24 @@ export function AdminDashboard({
         >
           Canais
         </button>
+        <button
+          className="lk-button"
+          type="button"
+          aria-pressed={tab === 'integrations'}
+          onClick={() => setTab('integrations')}
+        >
+          Integrações
+        </button>
       </nav>
 
       <section className={styles.panel}>
-        {tab === 'users' ? <UsersPanel currentUsername={currentUsername} /> : <ChannelsPanel />}
+        {tab === 'users' ? (
+          <UsersPanel currentUsername={currentUsername} />
+        ) : tab === 'channels' ? (
+          <ChannelsPanel />
+        ) : (
+          <IntegrationsPanel />
+        )}
       </section>
     </div>
   );

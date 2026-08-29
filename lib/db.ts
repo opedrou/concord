@@ -99,6 +99,40 @@ export interface DbMessage extends DbMessageAttachment {
   created_at: number;
 }
 
+/**
+ * Configuração global da instância — UMA linha só, sempre a de `id = 1`.
+ *
+ * Tabela de linha única em vez de um par chave/valor genérico porque só
+ * existe um punhado de configurações previstas e cada uma tem tipo próprio;
+ * uma coluna por configuração deixa o schema documentando o que existe, e o
+ * `CHECK (id = 1)` impede que um INSERT distraído crie uma segunda linha e
+ * torne ambíguo qual delas vale.
+ */
+export interface DbAppSettings {
+  id: number;
+  /**
+   * URL do webhook disparado pelo botão de "chamar pessoas". NULL = nenhum
+   * webhook configurado (o botão fica indisponível).
+   *
+   * TRATAR COMO SEGREDO: a URL costuma carregar o token de autenticação
+   * embutido (`https://hook.exemplo/xyz?token=...`), então ela nunca sai numa
+   * resposta de API — nem para admin. Mesmo cuidado que já existe com
+   * `users.password_hash`.
+   */
+  call_webhook_url: string | null;
+  /**
+   * Segredo usado para assinar (HMAC-SHA256) o POST enviado ao webhook — ver
+   * lib/webhook.ts. NULL = nenhum segredo gerado ainda.
+   *
+   * SEGREDO DE VERDADE, e com uma regra a mais que a URL: o valor sai daqui
+   * UMA única vez, na resposta da rota que o gera, para o admin colar no n8n.
+   * Depois disso nenhuma API devolve o valor — só `hasSecret: boolean`. Perdeu,
+   * regenera (e atualiza o n8n). Coluna adicionada por
+   * migrateWebhookSecretColumn().
+   */
+  call_webhook_secret: string | null;
+}
+
 /** Abre (ou reaproveita) a conexão com o banco e garante o schema. */
 export function getDb(): DatabaseSync {
   if (globalThis.__appDb) {
@@ -167,12 +201,34 @@ export function getDb(): DatabaseSync {
     );
   `);
 
+  // Configuração global da instância (ver DbAppSettings). O CREATE TABLE só
+  // cobre banco que ainda NÃO tem a tabela — num banco onde ela já existe, ele
+  // não faz nada e coluna nova precisa de ALTER TABLE (ver
+  // migrateWebhookSecretColumn). Ou seja: coluna acrescentada aqui embaixo tem
+  // que aparecer TAMBÉM numa migrateXxx, senão a feature funciona só em banco
+  // criado do zero.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      call_webhook_url TEXT,
+      call_webhook_secret TEXT
+    );
+  `);
+  // A linha única nasce aqui, vazia, em todo boot. `INSERT OR IGNORE` é
+  // idempotente (a segunda vez esbarra na PK e não faz nada), e materializar a
+  // linha no boot evita que cada escritura tenha que decidir entre INSERT e
+  // UPDATE — daqui pra frente todo mundo lê e grava com `WHERE id = 1` e
+  // pronto. O custo é uma linha de NULLs num banco que nunca configurou nada,
+  // o que é exatamente o estado que queremos representar.
+  db.exec('INSERT OR IGNORE INTO app_settings (id, call_webhook_url) VALUES (1, NULL);');
+
   migrateAvatarColumn(db);
   migrateSoundTrimColumns(db);
   migrateChannelTypeColumn(db);
   migrateAttachmentColumns(db);
   migrateSessionVersionColumn(db);
   migrateAvatarColorColumn(db);
+  migrateWebhookSecretColumn(db);
 
   globalThis.__appDb = db;
   return db;
@@ -311,6 +367,29 @@ function migrateAvatarColorColumn(db: DatabaseSync): void {
   if (!hasAvatarColorColumn) {
     db.exec('ALTER TABLE users ADD COLUMN avatar_color TEXT;');
     console.log('[migrate] coluna users.avatar_color adicionada.');
+  }
+}
+
+/**
+ * Migração aditiva (C1 — assinatura do webhook): coluna `call_webhook_secret`
+ * em `app_settings`.
+ *
+ * Ela também está no CREATE TABLE acima, mas isso só resolve banco NOVO: a
+ * tabela `app_settings` já existe em qualquer instalação que tenha subido
+ * depois do C1, e ali o `IF NOT EXISTS` simplesmente não roda. Sem este ALTER,
+ * gerar o segredo quebraria com "no such column" em todo banco existente.
+ * Mesmo padrão das migrações acima: PRAGMA table_info antes, porque
+ * node:sqlite não aceita "ADD COLUMN IF NOT EXISTS". Anulável (NULL = nenhum
+ * segredo gerado). Não destrutivo.
+ */
+function migrateWebhookSecretColumn(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(app_settings)').all() as unknown as Array<{
+    name: string;
+  }>;
+  const hasSecretColumn = columns.some((c) => c.name === 'call_webhook_secret');
+  if (!hasSecretColumn) {
+    db.exec('ALTER TABLE app_settings ADD COLUMN call_webhook_secret TEXT;');
+    console.log('[migrate] coluna app_settings.call_webhook_secret adicionada.');
   }
 }
 

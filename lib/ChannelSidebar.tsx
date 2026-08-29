@@ -19,6 +19,7 @@ import {
   ConcordMark,
 } from '@/lib/icons';
 import { useCallState } from '@/lib/CallStateContext';
+import { useSpeakingHold } from '@/lib/useSpeakingHold';
 import { getDeafenPrefs, setDeafened, setMicMuted, useDeafenPrefs } from '@/lib/deafenPrefs';
 import { stopAllSfx } from '@/lib/sfx';
 import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
@@ -52,6 +53,126 @@ export interface ChannelSidebarProps {
    */
   widthPx?: number;
 }
+
+/**
+ * Uma linha da lista de ocupantes de um canal de voz, ja normalizada — nao
+ * importa se veio do polling (`PresenceParticipant`, sem `speaking`) ou do
+ * estado ao vivo (`LiveParticipantState`, chaveado por identity em vez de
+ * carregar a identity dentro). O JSX de baixo le so isto, um campo por vez,
+ * sem saber de onde a linha veio.
+ */
+interface OccupantRow {
+  identity: string;
+  name: string;
+  muted: boolean;
+  camera: boolean;
+  screenShare: boolean;
+  speaking: boolean;
+}
+
+interface OccupantListItemProps {
+  name: string;
+  avatarUrl: string | null;
+  muted: boolean;
+  camera: boolean;
+  screenShare: boolean;
+  speaking: boolean;
+}
+
+// PONTO DE PARTIDA, NAO VALIDADO numa call de verdade (ver R5 em PLANO-2.md).
+// Nao copiar o DEFAULT_HOLD_MS=150 do tile (useSpeakingIndicator.ts): aquele
+// valor foi calibrado contra o CSS do proprio LiveKit
+// (@livekit/components-styles, .lk-participant-tile::after), que ja aplica
+// `transition-delay: .5s` + `transition-duration: .4s` ao apagar — quase 1s
+// de anti-flicker de graca, so por cima do qual o holdMs do tile precisa
+// segurar. O CSS daqui (ChannelSidebar.module.css, .occupantAvatarWrap) e
+// simetrico — `transition: box-shadow 0.12s` tanto pra acender quanto pra
+// apagar, sem delay nenhum — entao esse hold precisa segurar sozinho as
+// pausas normais entre palavras/frases. Em compensacao, o sinal de entrada
+// aqui e `room.activeSpeakers`, agregado e suavizado no servidor (mais
+// grosso e mais espacado que o nivel de audio cru que o tile mede local),
+// entao nao precisa do mesmo tanto de margem que um nivel instavel pediria.
+// 400ms e o meio-termo escolhido com esse raciocinio, sem medicao real.
+const SIDEBAR_SPEAKING_HOLD_MS = 400;
+
+/**
+ * Uma linha de ocupante, isolada com `React.memo`. O `CallStateBinder`
+ * reconstroi o mapa `byIdentity` inteiro e republica a cada
+ * `ActiveSpeakersChanged` do LiveKit — evento que dispara o tempo todo numa
+ * conversa normal — trocando o `value` do `CallStateContext` inteiro. Sem
+ * este memo, a `ChannelSidebar` inteira (todas as secoes, todo o dedupe,
+ * todos os `<li>`) rediffaria a cada transicao de fala. So funciona porque
+ * toda prop aqui e primitiva: passar o `OccupantRow` inteiro ou o
+ * `avatarMap` inteiro (objetos recriados a cada render do pai) faria o
+ * comparador raso do memo falhar sempre.
+ *
+ * `speaking` (prop) e o booleano CRU vindo do `CallStateBinder`
+ * (`room.activeSpeakers` agregado no servidor — ver R5 em PLANO-2.md). Sem
+ * suavizacao ele pisca a cada oscilacao do agregador; `useSpeakingHold`
+ * segura o "aceso" por `SIDEBAR_SPEAKING_HOLD_MS` depois que ele cai, sem
+ * mexer em como o sinal chega ate aqui. Como este componente e chaveado por
+ * identity e fica montado enquanto a pessoa esta na lista, o estado do hold
+ * fica estavel por pessoa e some sozinho (com o timer) quando ela sai.
+ */
+const OccupantListItem = React.memo(function OccupantListItem({
+  name,
+  avatarUrl,
+  muted,
+  camera,
+  screenShare,
+  speaking,
+}: OccupantListItemProps) {
+  const heldSpeaking = useSpeakingHold(speaking, SIDEBAR_SPEAKING_HOLD_MS);
+  return (
+    <li className={styles.occupant}>
+      <span
+        className={`${styles.occupantAvatarWrap} ${heldSpeaking ? styles.occupantSpeaking : ''}`}
+      >
+        <Avatar username={name} avatarUrl={avatarUrl} size={24} />
+      </span>
+      <span className={styles.occupantName} title={name}>
+        {name}
+      </span>
+      {/* Icones so aparecem quando ha o que dizer: nada
+          de icone "ligado" permanente competindo com o
+          nome. Mudo e o unico estado negativo mostrado —
+          microfone aberto e o normal e nao precisa de
+          simbolo. */}
+      {/* Os icones de lib/icons.tsx sao sempre
+          `aria-hidden` por construcao; o texto
+          acessivel vai no elemento que os envolve —
+          convencao documentada no topo daquele
+          arquivo. */}
+      <span className={styles.occupantBadges}>
+        {screenShare && (
+          <span className={styles.liveBadge} title="Compartilhando tela">
+            LIVE
+          </span>
+        )}
+        {camera && (
+          <span
+            className={styles.occupantIcon}
+            role="img"
+            aria-label="Camera ligada"
+            title="Camera ligada"
+          >
+            <VideoIcon size={14} />
+          </span>
+        )}
+        {muted && (
+          <span
+            className={`${styles.occupantIcon} ${styles.occupantIconMuted}`}
+            role="img"
+            aria-label="Microfone mudo"
+            title="Microfone mudo"
+          >
+            <MicOffIcon size={14} />
+          </span>
+        )}
+      </span>
+    </li>
+  );
+});
 
 /**
  * Sidebar permanente de canais, estilo Discord: duas secoes (texto com "#" e
@@ -253,13 +374,36 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
           </div>
           <ul className={styles.channelList}>
             {voiceChannels.map((channel) => {
-              const occupants = presence[channel.slug] ?? [];
+              // So o canal em que voce esta CONECTADO tem estado ao vivo (ver
+              // CallStateContext.tsx) — e la ele e a fonte INTEIRA da lista,
+              // nao um verniz por cima do polling: o polling so descobre que
+              // alguem entrou ou saiu no proximo tick (ate 4s de atraso, ver
+              // usePresencePolling.ts), mas o `CallStateBinder` ja escuta
+              // ParticipantConnected/ParticipantDisconnected e publica na
+              // hora. Nos demais canais nao existe conexao nenhuma pra tirar
+              // esse dado, entao o polling continua sendo a unica fonte.
+              const occupants: OccupantRow[] =
+                callState?.slug === channel.slug
+                  ? Object.entries(callState.byIdentity).map(([identity, p]) => ({
+                      identity,
+                      name: p.name,
+                      muted: p.muted,
+                      camera: p.camera,
+                      screenShare: p.screenShare,
+                      speaking: p.speaking,
+                    }))
+                  : (presence[channel.slug] ?? []).map((p) => ({
+                      identity: p.identity,
+                      name: p.name,
+                      muted: p.muted,
+                      camera: p.camera,
+                      screenShare: p.screenShare,
+                      // O polling nao sabe quem esta falando agora — isso so
+                      // existe no estado ao vivo, e so pro canal em que voce
+                      // esta.
+                      speaking: false,
+                    }));
               const isActive = channel.slug === props.activeChannelSlug;
-              // So o canal em que voce esta de fato conectado tem estado ao
-              // vivo; nos demais, `undefined` faz cada linha cair no dado do
-              // polling.
-              const liveByIdentity =
-                callState?.slug === channel.slug ? callState.byIdentity : undefined;
 
               // Defesa extra contra o bug da pessoa duplicada (ver
               // PageClientImpl.tsx e HANDOFF secao 9): mesmo com o
@@ -267,17 +411,25 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               // ainda pode sobreviver por alguns segundos ate expirar no SFU
               // (ex: aba fechada sem chegar a rodar o cleanup do React, ou o
               // proprio timeout normal do servidor). Deduplicamos por
-              // `cleanName` na EXIBICAO — duas entradas de presenca pra
-              // mesma pessoa viram um so avatar na lista, mesmo que as duas
-              // identities (com sufixo aleatorio diferente) continuem
-              // existindo de verdade no LiveKit.
+              // `cleanName` na EXIBICAO — duas entradas pra mesma pessoa
+              // (do polling, do estado ao vivo, ou uma de cada enquanto o
+              // SFU nao expirou a sessao fantasma) viram um so avatar na
+              // lista, mesmo que as identities (com sufixo aleatorio
+              // diferente) continuem existindo de verdade no LiveKit.
               const seenNames = new Set<string>();
-              const dedupedOccupants = occupants.filter((p) => {
-                const cleanName = p.name || p.identity;
-                if (seenNames.has(cleanName)) return false;
-                seenNames.add(cleanName);
-                return true;
-              });
+              const dedupedOccupants = occupants
+                .filter((p) => {
+                  const cleanName = p.name || p.identity;
+                  if (seenNames.has(cleanName)) return false;
+                  seenNames.add(cleanName);
+                  return true;
+                })
+                // O estado ao vivo reconstroi o mapa INTEIRO a cada evento do
+                // LiveKit (ver CallStateBinder.tsx), com o participante local
+                // sempre primeiro — uma ordem diferente da do polling.
+                // Ordenar por nome evita a lista pular de lugar a cada troca
+                // de fonte ou a cada evento.
+                .sort((a, b) => (a.name || a.identity).localeCompare(b.name || b.identity));
 
               return (
                 <li key={channel.id}>
@@ -305,70 +457,17 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                         // connection-details/route.ts), que nunca bate com
                         // as chaves de avatarMap (indexado por username).
                         const cleanName = p.name || p.identity;
-                        // Estado ao vivo (do CallStateBinder) vence o do
-                        // polling, mas SO no canal em que voce esta — nos
-                        // outros nao existe informacao ao vivo nenhuma. Ver
-                        // lib/CallStateContext.tsx.
-                        const live = liveByIdentity?.[p.identity];
-                        const muted = live ? live.muted : p.muted;
-                        const camera = live ? live.camera : p.camera;
-                        const screenShare = live ? live.screenShare : p.screenShare;
-                        const speaking = live?.speaking ?? false;
 
                         return (
-                          <li key={p.identity} className={styles.occupant}>
-                            <span
-                              className={`${styles.occupantAvatarWrap} ${
-                                speaking ? styles.occupantSpeaking : ''
-                              }`}
-                            >
-                              <Avatar
-                                username={cleanName}
-                                avatarUrl={avatarMap[cleanName]?.avatarUrl ?? null}
-                                size={24}
-                              />
-                            </span>
-                            <span className={styles.occupantName} title={cleanName}>
-                              {cleanName}
-                            </span>
-                            {/* Icones so aparecem quando ha o que dizer: nada
-                                de icone "ligado" permanente competindo com o
-                                nome. Mudo e o unico estado negativo mostrado —
-                                microfone aberto e o normal e nao precisa de
-                                simbolo. */}
-                            {/* Os icones de lib/icons.tsx sao sempre
-                                `aria-hidden` por construcao; o texto
-                                acessivel vai no elemento que os envolve —
-                                convencao documentada no topo daquele
-                                arquivo. */}
-                            <span className={styles.occupantBadges}>
-                              {screenShare && (
-                                <span className={styles.liveBadge} title="Compartilhando tela">
-                                  LIVE
-                                </span>
-                              )}
-                              {camera && (
-                                <span
-                                  className={styles.occupantIcon}
-                                  role="img"
-                                  aria-label="Camera ligada"
-                                  title="Camera ligada"
-                                >
-                                  <VideoIcon size={14} />
-                                </span>
-                              )}
-                              {muted && (
-                                <span
-                                  className={`${styles.occupantIcon} ${styles.occupantIconMuted}`}
-                                  role="img"
-                                  aria-label="Microfone mudo"
-                                  title="Microfone mudo"
-                                >
-                                  <MicOffIcon size={14} />
-                                </span>
-                              )}
-                            </span>
-                          </li>
+                          <OccupantListItem
+                            key={p.identity}
+                            name={cleanName}
+                            avatarUrl={avatarMap[cleanName]?.avatarUrl ?? null}
+                            muted={p.muted}
+                            camera={p.camera}
+                            screenShare={p.screenShare}
+                            speaking={p.speaking}
+                          />
                         );
                       })}
                     </ul>

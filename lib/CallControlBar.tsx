@@ -13,6 +13,7 @@ import {
 } from '@livekit/components-react';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import { Soundboard } from '@/lib/Soundboard';
+import { CallPeoplePanel } from '@/lib/CallPeoplePanel';
 import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
 import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import styles from '../styles/CallControlBar.module.css';
@@ -125,6 +126,10 @@ export function CallControlBar(props: {
           "Participantes" antigo) — agora e so mais um item da fileira. */}
         {/* Soundboard compartilhada (ver lib/soundboardEvents.tsx). */}
         <Soundboard />
+
+        {/* "Chamar pessoas" (C2 + C3 do PLANO-2.md) — avisa quem não está na
+          call agora, via webhook configurado em /admin. Ver lib/CallPeoplePanel.tsx. */}
+        <CallPeoplePanel />
 
         {/* O botao de chat saiu daqui: virou acao do cabecalho do palco
             (ver lib/CallStage.tsx), junto do modo teatro. Esta barra ficou so

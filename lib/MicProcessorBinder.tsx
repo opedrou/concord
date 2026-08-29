@@ -28,6 +28,11 @@ export function MicProcessorBinder() {
 
   const processorRef = React.useRef<MicProcessorChain | null>(null);
   const trackRef = React.useRef<LocalAudioTrack | null>(null);
+  // Ultimo `open` reportado pro contexto — o tick roda a ~33Hz mas o gate so
+  // abre/fecha raramente (histerese + hold), entao so chamamos
+  // `internals.report` quando o booleano de fato vira, pra nao empurrar
+  // setState a 33Hz na arvore de React (ver MicProcessorContext.tsx).
+  const lastGateOpenRef = React.useRef<boolean | null>(null);
 
   // Reaplica as constraints NATIVAS na track. Chamada tanto quando a pessoa
   // liga/desliga a camada do navegador quanto quando troca o modelo neural —
@@ -86,8 +91,15 @@ export function MicProcessorBinder() {
       const monitorDevice = isMonitorDevice(track.mediaStreamTrack?.label);
       internals.report({ active: true, monitorDevice });
 
+      lastGateOpenRef.current = null;
       const processor = new MicProcessorChain(threshold, denoiseModel, inputGain);
-      processor.onLevel = ({ levelDb }) => internals.emitLevel(levelDb);
+      processor.onLevel = ({ levelDb, open }) => {
+        internals.emitLevel(levelDb);
+        if (lastGateOpenRef.current !== open) {
+          lastGateOpenRef.current = open;
+          internals.report({ gateOpen: open });
+        }
+      };
       processor.onDenoiseStatus = (denoiseStatus) => internals.report({ denoiseStatus });
       try {
         await track.setProcessor(processor);

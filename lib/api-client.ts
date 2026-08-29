@@ -160,6 +160,8 @@ export function apiErrorMessage(err: unknown): string {
         return 'Já existe um usuário com esse nome.';
       case 'slug_taken':
         return 'Já existe um canal com esse identificador.';
+      case 'invalid_url':
+        return 'URL inválida. Precisa ser um endereço https:// completo.';
       case 'last_admin':
         return 'Essa ação deixaria o sistema sem nenhum administrador. Promova outra pessoa antes.';
       case 'invalid_format':
@@ -172,6 +174,16 @@ export function apiErrorMessage(err: unknown): string {
         return 'Falha de rede ao enviar o arquivo.';
       case 'aborted':
         return 'Envio cancelado.';
+      case 'rate_limited':
+        return 'Você já chamou gente demais na última hora. Espere um pouco.';
+      case 'unknown_user':
+        return 'Alguém da lista não existe mais. Atualize a página e tente de novo.';
+      case 'unknown_channel':
+        return 'Esse canal não existe mais. Atualize a página.';
+      case 'not_configured':
+        return 'Nenhum webhook de chamada configurado. Peça pra um admin configurar.';
+      case 'no_secret':
+        return 'O webhook de chamada está sem segredo de assinatura. Peça pra um admin gerar.';
       case 'attachment_not_found':
         return 'O arquivo enviado não foi encontrado no servidor. Envie de novo.';
       case 'unsupported_format':
@@ -535,4 +547,129 @@ export async function deleteSound(id: number): Promise<void> {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new ApiError(body.error ?? 'unknown', res.status);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Webhook de "chamar pessoas" (C1). Contrato confirmado lendo
+// app/api/settings/webhook/route.ts.
+
+/**
+ * Estado do webhook, sem o segredo. A rota nunca devolve a URL inteira (ela
+ * costuma ter o token embutido), então o cliente sabe apenas SE existe uma
+ * configurada e para qual host ela aponta. Consequência prática: o formulário
+ * do admin é write-only — não dá pra pré-preencher o campo com o valor atual.
+ */
+export interface WebhookSettings {
+  configured: boolean;
+  /** Só o host ("hook.exemplo"), pro admin conferir o destino. null quando não há webhook. */
+  host: string | null;
+  /** Existe um segredo de assinatura gravado. O valor em si nunca vem por aqui. */
+  hasSecret: boolean;
+}
+
+/** Admin-only. */
+export async function fetchWebhookSettings(): Promise<WebhookSettings> {
+  const res = await fetch('/api/settings/webhook', { credentials: 'same-origin' });
+  return parseJsonOrThrow<WebhookSettings>(res);
+}
+
+/** Admin-only. `url` vazia ou null apaga a configuração. Só aceita https. */
+export async function saveWebhookSettings(url: string | null): Promise<WebhookSettings> {
+  const res = await fetch('/api/settings/webhook', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ url }),
+  });
+  return parseJsonOrThrow<WebhookSettings>(res);
+}
+
+/**
+ * Gera (ou regenera) o segredo que assina o POST do webhook. Admin-only.
+ *
+ * O `secret` devolvido aqui é a ÚNICA vez que o valor chega ao cliente — o
+ * `fetchWebhookSettings` só informa `hasSecret`. Quem chamar isto tem que
+ * mostrar o valor na hora pro admin copiar; perdeu, só gerando outro (e aí o
+ * n8n precisa ser atualizado, senão a conferência da assinatura passa a
+ * falhar).
+ */
+export async function generateWebhookSecret(): Promise<{ secret: string }> {
+  const res = await fetch('/api/settings/webhook/secret', {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  return parseJsonOrThrow<{ secret: string }>(res);
+}
+
+/**
+ * Resultado do disparo de teste. Grosso de propósito: o servidor nunca devolve
+ * o corpo da resposta do webhook (ver app/api/settings/webhook/test).
+ */
+export interface WebhookTestResult {
+  ok: boolean;
+  /** Código HTTP devolvido pelo webhook, quando houve resposta. */
+  status?: number;
+  error?: 'timeout' | 'blocked' | 'redirect' | 'network' | 'not_configured' | 'no_secret';
+}
+
+/**
+ * Dispara um POST de teste, assinado, no webhook configurado. Admin-only.
+ * Responde 200 mesmo quando o disparo falha — o motivo vem em `error`.
+ */
+export async function testWebhook(): Promise<WebhookTestResult> {
+  const res = await fetch('/api/settings/webhook/test', {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  return parseJsonOrThrow<WebhookTestResult>(res);
+}
+
+/** Frase pronta pro painel a partir do resultado do teste. */
+export function webhookTestMessage(result: WebhookTestResult): string {
+  if (result.ok) {
+    return `Webhook respondeu ${result.status}. Deu certo.`;
+  }
+  switch (result.error) {
+    case 'not_configured':
+      return 'Nenhum webhook configurado.';
+    case 'no_secret':
+      return 'Gere o segredo antes de testar — sem ele o POST não pode ser assinado.';
+    case 'blocked':
+      return 'Destino recusado: precisa ser https e apontar para um endereço público (IP privado, loopback ou link-local é bloqueado).';
+    case 'redirect':
+      return 'O webhook respondeu com um redirecionamento, e redirecionamento não é seguido. Configure a URL final.';
+    case 'timeout':
+      return 'O webhook não respondeu a tempo.';
+    case 'network':
+      return 'Não foi possível alcançar o webhook (DNS ou conexão).';
+    default:
+      return result.status
+        ? `O webhook respondeu ${result.status} — ele recebeu o POST, mas não aceitou.`
+        : 'Falha ao disparar o webhook.';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Chamar pessoas (C3). Contrato confirmado lendo app/api/call-people/route.ts.
+
+/**
+ * Dispara a notificação de "fulano está te chamando no canal X". Manda SÓ os
+ * ids — os nomes que vão na notificação são resolvidos no servidor, contra o
+ * banco.
+ *
+ * Responde assim que o disparo é agendado: o servidor não espera o webhook, e
+ * por isso `ok: true` significa "o pedido foi aceito e o POST saiu", não "a
+ * notificação chegou". Se o n8n estiver fora, ninguém aqui fica sabendo — é a
+ * troca deliberada por não travar quem clicou.
+ *
+ * Limite de 6 chamadas por hora, por pessoa: estourou, vem `rate_limited` (429).
+ */
+export async function callPeople(userIds: number[], channelSlug: string): Promise<void> {
+  const res = await fetch('/api/call-people', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ userIds, channelSlug }),
+  });
+  await parseJsonOrThrow<{ ok: true; called: number }>(res);
 }
