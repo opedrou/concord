@@ -102,6 +102,11 @@ export function CallControlBar(props: {
               props.onDeviceError?.({ source: Track.Source.ScreenShare, error: e })
             }
           />
+          {/* Audio de UM app (Linux) — terceiro segmento da MESMA pastilha.
+            E a mesma pergunta pra quem chega ("como mando o som do jogo?") e
+            a resposta do Chrome no Linux e "so de aba", entao os dois moram
+            juntos. O resto da cadeia esta em scripts/concord-audio. */}
+          <AppAudioButton />
           <div className="lk-button-group-menu">
             <button
               type="button"
@@ -123,12 +128,6 @@ export function CallControlBar(props: {
             </>
           )}
         </div>
-
-        {/* Audio de UM app (Linux). Fica colado no grupo do compartilhar tela
-          porque e a mesma pergunta pra quem chega: "como mando o som do
-          jogo?". A resposta do Chrome no Linux e "so de aba" — o resto da
-          cadeia mora em scripts/concord-audio. */}
-        <AppAudioButton />
 
         {/* Antes era outro botao flutuante solto (mesma familia visual do
           "Participantes" antigo) — agora e so mais um item da fileira. */}

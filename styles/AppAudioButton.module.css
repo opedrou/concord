@@ -1,6 +1,12 @@
-/* Botão de áudio de app (ver lib/AppAudioButton.tsx). Mesmo desenho de popover
-   da soundboard: pastilha na barra, painel acima, backdrop transparente pra
-   fechar clicando fora. */
+/* Botão de áudio de app (ver lib/AppAudioButton.tsx). Popover no desenho da
+   soundboard: painel acima, backdrop transparente pra fechar clicando fora.
+
+   O botão é o segmento do MEIO da pastilha do compartilhar tela — entre o
+   toggle e o chevron de qualidade. Por isso ele não tem canto arredondado
+   nenhum e desenha a própria divisória, do mesmo jeito que
+   `.lk-button-group-menu > .lk-button` faz no CallControlBar.module.css:
+   `box-shadow` inset e não `border`, porque borda muda a largura do segmento
+   e desalinha a fileira inteira. */
 
 .wrap {
   position: relative;
@@ -9,14 +15,20 @@
   flex-shrink: 0;
 }
 
-.button {
+/* Classe TRIPLICADA (0,3,0) de proposito. `.pill :global(.lk-button)` no
+   CallControlBar.module.css tambem vale 0,2,0 e poe `border-radius: 13px` — no
+   empate quem ganha e a ordem de injecao das folhas, que em SSR e
+   imprevisivel. Mesmo motivo do `.tile.tile::after` que ja existe no projeto. */
+.button.button.button {
   display: flex;
   align-items: center;
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 var(--lk-bg2);
 }
 
 /* Compartilhando ganha o acento, pela mesma regra do botão de tela: cor na
    barra significa "isto está mudando o que as outras pessoas ouvem". */
-.button[data-concord-sharing] {
+.button.button[data-concord-sharing] {
   background: var(--accent);
   color: #fff;
 }
