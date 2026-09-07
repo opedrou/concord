@@ -215,10 +215,11 @@ export function CallStage(props: {
   // VPS). O que corta os bytes de verdade e `setSubscribed(false)` na
   // publicacao remota — a partir dai o LiveKit para de pedir a track.
   //
-  // O AUDIO da transmissao continua assinado de proposito: e uma track
-  // separada (Track.Source.ScreenShareAudio), custa pouca banda, e "parei de
-  // olhar mas continuo ouvindo o jogo" e util. Quem quiser calar tem o slider
-  // proprio no card de volume por participante (ParticipantAudioPanel.tsx).
+  // O AUDIO da transmissao segue a MESMA chave do video: so ouve quem clicou
+  // em "Assistir". Antes ele ficava assinado de proposito ("parei de olhar mas
+  // continuo ouvindo o jogo"), mas isso fazia o som da live comecar sozinho
+  // pra quem nunca abriu a transmissao. Quem esta assistindo e quiser so calar
+  // tem o slider proprio no card de volume (ParticipantAudioPanel.tsx).
   //
   // Guardado por `trackSid`: quando a pessoa reinicia a transmissao, o sid e
   // outro e a transmissao volta a entrar DESLIGADA, como qualquer outra nova.
@@ -282,6 +283,36 @@ export function CallStage(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenShareTracks.map((t) => t.publication.trackSid).join()]);
+
+  // Audio de tela e uma publicacao SEPARADA da de video: o LiveKit assina ela
+  // sozinha assim que aparece, sem passar por nada do "parar de assistir"
+  // acima. Sem este efeito o som da transmissao toca antes de qualquer clique.
+  // Espelha a assinatura do audio na decisao ja tomada pro video do MESMO
+  // participante — `watchingSidsRef` (e nao `unwatchedSids`) porque ele ja
+  // vale no primeiro render em que a transmissao aparece, sem a janela de um
+  // frame em que o sid novo ainda nao entrou no estado.
+  const audioIdentitiesKey = React.useMemo(
+    () => [...screenShareAudioIdentities].sort().join(),
+    [screenShareAudioIdentities],
+  );
+  React.useEffect(() => {
+    if (!room) {
+      return;
+    }
+    for (const participant of room.remoteParticipants.values()) {
+      const audioPub = participant.getTrackPublication(Track.Source.ScreenShareAudio);
+      if (!audioPub) {
+        continue;
+      }
+      const shareSid = participant.getTrackPublication(Track.Source.ScreenShare)?.trackSid;
+      (audioPub as RemoteTrackPublication).setSubscribed(
+        !!shareSid && watchingSidsRef.current.has(shareSid),
+      );
+    }
+    // `unwatchedSids` na dep e o gatilho de "alguem clicou em Assistir/Parar":
+    // muda de identidade a cada toggle, que e quando `watchingSidsRef` mudou.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room, audioIdentitiesKey, shareSidsKey, unwatchedSids]);
 
   const stopWatching = React.useCallback(
     (trackRef: TrackReference, frame: string | null) => {
