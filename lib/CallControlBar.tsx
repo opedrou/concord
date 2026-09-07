@@ -13,7 +13,9 @@ import {
 } from '@livekit/components-react';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import { Soundboard } from '@/lib/Soundboard';
+import { AppAudioButton } from '@/lib/AppAudioButton';
 import { CallPeoplePanel } from '@/lib/CallPeoplePanel';
+import { WatchPanel } from '@/lib/WatchPanel';
 import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
 import { DEFAULT_USER_CHOICES } from '@/lib/userChoices';
 import styles from '../styles/CallControlBar.module.css';
@@ -122,6 +124,12 @@ export function CallControlBar(props: {
           )}
         </div>
 
+        {/* Audio de UM app (Linux). Fica colado no grupo do compartilhar tela
+          porque e a mesma pergunta pra quem chega: "como mando o som do
+          jogo?". A resposta do Chrome no Linux e "so de aba" — o resto da
+          cadeia mora em scripts/concord-audio. */}
+        <AppAudioButton />
+
         {/* Antes era outro botao flutuante solto (mesma familia visual do
           "Participantes" antigo) — agora e so mais um item da fileira. */}
         {/* Soundboard compartilhada (ver lib/soundboardEvents.tsx). */}
@@ -130,6 +138,7 @@ export function CallControlBar(props: {
         {/* "Chamar pessoas" (C2 + C3 do PLANO-2.md) — avisa quem não está na
           call agora, via webhook configurado em /admin. Ver lib/CallPeoplePanel.tsx. */}
         <CallPeoplePanel />
+        <WatchPanel />
 
         {/* O botao de chat saiu daqui: virou acao do cabecalho do palco
             (ver lib/CallStage.tsx), junto do modo teatro. Esta barra ficou so

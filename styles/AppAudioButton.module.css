@@ -1,0 +1,92 @@
+/* Botão de áudio de app (ver lib/AppAudioButton.tsx). Mesmo desenho de popover
+   da soundboard: pastilha na barra, painel acima, backdrop transparente pra
+   fechar clicando fora. */
+
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+}
+
+/* Compartilhando ganha o acento, pela mesma regra do botão de tela: cor na
+   barra significa "isto está mudando o que as outras pessoas ouvem". */
+.button[data-concord-sharing] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: transparent;
+}
+
+.panel {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  width: 17rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: var(--lk-border-radius, 0.5rem);
+  background: var(--lk-bg2, #1f1f1f);
+  border: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.15));
+  box-shadow: var(--lk-box-shadow, 0 8px 32px rgba(0, 0, 0, 0.6));
+}
+
+.title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.command {
+  display: block;
+  margin-top: 0.4rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  background: var(--lk-bg3, #2b2b2b);
+  font-size: 0.72rem;
+  user-select: all;
+}
+
+.deviceButton {
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--lk-bg3, #2b2b2b);
+  color: var(--fg);
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.deviceButton:hover {
+  filter: brightness(1.12);
+}
+
+.error {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--danger, #f0625d);
+}

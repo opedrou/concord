@@ -19,12 +19,17 @@ export const DEFAULT_VOLUME = 1;
 // boost simplesmente não acontece.
 export const MAX_VOLUME = 2;
 
-export type SourceKey = 'mic' | 'screenShareAudio' | 'soundboard';
+export type SourceKey = 'mic' | 'screenShareAudio' | 'soundboard' | 'appAudio';
 
 /**
  * `soundboard` de propósito NÃO está aqui: ela não é uma track do LiveKit (o
  * som é tocado localmente por quem ouve, ver lib/soundboardEvents.ts), então
  * não há `Track.Source` pra ela. O volume dela é aplicado no player.
+ *
+ * `appAudio` também fica de fora, por outro motivo: ela É uma track, mas é
+ * publicada como `Track.Source.Unknown` (ver lib/appAudio.ts) e o
+ * `RemoteParticipant.setVolume` só aceita `Microphone | ScreenShareAudio` na
+ * assinatura. O ganho dela é aplicado na própria track, no VolumeMixerBinder.
  */
 export const LIVEKIT_SOURCE: Record<
   'mic' | 'screenShareAudio',

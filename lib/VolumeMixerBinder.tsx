@@ -13,12 +13,13 @@
 // valesse. Aqui a aplicação é contínua e não depende de nenhuma UI estar viva.
 
 import * as React from 'react';
-import { ConnectionState, RoomEvent } from 'livekit-client';
+import { ConnectionState, RoomEvent, type RemoteAudioTrack } from 'livekit-client';
 import { useRoomContext } from '@livekit/components-react';
 import { useVolumeMixer } from './VolumeMixerContext';
 import { LIVEKIT_SOURCE, effectiveGain } from './participantVolumes';
 import { FOCUS_ATTRIBUTE, MUTED_ATTRIBUTE, encodeFocus, encodeMuted } from './audibility';
 import { useDeafenPrefs } from './deafenPrefs';
+import { isAppAudioPublication } from './appAudio';
 
 /** As fontes que são track do LiveKit. A soundboard é tocada localmente. */
 const APPLIED_SOURCES = ['mic', 'screenShareAudio'] as const;
@@ -93,6 +94,32 @@ export function VolumeMixerBinder() {
               focusMuted: source === 'mic' && current.isFocusMuted(name),
             });
         participant.setVolume(gain > 0 ? gain : SILENT_GAIN, LIVEKIT_SOURCE[source]);
+      }
+
+      // Áudio de app (lib/appAudio.ts) é a única fonte que É track do LiveKit
+      // mas não passa pelo laço acima: ela é publicada como
+      // `Track.Source.Unknown`, e a assinatura do `setVolume` do participante
+      // só aceita `Microphone | ScreenShareAudio`. Aplicar direto na track é o
+      // caminho — `RemoteAudioTrack.setVolume` é justamente o que o
+      // `participant.setVolume` chama por baixo depois de achar a publicação.
+      //
+      // Isto NÃO é enfeite: sem este bloco a faixa tocaria sempre no volume
+      // cheio e o botão de surdo não a calaria.
+      const appGain = deafenedRef.current
+        ? 0
+        : effectiveGain({
+            individual: current.volumeFor(name, 'appAudio'),
+            master: current.master,
+            // Como o áudio de tela, o som do jogo continua passando no modo
+            // foco: é o que a pessoa quer continuar ouvindo.
+            focusMuted: false,
+          });
+      for (const publication of participant.audioTrackPublications.values()) {
+        if (isAppAudioPublication(publication)) {
+          (publication.track as RemoteAudioTrack | undefined)?.setVolume(
+            appGain > 0 ? appGain : SILENT_GAIN,
+          );
+        }
       }
     }
   }, [room]);

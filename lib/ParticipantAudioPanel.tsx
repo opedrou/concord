@@ -5,6 +5,7 @@ import { RemoteParticipant, Track } from 'livekit-client';
 import { useIsSpeaking, useTracks } from '@livekit/components-react';
 import { CloseIcon, EyeOffIcon, Volume2Icon, VolumeXIcon } from '@/lib/icons';
 import { useVolumeMixer } from '@/lib/VolumeMixerContext';
+import { isAppAudioPublication } from '@/lib/appAudio';
 import {
   SLIDER_STEPS,
   formatDb,
@@ -27,6 +28,24 @@ export function useScreenShareAudioIdentities(): Set<string> {
   return React.useMemo(
     () => new Set(screenShareAudioRefs.map((ref) => ref.participant.identity)),
     [screenShareAudioRefs],
+  );
+}
+
+/**
+ * O mesmo, pra quem esta compartilhando o audio de um app (lib/appAudio.ts).
+ * Nao da pra perguntar por `Track.Source`: a faixa e publicada como `Unknown`
+ * pra nao colidir com o audio de aba, entao quem identifica e o nome dela.
+ */
+export function useAppAudioIdentities(): Set<string> {
+  const refs = useTracks([Track.Source.Unknown], { onlySubscribed: false });
+  return React.useMemo(
+    () =>
+      new Set(
+        refs
+          .filter((ref) => ref.publication && isAppAudioPublication(ref.publication))
+          .map((ref) => ref.participant.identity),
+      ),
+    [refs],
   );
 }
 
@@ -118,6 +137,7 @@ export function ParticipantVolumeCard(props: {
 }) {
   const { participant, hasScreenShareAudio, anchor, onClose } = props;
   const isSpeaking = useIsSpeaking(participant);
+  const hasAppAudio = useAppAudioIdentities().has(participant.identity);
   const mixer = useVolumeMixer();
   const name = participant.name || participant.identity;
   const focusMuted = mixer?.isFocusMuted(name) ?? false;
@@ -171,6 +191,7 @@ export function ParticipantVolumeCard(props: {
         {hasScreenShareAudio && (
           <VolumeControl name={name} sourceKey="screenShareAudio" label="Áudio da tela" />
         )}
+        {hasAppAudio && <VolumeControl name={name} sourceKey="appAudio" label="Áudio do app" />}
         {/* Terceira fonte, independente da voz: da pra calar a soundboard de
             alguem e continuar ouvindo a pessoa falar. Ver
             lib/soundboardEvents.ts. */}
