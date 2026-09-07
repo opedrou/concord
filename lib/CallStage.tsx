@@ -45,6 +45,8 @@ import {
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ResizeHandle } from '@/lib/ResizeHandle';
 import { usePersistedSize } from '@/lib/usePersistedSize';
+import { useWatch } from '@/lib/WatchContext';
+import { WatchStage } from '@/lib/WatchStage';
 import styles from '../styles/CallStage.module.css';
 
 const SHOW_SETTINGS_MENU = process.env.NEXT_PUBLIC_SHOW_SETTINGS_MENU == 'true';
@@ -177,6 +179,13 @@ export function CallStage(props: {
   }, [focusTrack, screenShareTracks.map((t) => t.publication.trackSid).join()]);
 
   const otherTracks = tracks.filter((t) => !isSameTrackRef(t, focusTrack));
+
+  // Assistir junto (W2): quando ha sessao, o player fica no lugar grande e
+  // TODA a gente vai pra faixa — inclusive quem estava ampliado. Ver
+  // lib/WatchStage.tsx pra por que o player nao entra pelo `pin`.
+  const watch = useWatch();
+  const watchActive = watch?.source != null;
+  const stripTracks = watchActive ? tracks : otherTracks;
 
   const avatarMap = useMembersAvatarMap();
 
@@ -625,29 +634,36 @@ export function CallStage(props: {
           )}
           {/* Antes de tudo no palco, impossivel de ignorar. */}
           <FocusModeBanner />
-          {focusTrack ? (
+          {watchActive || focusTrack ? (
             <div className={`lk-focus-layout-wrapper ${styles.focusWrapper}`}>
               <div className={styles.focusMain}>
-                <TileErrorBoundary>
-                  <CallParticipantTile
-                    trackRef={focusTrack}
-                    avatarMap={avatarMap}
-                    onOpenVolume={handleOpenVolume}
-                    onExpand={theater ? undefined : () => handleExpand(focusTrack)}
-                    // Este e o tile ampliado: o botao dele volta pra grade
-                    // (solta o pin). O CLIQUE no tile continua sendo
-                    // `onExpand` — e o segundo clique que leva ao teatro.
-                    onCollapse={theater ? undefined : () => handleCollapse()}
-                    hideActions={theater}
-                    watch={watchControlFor(focusTrack)}
-                    viewers={viewersFor(focusTrack)}
-                    focusMuted={isFocusMuted(focusTrack)}
-                    focusRing={audibility[focusTrack.participant.identity]?.ring}
-                    mutedMe={audibility[focusTrack.participant.identity]?.mutedMe}
-                  />
-                </TileErrorBoundary>
+                {/* Sessao de assistir junto toma o lugar grande e empurra
+                    TODA a gente pra faixa — inclusive quem estaria ampliado.
+                    Ver lib/WatchStage.tsx. */}
+                {watchActive ? (
+                  <WatchStage />
+                ) : (
+                  <TileErrorBoundary>
+                    <CallParticipantTile
+                      trackRef={focusTrack!}
+                      avatarMap={avatarMap}
+                      onOpenVolume={handleOpenVolume}
+                      onExpand={theater ? undefined : () => handleExpand(focusTrack!)}
+                      // Este e o tile ampliado: o botao dele volta pra grade
+                      // (solta o pin). O CLIQUE no tile continua sendo
+                      // `onExpand` — e o segundo clique que leva ao teatro.
+                      onCollapse={theater ? undefined : () => handleCollapse()}
+                      hideActions={theater}
+                      watch={watchControlFor(focusTrack!)}
+                      viewers={viewersFor(focusTrack!)}
+                      focusMuted={isFocusMuted(focusTrack!)}
+                      focusRing={audibility[focusTrack!.participant.identity]?.ring}
+                      mutedMe={audibility[focusTrack!.participant.identity]?.mutedMe}
+                    />
+                  </TileErrorBoundary>
+                )}
               </div>
-              {otherTracks.length > 0 && (
+              {stripTracks.length > 0 && (
                 <>
                   {/* Alca entre o video e a faixa — a faixa fica DEPOIS dela
                       (a direita no layout normal, EMBAIXO no teatro), entao
@@ -669,7 +685,7 @@ export function CallStage(props: {
                     className={styles.focusStrip}
                     style={theater ? { height: stripHeight } : { width: stripWidth }}
                   >
-                    {otherTracks.map((t) => (
+                    {stripTracks.map((t) => (
                       <TileErrorBoundary key={trackRefKey(t)}>
                         <CallParticipantTile
                           trackRef={t}

@@ -673,3 +673,24 @@ export async function callPeople(userIds: number[], channelSlug: string): Promis
   });
   await parseJsonOrThrow<{ ok: true; called: number }>(res);
 }
+
+/** Um item da biblioteca do Jellyfin (W3). Espelha lib/jellyfin.ts. */
+export interface JellyfinItem {
+  id: string;
+  name: string;
+  type: string;
+  year: number | null;
+  durationMs: number | null;
+}
+
+/**
+ * Navega a biblioteca do Jellyfin. Lanca quando o servidor nao esta
+ * configurado (503) — quem chama esconde a secao inteira nesse caso, em vez de
+ * mostrar um erro pra quem nem usa Jellyfin.
+ */
+export async function fetchJellyfinItems(parentId?: string): Promise<JellyfinItem[]> {
+  const query = parentId ? `?parentId=${encodeURIComponent(parentId)}` : '';
+  const res = await fetch(`/api/jellyfin/items${query}`, { credentials: 'same-origin' });
+  const data = await parseJsonOrThrow<{ items: JellyfinItem[] }>(res);
+  return data.items;
+}

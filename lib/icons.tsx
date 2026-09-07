@@ -386,3 +386,12 @@ export function EyeOffIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+/** Triangulo de play. Assistir junto (W5). */
+export function PlayIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M8 5.5v13l11-6.5z" />
+    </svg>
+  );
+}

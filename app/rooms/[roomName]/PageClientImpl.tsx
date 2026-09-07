@@ -20,6 +20,7 @@ import { CallStateBinder } from '@/lib/CallStateBinder';
 import { JoinLeaveSounds } from '@/lib/JoinLeaveSounds';
 import { VolumeMixerBinder } from '@/lib/VolumeMixerBinder';
 import { DeafenBinder } from '@/lib/DeafenBinder';
+import { WatchProvider } from '@/lib/WatchContext';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
 import {
@@ -764,10 +765,17 @@ function VideoConferenceComponent(props: {
         {/* Tambem sem UI: toca os sons de entrar/sair/transmitir. O liga e
             desliga fica na janela de configuracoes, secao Notificacoes. */}
         <JoinLeaveSounds />
-        <CallStage
-          chatMessageFormatter={formatChatMessageLinks}
-          onDeviceError={handleDeviceError}
-        />
+        {/* Assistir junto (W1/W2/W4/W5). Envolve o palco E a barra de
+            controle porque os dois precisam da MESMA sessao: a barra abre,
+            o palco desenha o player. Fica dentro do RoomContext porque o
+            protocolo usa o canal de dados e os atributos da sala. Ver
+            lib/WatchContext.tsx. */}
+        <WatchProvider>
+          <CallStage
+            chatMessageFormatter={formatChatMessageLinks}
+            onDeviceError={handleDeviceError}
+          />
+        </WatchProvider>
         <DebugMode />
         <RecordingIndicator />
       </RoomContext.Provider>
