@@ -3,22 +3,34 @@
 # concord-audio — compartilha o som de UM app numa call do Concord, no Linux.
 #
 # Chrome no Linux só compartilha áudio de ABA; janela e tela cheia não têm som.
-# O truque antigo (escolher "Monitor of ..." como microfone) manda a call inteira
-# de volta pra call, porque o monitor carrega a voz dos outros saindo do fone.
-# Aqui o navegador NUNCA é linkado, então o isolamento é por construção.
+# O truque antigo (escolher "Monitor of ..." como microfone) manda a call
+# inteira de volta pra call, porque o monitor carrega a voz dos outros saindo
+# do fone. Aqui o navegador nunca é linkado, então o isolamento é por
+# construção.
 #
-# A cadeia (medida em 2026-08-30, ver AUDIO-APP-LINUX.md):
+# A cadeia:
 #
-#   app → pw-loopback → null sink concord_share → remap-source → ConcordMic
+#   app --(link porta a porta, ADICIONAL)--> null sink --remap--> ConcordMic
 #
-# As três peças são obrigatórias:
-#   - pw-loopback (e NÃO pw-link porta a porta): só ele faz o downmix. Linkar
-#     FL/FR de um app 5.1 na mão descarta o canal central, ou seja, o diálogo.
-#   - null sink: destino privado, não vira sink padrão, não atrapalha ninguém.
-#   - remap-source: o Chromium filtra os "Monitor of ..." do enumerateDevices();
-#     sem ele o dispositivo simplesmente não aparece na app.
+# O link é adicional: o app continua tocando no fone, em paralelo.
 #
-# O link é ADICIONAL, não é move-sink-input: o app continua tocando no seu fone.
+# POR QUE NÃO pw-loopback (o desenho original do AUDIO-APP-LINUX.md):
+# medido em 2026-09-06, `pw-loopback --capture-props='target.object=<serial do
+# stream>'` NÃO se prende ao stream do app. Um stream de captura só aceita
+# source ou monitor de sink como alvo; com o alvo inválido o WirePlumber
+# reconecta no source PADRÃO — o microfone. Resultado: a voz do dono vazava
+# pra dentro do compartilhamento, em silêncio. `stream.capture.sink=true`
+# também não resolve: aí ele pega o monitor do sink padrão, ou seja, o mix do
+# sistema inteiro, que é exatamente o eco que queremos evitar.
+#
+# O link porta a porta não tem esse modo de falha: ou o link existe, ou o
+# comando falha na cara. É o que o obs-pipewire-audio-capture faz.
+#
+# O null sink nasce com o MESMO número de canais do app, pra não descartar
+# canal nenhum no caminho; quem desce pra estéreo é o module-remap-source, que
+# remixa. O module-remap-source também é obrigatório por outro motivo: o
+# Chromium filtra os "Monitor of ..." do enumerateDevices(), então sem ele o
+# dispositivo nem aparece na app.
 #
 # Uso:
 #   concord-audio                 menu com os apps que estão tocando
@@ -33,43 +45,65 @@ SINK=concord_share
 SOURCE=concord_mic
 POLL_SECONDS=2
 
-# serial do stream -> pid do pw-loopback que o está duplicando
-declare -A LOOPS=()
-
 die() { echo "concord-audio: $*" >&2; exit 1; }
 
-for tool in pw-dump pw-loopback pactl jq; do
+for tool in pw-dump pw-link pactl jq; do
   command -v "$tool" >/dev/null || die "$tool não está instalado"
 done
 
 # --- inventário -------------------------------------------------------------
 
-# Streams de saída de áudio, menos os nossos próprios loopbacks (que também são
-# Stream/Output/Audio e apareceriam na lista, convidando a linkar o sink nele
-# mesmo). Formato: pid<TAB>serial<TAB>nome.
+# Streams de saída de áudio, menos as nossas próprias peças.
+# Formato: client id<TAB>node id<TAB>nome.
+#
+# O `select(.type == ...Node)` não é detalhe: um objeto **Client** também
+# carrega `media.class` nos props, então sem ele a lista mistura cliente com
+# node — e o cliente é justamente o que NÃO tem portas pra linkar.
+#
+# A chave de agrupamento é o `client.id`, não o PID. Medido nesta máquina: o
+# node que o Spotify realmente toca não carrega `application.process.id`
+# nenhum (quem tem o PID é o objeto Client); os do Firefox carregam. `client`
+# é o único campo presente nos dois casos, e um app pode ter VÁRIOS nodes —
+# Firefox tem 2 — que casar por node compartilharia metade do som, em
+# silêncio.
 streams() {
   pw-dump | jq -r '
-    .[] | select(.info.props."media.class" == "Stream/Output/Audio")
+    .[] | select(.type == "PipeWire:Interface:Node")
+        | select(.info.props."media.class" == "Stream/Output/Audio")
         | select((.info.props."node.name" // "") | startswith("concord_") | not)
-        | "\(.info.props."application.process.id" // "-")\t\(.info.props."object.serial")\t\(.info.props."application.name" // .info.props."node.name" // "?")"
+        | "\(.info.props."client.id" // "-")\t\(.id)\t\(.info.props."application.name" // .info.props."node.name" // "?")"
   '
 }
 
-# Um app pode ter VÁRIOS streams — medido nesta máquina: Spotify 2, Firefox 2.
-# Por isso a unidade de escolha é o PID, não o object.serial: casar por serial
-# compartilharia metade do som, em silêncio.
+# client id -> PID, só pra mostrar na tela e pra aceitar PID como argumento.
+pid_of_client() {
+  pw-dump | jq -r --argjson cid "$1" '
+    .[] | select(.type == "PipeWire:Interface:Client" and .id == $cid)
+        | .info.props."application.process.id" // "-"
+  ' | head -1
+}
+
 apps() {
   streams | awk -F'\t' '$1 != "-" { if (!($1 in seen)) { seen[$1]; print $1 "\t" $3 } }'
 }
 
-serials_of() {
-  streams | awk -F'\t' -v pid="$1" '$1 == pid { print $2 }'
+nodes_of() {
+  streams | awk -F'\t' -v cid="$1" '$1 == cid { print $2 }'
+}
+
+# Portas de saída de um node: "id do port<TAB>canal" (FL, FR, FC, MONO...).
+out_ports_of() {
+  pw-dump | jq -r --argjson nid "$1" '
+    .[] | select(.type == "PipeWire:Interface:Port")
+        | select(.info.props."node.id" == $nid and .info.props."port.direction" == "out")
+        | "\(.id)\t\(.info.props."audio.channel" // "MONO")"
+  '
 }
 
 # --- cadeia -----------------------------------------------------------------
 
-# Serve de sweep de órfãos (na entrada) e de faxina (na saída). O módulo vive no
-# pipewire-pulse, não neste processo: se o script morrer de vez, o sink fica
+# Serve de sweep de órfãos (na entrada) e de faxina (na saída). O módulo vive
+# no pipewire-pulse, não neste processo: se o script morrer de vez, o sink fica
 # pendurado pra sempre e vira dispositivo fantasma no pavucontrol.
 # Ordem reversa: o remap-source depende do monitor do null sink.
 unload_ours() {
@@ -79,56 +113,65 @@ unload_ours() {
     | while read -r id; do pactl unload-module "$id" 2>/dev/null || true; done
 }
 
+# O sink copia o número de canais do app. Um sink estéreo receberia só FL/FR de
+# um app 5.1 e o canal central — ou seja, o diálogo — sumiria no caminho.
 mount_chain() {
+  local channels="$1"
   pactl load-module module-null-sink \
-    sink_name="$SINK" sink_properties=device.description=ConcordShare >/dev/null
+    sink_name="$SINK" channels="$channels" \
+    sink_properties=device.description=ConcordShare >/dev/null
+  # ponytail: o remix pra estéreo é do remap-source. Testado só com app
+  # estéreo — o multicanal não reproduz aqui, porque o app segue o layout do
+  # sink de saída e o fone é estéreo. Se um dia sair torto em 5.1, o degrau
+  # seguinte é um pw-loopback entre o monitor do sink e um segundo sink
+  # estéreo (aí o alvo É um monitor, e o audioconvert faz a conta).
   pactl load-module module-remap-source \
     master="$SINK".monitor source_name="$SOURCE" \
+    channels=2 channel_map=front-left,front-right \
     source_properties=device.description=ConcordMic >/dev/null
 }
 
-# Idempotente: sobe um loopback pra cada stream novo do PID e derruba os que
-# sumiram. Um link referencia ID de PORTA, não nome — um jogo que recria o áudio
-# ao trocar de fase derruba tudo em silêncio, e o outro lado só percebe o som
-# sumindo. Pausa (cork) não derruba: o node continua existindo.
-sync_loops() {
-  local serial seen=""
-  while read -r serial; do
-    [[ -n $serial ]] || continue
-    seen+=" $serial"
-    if [[ -z ${LOOPS[$serial]:-} ]]; then
-      pw-loopback \
-        --capture-props="target.object=$serial node.name=concord_capture" \
-        --playback-props="target.object=$SINK node.name=concord_loopback" \
-        >/dev/null 2>&1 &
-      LOOPS[$serial]=$!
-      echo "  + stream $serial"
-    fi
-  done < <(serials_of "$1")
-
-  for serial in "${!LOOPS[@]}"; do
-    if [[ " $seen " != *" $serial "* ]]; then
-      kill "${LOOPS[$serial]}" 2>/dev/null || true
-      unset 'LOOPS[$serial]'
-      echo "  - stream $serial"
-    fi
-  done
+# Idempotente: linka o que ainda não está linkado e ignora o "File exists" do
+# que já está. Chamado no boot e a cada volta do watcher — um jogo que recria o
+# áudio ao trocar de fase ganha os links de volta sozinho.
+sync_links() {
+  local node port_id channel linked=0
+  while read -r node; do
+    [[ -n $node ]] || continue
+    while IFS=$'\t' read -r port_id channel; do
+      [[ -n $port_id ]] || continue
+      if pw-link "$port_id" "$SINK:playback_$channel" 2>/dev/null; then
+        echo "  + $channel (porta $port_id)"
+        linked=$((linked + 1))
+      fi
+    done < <(out_ports_of "$node")
+  done < <(nodes_of "$1")
+  return 0
 }
 
 cleanup() {
   trap - EXIT INT TERM
   echo
   echo "desmontando..."
-  for pid in ${LOOPS[@]+"${LOOPS[@]}"}; do kill "$pid" 2>/dev/null || true; done
+  # Os links morrem junto com o sink; não há processo nosso pra matar.
   unload_ours
 }
 
 # --- escolha do app ---------------------------------------------------------
 
+# Devolve sempre um client id. Aceita client id, PID ou pedaço do nome.
 resolve() {
-  local arg="$1"
+  local arg="$1" cid
   if [[ $arg =~ ^[0-9]+$ ]]; then
-    echo "$arg"
+    # É client id?
+    if apps | cut -f1 | grep -qx "$arg"; then
+      echo "$arg"
+      return
+    fi
+    # Então tenta como PID.
+    while read -r cid _; do
+      [[ $(pid_of_client "$cid") == "$arg" ]] && { echo "$cid"; return; }
+    done < <(apps)
     return
   fi
   apps | awk -F'\t' -v want="${arg,,}" 'tolower($2) ~ want { print $1; exit }'
@@ -141,7 +184,7 @@ menu() {
   echo "apps com som:" >&2
   while IFS=$'\t' read -r pid name; do
     n=$((n + 1))
-    echo "  $n) $name (pid $pid)" >&2
+    echo "  $n) $name (pid $(pid_of_client "$pid"))" >&2
   done <<<"$list"
   local choice
   read -rp "qual? [1-$n] " choice </dev/tty
@@ -149,19 +192,42 @@ menu() {
   sed -n "${choice}p" <<<"$list" | cut -f1
 }
 
+# Quantos canais o app está tocando. É o que define a largura do null sink.
+channels_of() {
+  local first
+  first=$(nodes_of "$1" | head -1)
+  [[ -n $first ]] || return 1
+  out_ports_of "$first" | wc -l
+}
+
+start_for() {
+  local client="$1" channels
+  channels=$(channels_of "$client") || die "esse app não está tocando nada agora"
+  [[ ${channels:-0} -gt 0 ]] || die "esse app não está tocando nada agora"
+  unload_ours
+  mount_chain "$channels"
+  trap cleanup EXIT INT TERM
+  echo "compartilhando o áudio de $(pid_of_client "$client" | sed 's/^/pid /') ($channels canais)"
+  sync_links "$client"
+}
+
 # --- checagem ---------------------------------------------------------------
 #
-# A única checagem runnable que este script deixa: monta a cadeia, grava 1 s do
-# ConcordMic e imprime o RMS. Com o app tocando tem que dar bem acima de zero
-# (a referência medida no doc foi 4702,8); com o app parado e outra coisa
-# tocando alto tem que dar 0, que é o teste de isolamento.
+# A checagem runnable deste script: monta a cadeia, grava 1 s do ConcordMic e
+# imprime o RMS. Com o app tocando tem que dar bem acima de zero; com o app
+# parado e outra coisa tocando alto tem que dar perto de zero, que é o teste de
+# isolamento.
+#
+# Medir o RMS não basta pra dizer que está certo — um RMS gordo já foi o
+# microfone pegando o som da caixa. Por isso o `--check` também imprime QUEM
+# está alimentando o sink: se aparecer um `alsa_input...`, é o mic, e a cadeia
+# está errada.
 check() {
-  local pid="$1"
-  unload_ours
-  mount_chain
-  trap cleanup EXIT INT TERM
-  sync_loops "$pid"
+  local client="$1"
+  start_for "$client"
   sleep 1
+  echo "=== quem alimenta o $SINK ==="
+  pw-link -l | grep -A2 "^$SINK:playback" || echo "  (ninguém — nenhum link de pé)"
   # `|| true`: o head fecha o cano e o parec morre de SIGPIPE (141) — com
   # pipefail isso derrubaria o script antes de imprimir o resultado.
   local rms
@@ -176,7 +242,9 @@ check() {
 
 case "${1:-}" in
   --list)
-    apps | awk -F'\t' '{ printf "%s (pid %s)\n", $2, $1 }'
+    apps | while IFS=$'\t' read -r cid name; do
+      printf '%s (pid %s)\n' "$name" "$(pid_of_client "$cid")"
+    done
     exit 0
     ;;
   --check)
@@ -187,7 +255,7 @@ case "${1:-}" in
     exit 0
     ;;
   -h | --help)
-    sed -n '3,25p' "$0" | sed 's/^# \?//'
+    sed -n '3,44p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   "")
@@ -199,12 +267,7 @@ case "${1:-}" in
     ;;
 esac
 
-unload_ours
-mount_chain
-trap cleanup EXIT INT TERM
-
-echo "compartilhando o áudio do pid $target"
-sync_loops "$target"
+start_for "$target"
 echo "pronto: escolha 'ConcordMic' no botão de áudio de app do Concord."
 echo "Ctrl-C desmonta tudo."
 
@@ -212,5 +275,5 @@ echo "Ctrl-C desmonta tudo."
 # incomodar — o custo é parsear um fluxo de JSON no shell.
 while true; do
   sleep "$POLL_SECONDS"
-  sync_loops "$target"
+  sync_links "$target"
 done
