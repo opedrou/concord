@@ -1,7 +1,8 @@
 'use client';
 
-// Secao "Aparencia" das configuracoes: tema (claro/escuro) e o estilo do anel
-// que envolve o tile de quem esta falando.
+// Secao "Aparencia" das configuracoes: tema (claro/escuro), o estilo do anel
+// que envolve o tile de quem esta falando e o fundo dos tiles de camera
+// desligada (chapado ou em degrade).
 //
 // Mesmo desenho do <ThemeToggle />: o estado mora num atributo do <html>, nao
 // em React. Quem le esses atributos e a folha de estilo — guardar o mesmo dado
@@ -13,6 +14,16 @@ import { THEME_STORAGE_KEY, THEME_CHANGE_EVENT } from '@/lib/ThemeToggle';
 import styles from '../styles/SettingsWindow.module.css';
 
 export const RING_STORAGE_KEY = 'concord:ring';
+export const TILE_BG_STORAGE_KEY = 'concord:tileBg';
+
+/** `chapado` = a cor dominante da foto, lisa; `degrade` = ela escurecendo pro
+ * topo do tile. Quem desenha e o CSS (ver CallParticipantTile.module.css). */
+type TileBg = 'chapado' | 'degrade';
+
+function readTileBg(): TileBg {
+  if (typeof document === 'undefined') return 'chapado';
+  return document.documentElement.dataset.concordTileBg === 'degrade' ? 'degrade' : 'chapado';
+}
 
 /** `recortado` = o anel quebrado de antes; `continuo` = anel inteiro. */
 type RingStyle = 'continuo' | 'recortado';
@@ -32,9 +43,11 @@ export function AppearanceSettings() {
   // consultar, e divergir entre servidor e cliente daria erro de hidratacao.
   const [ring, setRing] = React.useState<RingStyle>('continuo');
   const [theme, setTheme] = React.useState<'dark' | 'light'>('dark');
+  const [tileBg, setTileBg] = React.useState<TileBg>('chapado');
   React.useEffect(() => {
     setRing(readRing());
     setTheme(readTheme());
+    setTileBg(readTileBg());
   }, []);
 
   const applyRing = React.useCallback((value: RingStyle) => {
@@ -49,6 +62,20 @@ export function AppearanceSettings() {
       // Modo privado/quota: vale pra esta aba e nao persiste.
     }
     setRing(value);
+  }, []);
+
+  const applyTileBg = React.useCallback((value: TileBg) => {
+    if (value === 'degrade') {
+      document.documentElement.dataset.concordTileBg = 'degrade';
+    } else {
+      delete document.documentElement.dataset.concordTileBg;
+    }
+    try {
+      window.localStorage.setItem(TILE_BG_STORAGE_KEY, value);
+    } catch {
+      // Idem.
+    }
+    setTileBg(value);
   }, []);
 
   const applyTheme = React.useCallback((value: 'dark' | 'light') => {
@@ -97,6 +124,23 @@ export function AppearanceSettings() {
           <option value="continuo">Contínua</option>
           <option value="recortado">Recortada</option>
         </select>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="tile-bg-select">
+          Fundo dos tiles sem câmera
+        </label>
+        <select
+          id="tile-bg-select"
+          value={tileBg}
+          onChange={(e) => applyTileBg(e.target.value as TileBg)}
+        >
+          <option value="chapado">Cor chapada</option>
+          <option value="degrade">Degradê</option>
+        </select>
+        <p className={styles.hint}>
+          O degradê escurece o topo do tile, mantendo a cor da foto embaixo.
+        </p>
       </div>
     </>
   );

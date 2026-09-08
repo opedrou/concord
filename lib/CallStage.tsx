@@ -664,6 +664,14 @@ export function CallStage(props: {
     <div
       ref={stageRef}
       className={`lk-video-conference ${styles.stage}`}
+      // O botao direito e do APP aqui dentro (abre o card de volume nos
+      // tiles), nao do navegador. Campos de texto ficam de fora: neles o menu
+      // nativo e o que da copiar/colar/corrigir.
+      onContextMenu={(event) => {
+        const el = event.target as HTMLElement;
+        if (el.closest('input, textarea, [contenteditable="true"]')) return;
+        event.preventDefault();
+      }}
       data-fullscreen={theater ? 'true' : undefined}
       // Tela cheia NATIVA: so o video. A faixa de gente e a alca dela somem
       // (U7) — quem pediu o monitor inteiro pediu pra transmissao, nao pra

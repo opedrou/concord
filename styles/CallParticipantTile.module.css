@@ -44,6 +44,19 @@
   container-type: size;
 }
 
+/* Degrade opcional do fundo (Configuracoes > Aparencia). A cor chapada
+   continua vindo em `style` inline do componente — aqui so cai uma sombra por
+   cima dela, entao nao ha cor calculada em dois lugares. `::before` e nao
+   `background-image` no proprio placeholder: o inline usa o shorthand
+   `background`, que apagaria qualquer imagem declarada aqui. */
+:root[data-concord-tile-bg='degrade'] .placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, transparent 62%);
+  pointer-events: none;
+}
+
 /* A FOTO CORTADA: o <Avatar> recebia `size={96}` em pixel cravado. Num tile
    grande isso e o tamanho do design; na faixa lateral do modo foco, que tem
    ~120px de largura, um circulo de 96px + os 10% de padding nao cabe e a
@@ -282,6 +295,13 @@
    Alem disso: e flex e deixa os filhos quebrarem, entao com nome + sufixo +
    contador virava duas linhas desalinhadas. Uma linha so, e o nome longo
    corta com reticencias em vez de empurrar o resto. */
+/* A fileira do nome encostava na borda do tile: o LiveKit ancora o
+   `.lk-participant-metadata` no canto com um respiro pequeno, que ficou
+   pequeno demais pro canto de 18px do nosso cartao. */
+.tile :global(.lk-participant-metadata) {
+  padding: 0.6rem;
+}
+
 .tile :global(.lk-participant-metadata-item) {
   background: var(--pill);
   backdrop-filter: blur(6px);

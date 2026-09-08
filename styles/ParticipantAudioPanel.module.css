@@ -3,24 +3,22 @@
    botao flutuante "Participantes" + drawer lateral — o pedido era que o
    controle aparecesse perto de quem foi clicado, so quando clicado. */
 
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 39;
-  /* Invisivel de proposito — existe so pra capturar o clique de fora e
-     fechar o card, sem escurecer a chamada por baixo. */
-  background: transparent;
-}
+/* Nao ha backdrop: ele engolia o segundo clique direito e fazia o menu do
+   navegador aparecer. Quem fecha o card e um listener de mousedown ESQUERDO
+   em `window` (ver ParticipantAudioPanel.tsx). */
 
 .card {
   position: fixed;
   z-index: 40;
   width: 17.5rem;
   max-width: calc(100vw - 1rem);
-  background-color: var(--lk-bg2);
-  border: 1px solid var(--lk-border-color);
-  border-radius: var(--lk-border-radius);
-  box-shadow: var(--lk-box-shadow);
+  /* Mesma materia das outras superficies flutuantes do app (janela de
+     configuracoes, menus): fundo solido, borda fina, canto de 14px e sombra
+     funda o bastante pra descolar do video atras. */
+  background-color: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
@@ -28,14 +26,17 @@
 }
 
 .card.speaking {
-  border-color: var(--lk-accent-bg);
+  border-color: var(--accent);
 }
 
+/* Cabecalho com cara de titulo de menu, nao de linha de formulario. */
 .cardHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .participantName {

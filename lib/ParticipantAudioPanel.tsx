@@ -151,13 +151,31 @@ export function ParticipantVolumeCard(props: {
   const name = participant.name || participant.identity;
   const focusMuted = mixer?.isFocusMuted(name) ?? false;
 
-  // Fecha com Escape ou clique fora — sem isso o card fica pendurado na tela.
+  // Fecha com clique ESQUERDO fora do card (ou Escape). Nao ha mais backdrop
+  // cobrindo a tela: era ele que engolia o segundo clique direito — o evento
+  // morria num <div> sem `onContextMenu`, o navegador via um contextmenu sem
+  // `preventDefault` e abria o menu dele. Sem backdrop, o clique direito
+  // chega no tile de baixo e so reposiciona este card.
+  //
+  // `mousedown` na fase de CAPTURA: o `stopPropagation` de qualquer botao da
+  // pagina nao pode impedir o card de fechar. Botao direito nao fecha nada —
+  // ele abre/reposiciona, e fechar aqui apagaria o card antes do reabrir.
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
+    const handleDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      if (cardRef.current?.contains(e.target as Node)) return;
+      onClose();
+    };
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener('mousedown', handleDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      window.removeEventListener('mousedown', handleDown, true);
+    };
   }, [onClose]);
 
   // Mantem o card dentro da viewport mesmo quando o clique foi perto de uma
@@ -180,44 +198,45 @@ export function ParticipantVolumeCard(props: {
         };
 
   return (
-    <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div
-        className={`${styles.card} ${isSpeaking ? styles.speaking : ''}`}
-        style={style}
-        role="dialog"
-        aria-label={`Volume de ${name}`}
-      >
-        <div className={styles.cardHeader}>
-          <span className={styles.participantName}>{name}</span>
-          <button type="button" className="lk-button" onClick={onClose} aria-label="Fechar">
-            <CloseIcon size={16} />
-          </button>
-        </div>
-        {kind === 'person' ? (
-          <>
-            {/* O modo foco cala so a VOZ — audio de tela e soundboard
+    <div
+      ref={cardRef}
+      className={`${styles.card} ${isSpeaking ? styles.speaking : ''}`}
+      style={style}
+      role="dialog"
+      aria-label={`Volume de ${name}`}
+      // Clique direito DENTRO do card nao abre o menu do navegador — ele e o
+      // menu.
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className={styles.cardHeader}>
+        <span className={styles.participantName}>{name}</span>
+        <button type="button" className="lk-button" onClick={onClose} aria-label="Fechar">
+          <CloseIcon size={16} />
+        </button>
+      </div>
+      {kind === 'person' ? (
+        <>
+          {/* O modo foco cala so a VOZ — audio de tela e soundboard
                 continuam passando de propósito (ver VolumeMixerBinder.tsx). */}
-            <VolumeControl name={name} sourceKey="mic" label="Voz" focusMuted={focusMuted} />
-            {/* Segunda fonte, independente da voz: da pra calar a soundboard
+          <VolumeControl name={name} sourceKey="mic" label="Voz" focusMuted={focusMuted} />
+          {/* Segunda fonte, independente da voz: da pra calar a soundboard
                 de alguem e continuar ouvindo a pessoa falar. Ver
                 lib/soundboardEvents.ts. */}
-            <VolumeControl name={name} sourceKey="soundboard" label="Soundboard" />
-          </>
-        ) : (
-          <>
-            {hasScreenShareAudio && (
-              <VolumeControl name={name} sourceKey="screenShareAudio" label="Áudio da tela" />
-            )}
-            {hasAppAudio && <VolumeControl name={name} sourceKey="appAudio" label="Áudio do app" />}
-            {/* Transmissao muda (ou audio ainda nao assinado): um card vazio
+          <VolumeControl name={name} sourceKey="soundboard" label="Soundboard" />
+        </>
+      ) : (
+        <>
+          {hasScreenShareAudio && (
+            <VolumeControl name={name} sourceKey="screenShareAudio" label="Áudio da tela" />
+          )}
+          {hasAppAudio && <VolumeControl name={name} sourceKey="appAudio" label="Áudio do app" />}
+          {/* Transmissao muda (ou audio ainda nao assinado): um card vazio
                 parece bug, a linha explica. */}
-            {!hasScreenShareAudio && !hasAppAudio && (
-              <span className={styles.focusMutedHint}>Esta transmissão não tem áudio</span>
-            )}
-          </>
-        )}
-      </div>
-    </>
+          {!hasScreenShareAudio && !hasAppAudio && (
+            <span className={styles.focusMutedHint}>Esta transmissão não tem áudio</span>
+          )}
+        </>
+      )}
+    </div>
   );
 }
