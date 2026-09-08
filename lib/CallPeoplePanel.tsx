@@ -49,7 +49,7 @@ export function CallPeoplePanel() {
   );
 }
 
-function CallPeopleModal({ onClose }: { onClose: () => void }) {
+export function CallPeopleModal({ onClose }: { onClose: () => void }) {
   const room = useRoomContext();
   // A sala do LiveKit é nomeada com o slug do canal (ver o comentário no topo
   // de CallStateBinder.tsx) — é daqui que sai o `channelSlug`, sem precisar
@@ -122,7 +122,7 @@ function CallPeopleModal({ onClose }: { onClose: () => void }) {
         {loadError && <p className={styles.error}>Não foi possível carregar a lista de membros.</p>}
 
         {members !== null && !loadError && callable.length === 0 && (
-          <p className={styles.muted}>Não há mais ninguém pra chamar.</p>
+          <p className={styles.muted}>Ninguém mais pra chamar.</p>
         )}
 
         {members !== null && !loadError && callable.length > 0 && (

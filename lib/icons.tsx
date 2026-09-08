@@ -395,3 +395,15 @@ export function PlayIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+/** Pessoa com "+": convidar alguem pra call. */
+export function UserPlusIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...baseProps(size)} className={className}>
+      <path d="M15 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20" />
+      <circle cx="8.5" cy="7.5" r="3.5" />
+      <line x1="18.5" y1="7" x2="18.5" y2="13" />
+      <line x1="15.5" y1="10" x2="21.5" y2="10" />
+    </svg>
+  );
+}

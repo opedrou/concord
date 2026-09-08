@@ -23,6 +23,7 @@ import {
   type WidgetState,
 } from '@livekit/components-react';
 import { CallControlBar } from '@/lib/CallControlBar';
+import { CallPeopleModal } from '@/lib/CallPeoplePanel';
 import { CallParticipantTile, type WatchControl } from '@/lib/CallParticipantTile';
 import { TileErrorBoundary } from '@/lib/TileErrorBoundary';
 import {
@@ -46,6 +47,7 @@ import {
   SpeakerIcon,
   Volume2Icon,
   VolumeXIcon,
+  UserPlusIcon,
 } from '@/lib/icons';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ResizeHandle } from '@/lib/ResizeHandle';
@@ -240,6 +242,10 @@ export function CallStage(props: {
   // parar de assistir tira a track do foco e o tile remonta na grade — estado
   // local dele seria perdido no caminho.
   const [pausedFrames, setPausedFrames] = React.useState<Record<string, string>>({});
+
+  // Modal de "chamar pessoas" aberto pelo cartao de convite da grade. O mesmo
+  // modal do sininho da barra — ver lib/CallPeoplePanel.tsx.
+  const [callPeopleOpen, setCallPeopleOpen] = React.useState(false);
 
   // Transmissao remota nova entra desassinada e fora do foco. `seenSidsRef`
   // existe pra isso valer UMA vez por transmissao: sem ele, clicar em
@@ -797,6 +803,24 @@ export function CallStage(props: {
                     />
                   </TileErrorBoundary>
                 ))}
+                {tracks.length === 1 && (
+                  /* Sozinho na call: o segundo quadro da grade vira o convite,
+                     no lugar de uma metade preta vazia. Abre o MESMO modal do
+                     sininho da barra (webhook de chamada), so que por aqui —
+                     nao existe um segundo caminho pra "chamar alguem". */
+                  <div className={styles.inviteCard}>
+                    <UserPlusIcon size={40} className={styles.inviteIcon} />
+                    <p className={styles.inviteText}>Ninguém mais por aqui</p>
+                    <button
+                      type="button"
+                      className={styles.inviteButton}
+                      onClick={() => setCallPeopleOpen(true)}
+                    >
+                      <UserPlusIcon size={16} />
+                      Chamar alguém
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -888,6 +912,7 @@ export function CallStage(props: {
       {/* Sem isso ninguem ouve ninguem — ver nota no topo do arquivo. */}
       <RoomAudioRenderer />
       <ConnectionStateToast />
+      {callPeopleOpen && <CallPeopleModal onClose={() => setCallPeopleOpen(false)} />}
       {/* Cartaz de transmissao encerrada (U8). Fica por cima do palco, e nao
           no lugar do tile: o tile ja nao existe mais quando ele aparece. */}
       {endedShareList.length > 0 && (
