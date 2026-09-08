@@ -44,8 +44,8 @@
 
 :root {
   --bg: #181818;
-  --bg2: #212121;
-  --bg3: #2c2c2c;
+  --bg2: #121214;
+  --bg3: #202024;
   --surface: #3d3d3d;
   --border: rgba(255, 255, 255, 0.1);
   --border2: rgba(255, 255, 255, 0.16);
@@ -71,7 +71,7 @@
   /* Quase a cor da sidebar (--bg2, #212121), so que um degrau mais escura: o
      palco fica no mesmo material da lateral em vez de virar outra superficie,
      e a hierarquia continua legivel porque ele e o mais fundo dos dois. */
-  --stage-bg: #1b1b1b;
+  --stage-bg: #000000;
   /* Pilula sobre video: escura e translucida, pra ler em cima de qualquer
      imagem — mais fechada que --bg, que sobre uma imagem clara sumiria. */
   --pill: rgba(0, 0, 0, 0.62);
