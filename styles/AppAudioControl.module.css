@@ -1,0 +1,84 @@
+/* Áudio de app (ver lib/AppAudioControl.tsx). Vive DENTRO do popover que o
+   chevron do compartilhar tela abre, ao lado do controle de qualidade — então
+   aqui é só o conteúdo: nada de position fixed nem z-index próprios, quem
+   posiciona é o container pai. Mesmas medidas do
+   ScreenShareQualityControl.module.css, pra as duas seções da gaveta lerem
+   como uma coisa só. */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 15rem;
+  max-width: 100%;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--lk-fg, #fff);
+}
+
+.labelText {
+  white-space: nowrap;
+}
+
+.select {
+  width: 100%;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.4rem;
+  cursor: pointer;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--lk-accent-bg);
+  outline-offset: 2px;
+}
+
+/* Altura explícita: dentro do popover não vale a regra de 46px da pilula da
+   barra, e sem isto o botão fica com a altura de um TrackToggle no meio de
+   uma coluna de texto pequeno. */
+.action.action {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--lk-fg4, #b0b0b0);
+}
+
+.command {
+  display: block;
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  background: var(--lk-bg3, #2b2b2b);
+  font-size: 0.7rem;
+  user-select: all;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--danger, #f0625d);
+}
+
+@media (max-width: 640px) {
+  .wrapper {
+    width: 11rem;
+  }
+
+  .labelText {
+    display: none;
+  }
+}

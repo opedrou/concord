@@ -13,7 +13,7 @@ import {
 } from '@livekit/components-react';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import { Soundboard } from '@/lib/Soundboard';
-import { AppAudioButton } from '@/lib/AppAudioButton';
+import { AppAudioControl, useAppAudioShare } from '@/lib/AppAudioControl';
 import { CallPeoplePanel } from '@/lib/CallPeoplePanel';
 import { WatchPanel } from '@/lib/WatchPanel';
 import { ScreenShareQualityControl } from '@/lib/ScreenShareQualityControl';
@@ -39,6 +39,12 @@ export function CallControlBar(props: {
 }) {
   const layoutContext = useMaybeLayoutContext();
   const [qualityOpen, setQualityOpen] = React.useState(false);
+
+  // O estado de "estou compartilhando o audio de um app" mora AQUI, e nao no
+  // painel: o popover desmonta ao fechar, e o cleanup do hook despublicaria a
+  // faixa toda vez que a pessoa fechasse a gaveta. Esta barra fica montada a
+  // call inteira. Ver lib/AppAudioControl.tsx.
+  const appAudio = useAppAudioShare();
 
   // Sem tela de prejoin (ROADMAP item 4), esta barra virou o UNICO lugar onde
   // se escolhe microfone e camera — e o que for escolhido aqui precisa valer
@@ -102,19 +108,21 @@ export function CallControlBar(props: {
               props.onDeviceError?.({ source: Track.Source.ScreenShare, error: e })
             }
           />
-          {/* Audio de UM app (Linux) — terceiro segmento da MESMA pastilha.
-            E a mesma pergunta pra quem chega ("como mando o som do jogo?") e
-            a resposta do Chrome no Linux e "so de aba", entao os dois moram
-            juntos. O resto da cadeia esta em scripts/concord-audio. */}
-          <AppAudioButton />
           <div className="lk-button-group-menu">
             <button
               type="button"
               className="lk-button"
+              // Sem isto nao haveria NENHUM sinal na barra de que o audio de
+              // app esta indo pra call: o controle vive escondido na gaveta.
+              data-concord-app-audio={appAudio.sharing || undefined}
               onClick={() => setQualityOpen((v) => !v)}
               aria-expanded={qualityOpen}
-              aria-label="Qualidade da transmissão"
-              title="Qualidade da transmissão"
+              aria-label={
+                appAudio.sharing
+                  ? 'Transmissão e áudio de app (compartilhando)'
+                  : 'Transmissão e áudio de app'
+              }
+              title="Qualidade da transmissão e áudio de app"
             >
               {qualityOpen ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
             </button>
@@ -124,6 +132,8 @@ export function CallControlBar(props: {
               <div className={styles.popoverBackdrop} onClick={() => setQualityOpen(false)} />
               <div className={styles.qualityPopover}>
                 <ScreenShareQualityControl />
+                <hr className={styles.popoverDivider} />
+                <AppAudioControl share={appAudio} />
               </div>
             </>
           )}

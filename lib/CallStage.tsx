@@ -25,7 +25,12 @@ import {
 import { CallControlBar } from '@/lib/CallControlBar';
 import { CallParticipantTile, type WatchControl } from '@/lib/CallParticipantTile';
 import { TileErrorBoundary } from '@/lib/TileErrorBoundary';
-import { ParticipantVolumeCard, useScreenShareAudioIdentities } from '@/lib/ParticipantAudioPanel';
+import {
+  ParticipantVolumeCard,
+  useAppAudioIdentities,
+  useScreenShareAudioIdentities,
+} from '@/lib/ParticipantAudioPanel';
+import { isAppAudioPublication } from '@/lib/appAudio';
 import { useMembersAvatarMap } from '@/lib/useMembersAvatarMap';
 import { useFullscreen } from '@/lib/FullscreenContext';
 import { useScreenShareViewers, type ScreenShareViewer } from '@/lib/useScreenShareViewers';
@@ -190,6 +195,7 @@ export function CallStage(props: {
   const avatarMap = useMembersAvatarMap();
 
   const screenShareAudioIdentities = useScreenShareAudioIdentities();
+  const appAudioIdentities = useAppAudioIdentities();
 
   // Largura da faixa de participantes (so existe com foco/transmissao ativa)
   // — arrastavel pelo usuario, persistida em localStorage. Ver pedido no
@@ -295,24 +301,36 @@ export function CallStage(props: {
     () => [...screenShareAudioIdentities].sort().join(),
     [screenShareAudioIdentities],
   );
+  const appAudioIdentitiesKey = React.useMemo(
+    () => [...appAudioIdentities].sort().join(),
+    [appAudioIdentities],
+  );
   React.useEffect(() => {
     if (!room) {
       return;
     }
     for (const participant of room.remoteParticipants.values()) {
-      const audioPub = participant.getTrackPublication(Track.Source.ScreenShareAudio);
-      if (!audioPub) {
-        continue;
-      }
       const shareSid = participant.getTrackPublication(Track.Source.ScreenShare)?.trackSid;
-      (audioPub as RemoteTrackPublication).setSubscribed(
-        !!shareSid && watchingSidsRef.current.has(shareSid),
-      );
+      const watching = !!shareSid && watchingSidsRef.current.has(shareSid);
+
+      // As DUAS faixas de som da transmissao passam pelo mesmo portao. O audio
+      // de app (lib/appAudio.ts) e publicado como `Track.Source.Unknown` pra
+      // nao colidir com o audio de aba, entao `getTrackPublication` nunca ia
+      // achar ele — e ele chegava auto-assinado, tocando antes de qualquer
+      // clique em "Assistir" e mesmo sem transmissao nenhuma no ar. Era o bug
+      // de "todo mundo ouve o jogo mesmo com a live mutada e nem iniciada".
+      const audioPubs = [
+        participant.getTrackPublication(Track.Source.ScreenShareAudio),
+        ...[...participant.audioTrackPublications.values()].filter(isAppAudioPublication),
+      ];
+      for (const audioPub of audioPubs) {
+        (audioPub as RemoteTrackPublication | undefined)?.setSubscribed(watching);
+      }
     }
     // `unwatchedSids` na dep e o gatilho de "alguem clicou em Assistir/Parar":
     // muda de identidade a cada toggle, que e quando `watchingSidsRef` mudou.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room, audioIdentitiesKey, shareSidsKey, unwatchedSids]);
+  }, [room, audioIdentitiesKey, appAudioIdentitiesKey, shareSidsKey, unwatchedSids]);
 
   const stopWatching = React.useCallback(
     (trackRef: TrackReference, frame: string | null) => {
@@ -495,9 +513,22 @@ export function CallStage(props: {
       : null;
   const theaterAudio = React.useMemo(() => {
     if (!mixer || !focusAudioName) return null;
+    // Cala as DUAS fontes da transmissao. Pra quem assiste, "o som da live" e
+    // um som so — nao interessa que por baixo o audio de aba e o audio de app
+    // sejam faixas separadas, com `Track.Source` diferente.
+    const sources = ['screenShareAudio', 'appAudio'] as const;
+    const muted = sources.every((source) => mixer.volumeFor(focusAudioName, source) === 0);
     return {
-      muted: mixer.volumeFor(focusAudioName, 'screenShareAudio') === 0,
-      toggle: () => mixer.toggleMute(focusAudioName, 'screenShareAudio'),
+      muted,
+      toggle: () =>
+        sources.forEach((source) => {
+          // `toggleMute` alterna cada fonte por conta propria; sem este guarda
+          // um clique com so uma delas mutada trocaria as duas de lado em vez
+          // de igualar.
+          if ((mixer.volumeFor(focusAudioName, source) === 0) === muted) {
+            mixer.toggleMute(focusAudioName, source);
+          }
+        }),
     };
   }, [mixer, focusAudioName]);
 
@@ -524,12 +555,17 @@ export function CallStage(props: {
 
   const [volumeTarget, setVolumeTarget] = React.useState<{
     participant: RemoteParticipant;
+    kind: 'person' | 'screen';
     anchor: { x: number; y: number };
   } | null>(null);
 
   const handleOpenVolume = React.useCallback(
-    (participant: RemoteParticipant, anchor: { x: number; y: number }) => {
-      setVolumeTarget({ participant, anchor });
+    (
+      participant: RemoteParticipant,
+      anchor: { x: number; y: number },
+      kind: 'person' | 'screen',
+    ) => {
+      setVolumeTarget({ participant, kind, anchor });
     },
     [],
   );
@@ -878,6 +914,7 @@ export function CallStage(props: {
       {volumeTarget && (
         <ParticipantVolumeCard
           participant={volumeTarget.participant}
+          kind={volumeTarget.kind}
           hasScreenShareAudio={screenShareAudioIdentities.has(volumeTarget.participant.identity)}
           anchor={volumeTarget.anchor}
           onClose={() => setVolumeTarget(null)}

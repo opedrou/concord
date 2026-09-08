@@ -147,6 +147,23 @@
   align-items: center;
 }
 
+/* O chevron acende quando o audio de app esta publicado. Mesma logica de cor
+   do botao de tela: cor na barra significa "isto esta mudando o que as outras
+   pessoas ouvem". Sem isto o unico sinal ficaria escondido dentro da gaveta. */
+.pill :global(.lk-button-group-menu > .lk-button[data-concord-app-audio]) {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Separa as duas secoes da gaveta (qualidade e audio de app). */
+.popoverDivider {
+  width: 100%;
+  height: 1px;
+  margin: 0.6rem 0;
+  border: none;
+  background: var(--lk-border-color, rgba(255, 255, 255, 0.15));
+}
+
 .popoverBackdrop {
   position: fixed;
   inset: 0;

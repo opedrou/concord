@@ -42,9 +42,12 @@ import styles from '../styles/CallParticipantTile.module.css';
  *    tile a mao com `useParticipantTile` (o mesmo hook que o componente
  *    padrao usa por baixo, entao os data-attributes/classes que o CSS do
  *    LiveKit espera continuam batendo) e desenha o <Avatar/> real no lugar.
- * 2. Clique abre volume: reaproveitamos o onClick nativo (que o hook publico
- *    `onParticipantClick` NAO expoe com coordenadas) pra abrir o card de
- *    volume por participante ancorado perto de onde a pessoa clicou.
+ * 2. Botao DIREITO abre volume: usamos o onContextMenu nativo (o hook publico
+ *    `onParticipantClick` nem expoe coordenadas, nem cobre o botao direito)
+ *    pra abrir o card de volume ancorado onde a pessoa clicou. No tile de
+ *    camera o card traz as fontes DA PESSOA (voz e soundboard); no tile de
+ *    transmissao, o som da transmissao. O botao esquerdo fica so pra
+ *    assistir/ampliar.
  * 3. Parar de assistir a transmissao (ver a prop `watch`): o tile continua na
  *    tela, mas mostrando o ultimo quadro congelado e borrado em vez de video
  *    ao vivo.
@@ -80,7 +83,11 @@ function viewersLabel(viewers: readonly ScreenShareViewer[]): string {
 export function CallParticipantTile(props: {
   trackRef: TrackReferenceOrPlaceholder;
   avatarMap: Record<string, MemberAvatar>;
-  onOpenVolume: (participant: RemoteParticipant, anchor: { x: number; y: number }) => void;
+  onOpenVolume: (
+    participant: RemoteParticipant,
+    anchor: { x: number; y: number },
+    kind: 'person' | 'screen',
+  ) => void;
   /** Coloca ESTA transmissao em tela cheia. Ausente = sem botao (ex.: o tile
    * que ja esta em tela cheia nao precisa oferecer o proprio botao). */
   onExpand?: () => void;
@@ -124,37 +131,40 @@ export function CallParticipantTile(props: {
   const isCameraSource = trackRef.source === Track.Source.Camera;
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
-  const handleClick = React.useCallback(
+  const handleClick = React.useCallback(() => {
+    // TRANSMISSAO: clicar no tile pequeno amplia. Se ainda nao estou
+    // assistindo, o clique faz a coisa obvia: comeca a assistir (ampliar um
+    // quadro congelado nao serviria pra nada). Tile de camera nao faz nada no
+    // botao esquerdo — o volume mora no botao direito (handleContextMenu).
+    if (trackRef.source !== Track.Source.ScreenShare) return;
+    if (watch && !watch.watching) {
+      watch.onStart();
+    } else {
+      onExpand?.();
+    }
+  }, [trackRef.source, onExpand, watch]);
+
+  // Botao direito = card de volume. No tile de camera saem as fontes da
+  // PESSOA; no da transmissao, o som dela. `preventDefault` tira o menu do
+  // navegador, que apareceria por cima do card.
+  const handleContextMenu = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      // TRANSMISSAO: clicar no tile pequeno amplia, nao abre som. Card de
-      // volume no meio da tela nao e o que se espera de um clique num video —
-      // e o volume da transmissao continua alcancavel pelo tile de CAMERA da
-      // mesma pessoa, que tem o slider "transmissao" no mesmo card do mic
-      // (ver ParticipantAudioPanel). Se ainda nao estou assistindo, o clique
-      // faz a coisa obvia: comeca a assistir (ampliar um quadro congelado nao
-      // serviria pra nada).
-      if (trackRef.source === Track.Source.ScreenShare) {
-        if (watch && !watch.watching) {
-          watch.onStart();
-        } else {
-          onExpand?.();
-        }
-        return;
-      }
       // So participante remoto tem volume ajustavel — o proprio microfone se
-      // controla pela ControlBar, nao clicando no proprio tile.
+      // controla pela ControlBar, e a propria transmissao nao se ouve.
       if (trackRef.participant.isLocal) return;
-      onOpenVolume(trackRef.participant as RemoteParticipant, {
-        x: event.clientX,
-        y: event.clientY,
-      });
+      event.preventDefault();
+      onOpenVolume(
+        trackRef.participant as RemoteParticipant,
+        { x: event.clientX, y: event.clientY },
+        trackRef.source === Track.Source.ScreenShare ? 'screen' : 'person',
+      );
     },
-    [trackRef.participant, trackRef.source, onOpenVolume, onExpand, watch],
+    [trackRef.participant, trackRef.source, onOpenVolume],
   );
 
   const { elementProps } = useParticipantTile<HTMLDivElement>({
     trackRef,
-    htmlProps: { onClick: handleClick },
+    htmlProps: { onClick: handleClick, onContextMenu: handleContextMenu },
   });
 
   // O `data-lk-speaking` que o useParticipantTile devolve vem do
@@ -430,8 +440,8 @@ export function CallParticipantTile(props: {
           )}
           {/* UM botao, dois estados — nunca os dois ao mesmo tempo. O
               `stopPropagation` e OBRIGATORIO nos dois: o tile inteiro tem
-              onClick (abre o card de volume por participante), e sem isso o
-              clique no botao abriria o card junto. */}
+              onClick (assistir/ampliar), e sem isso o clique no botao
+              dispararia o do tile junto. */}
           {onCollapse ? (
             <button
               type="button"

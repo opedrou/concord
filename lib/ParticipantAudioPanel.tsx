@@ -119,10 +119,16 @@ export function VolumeControl(props: {
 }
 
 /**
- * Card de volume de UM participante, aberto ao clicar no tile dele dentro da
- * call (estilo Discord) — ver <CallParticipantTile />. E o caminho RAPIDO
- * durante a chamada; a lista completa de todo mundo vive na janela de
- * configuracoes, secao Mixer.
+ * Card de volume de UM participante, aberto com o BOTAO DIREITO no tile dele
+ * dentro da call (menu de contexto, estilo Discord) — ver
+ * <CallParticipantTile />. E o caminho RAPIDO durante a chamada; a lista
+ * completa de todo mundo vive na janela de configuracoes, secao Mixer.
+ *
+ * Duas variantes, escolhidas por `kind`, porque as duas coisas que a pessoa
+ * publica sao objetos diferentes na tela: no tile de CAMERA ('person') so
+ * cabem as fontes DELA (voz e soundboard); o som da TRANSMISSAO ('screen')
+ * sai no botao direito do tile da transmissao, que e onde ele esta sendo
+ * visto.
  *
  * `anchor` posiciona o card perto de onde a pessoa clicou (coordenadas do
  * MouseEvent nativo, capturadas pelo tile — a API publica de
@@ -131,11 +137,14 @@ export function VolumeControl(props: {
  */
 export function ParticipantVolumeCard(props: {
   participant: RemoteParticipant;
+  /** 'person' = tile de camera (voz + soundboard); 'screen' = tile da
+   * transmissao (audio da tela e do app). */
+  kind: 'person' | 'screen';
   hasScreenShareAudio: boolean;
   anchor: { x: number; y: number };
   onClose: () => void;
 }) {
-  const { participant, hasScreenShareAudio, anchor, onClose } = props;
+  const { participant, kind, hasScreenShareAudio, anchor, onClose } = props;
   const isSpeaking = useIsSpeaking(participant);
   const hasAppAudio = useAppAudioIdentities().has(participant.identity);
   const mixer = useVolumeMixer();
@@ -185,17 +194,29 @@ export function ParticipantVolumeCard(props: {
             <CloseIcon size={16} />
           </button>
         </div>
-        {/* O modo foco cala so a VOZ — audio de tela e soundboard continuam
-            passando de propósito (ver VolumeMixerBinder.tsx). */}
-        <VolumeControl name={name} sourceKey="mic" label="Voz" focusMuted={focusMuted} />
-        {hasScreenShareAudio && (
-          <VolumeControl name={name} sourceKey="screenShareAudio" label="Áudio da tela" />
+        {kind === 'person' ? (
+          <>
+            {/* O modo foco cala so a VOZ — audio de tela e soundboard
+                continuam passando de propósito (ver VolumeMixerBinder.tsx). */}
+            <VolumeControl name={name} sourceKey="mic" label="Voz" focusMuted={focusMuted} />
+            {/* Segunda fonte, independente da voz: da pra calar a soundboard
+                de alguem e continuar ouvindo a pessoa falar. Ver
+                lib/soundboardEvents.ts. */}
+            <VolumeControl name={name} sourceKey="soundboard" label="Soundboard" />
+          </>
+        ) : (
+          <>
+            {hasScreenShareAudio && (
+              <VolumeControl name={name} sourceKey="screenShareAudio" label="Áudio da tela" />
+            )}
+            {hasAppAudio && <VolumeControl name={name} sourceKey="appAudio" label="Áudio do app" />}
+            {/* Transmissao muda (ou audio ainda nao assinado): um card vazio
+                parece bug, a linha explica. */}
+            {!hasScreenShareAudio && !hasAppAudio && (
+              <span className={styles.focusMutedHint}>Esta transmissão não tem áudio</span>
+            )}
+          </>
         )}
-        {hasAppAudio && <VolumeControl name={name} sourceKey="appAudio" label="Áudio do app" />}
-        {/* Terceira fonte, independente da voz: da pra calar a soundboard de
-            alguem e continuar ouvindo a pessoa falar. Ver
-            lib/soundboardEvents.ts. */}
-        <VolumeControl name={name} sourceKey="soundboard" label="Soundboard" />
       </div>
     </>
   );
