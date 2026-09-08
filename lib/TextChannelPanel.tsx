@@ -267,7 +267,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
         {messages === null && !loadError && <p className={styles.muted}>Carregando mensagens…</p>}
 
         {messages !== null && messages.length === 0 && !loadError && (
-          <p className={styles.muted}>Nenhuma mensagem ainda. Seja o primeiro a escrever.</p>
+          <p className={styles.muted}>Nenhuma mensagem ainda.</p>
         )}
 
         {messages !== null && messages.length > 0 && (

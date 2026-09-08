@@ -87,9 +87,7 @@ export function FocusModeSettings() {
   }, [callState]);
 
   if (!mixer) {
-    return (
-      <p className={settingsStyles.hint}>O modo foco fica disponível dentro de um canal de voz.</p>
-    );
+    return <p className={settingsStyles.hint}>Só dentro de um canal.</p>;
   }
 
   const { focus } = mixer;
@@ -107,16 +105,12 @@ export function FocusModeSettings() {
         <input type="checkbox" checked={focus.enabled} onChange={mixer.toggleFocus} />
         <span>Ligar o modo foco</span>
       </label>
-      <p className={settingsStyles.hint}>
-        Você para de ouvir a voz de quem não estiver marcado abaixo. Ninguém é mutado de verdade —
-        as pessoas continuam falando normalmente pra todo mundo, e não têm como saber. Áudio de tela
-        e soundboard continuam passando.
-      </p>
+      <p className={settingsStyles.hint}>Você só ouve quem marcar.</p>
 
       {!callState?.slug ? (
-        <p className={settingsStyles.hint}>Entre num canal de voz para escolher quem ouvir.</p>
+        <p className={settingsStyles.hint}>Entre num canal de voz.</p>
       ) : people.length === 0 ? (
-        <p className={settingsStyles.hint}>Ninguém mais está no canal agora.</p>
+        <p className={settingsStyles.hint}>Ninguém mais no canal.</p>
       ) : (
         <>
           <span className={settingsStyles.fieldLabel}>Continuo ouvindo</span>
@@ -139,10 +133,7 @@ export function FocusModeSettings() {
         </p>
       )}
 
-      <p className={settingsStyles.hint}>
-        O modo foco nunca é lembrado entre sessões: ele sempre nasce desligado, pra ninguém voltar
-        amanhã sem ouvir o grupo por causa de um botão apertado hoje.
-      </p>
+      <p className={settingsStyles.hint}>Sempre nasce desligado.</p>
     </div>
   );
 }

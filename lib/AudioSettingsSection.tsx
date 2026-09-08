@@ -43,9 +43,7 @@ export function AudioSettingsSection() {
         mic.active ? (
           <MicSettings mic={mic} />
         ) : (
-          <p className={styles.hint}>
-            Entre num canal de voz para ajustar microfone e redução de ruído.
-          </p>
+          <p className={styles.hint}>Entre num canal de voz.</p>
         )
       ) : null}
     </>
@@ -90,9 +88,7 @@ function DeviceSettings() {
             onActiveDeviceChange={(_kind, deviceId) => mixer?.setOutputDeviceId(deviceId || null)}
           />
         ) : (
-          <span className={styles.hint}>
-            Seu navegador não permite escolher a saída — use a configuração do sistema.
-          </span>
+          <span className={styles.hint}>Escolha a saída no sistema.</span>
         )}
       </div>
       <div className={styles.deviceRow}>
@@ -255,8 +251,8 @@ function GateSlider({ mic }: { mic: Mic }) {
 
       <p className={styles.hint}>
         {mic.threshold <= GATE_MIN
-          ? 'Gate desligado — o microfone transmite o tempo todo.'
-          : 'Abaixo da marca, o áudio não é transmitido. A barra mostra o nível do seu mic ao vivo.'}
+          ? 'Gate desligado, transmite sempre.'
+          : 'Abaixo da marca não transmite.'}
       </p>
     </div>
   );
@@ -293,10 +289,7 @@ function InputGainSlider({ mic }: { mic: Mic }) {
         aria-label="Ganho de entrada do microfone"
         aria-valuetext={`${percent} por cento`}
       />
-      <p className={styles.hint}>
-        Amplifica o microfone antes de sair. Use quando sua voz chega baixa mesmo com o volume do
-        sistema no máximo.
-      </p>
+      <p className={styles.hint}>Amplifica sua voz na saída.</p>
 
       <label className={styles.checkboxRow}>
         <input
@@ -312,8 +305,8 @@ function InputGainSlider({ mic }: { mic: Mic }) {
         }
       >
         {mic.autoGainControl && mic.inputGain !== DEFAULT_INPUT_GAIN
-          ? 'O automático está ligado junto com o ganho manual: ele vai normalizar o nível e desfazer boa parte do seu ajuste.'
-          : 'O automático nivela sua voz sozinho, mas briga com o ganho manual — mexer no ganho acima desliga ele.'}
+          ? 'O automático desfaz seu ajuste.'
+          : 'Automático nivela sua voz sozinho.'}
       </p>
     </div>
   );

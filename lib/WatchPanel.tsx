@@ -66,9 +66,7 @@ function WatchModal({ onClose }: { onClose: () => void }) {
     <AccountOverlay title="Assistir junto" size="narrow" onClose={onClose}>
       {emSessao ? (
         <div className={styles.body}>
-          <p className={styles.hint}>
-            Já tem uma sessão rolando. Colar outro link troca o vídeo pra todo mundo.
-          </p>
+          <p className={styles.hint}>Outro link troca pra todos.</p>
           <button
             type="button"
             className={`lk-button ${styles.stop}`}
@@ -97,11 +95,7 @@ function WatchModal({ onClose }: { onClose: () => void }) {
           autoFocus
         />
         {erro && <p className={styles.erro}>{erro}</p>}
-        <p className={styles.hint}>
-          Todo mundo na chamada assiste junto, e qualquer um controla. Numa transmissão ao vivo o
-          grupo senta 10 segundos atrás da borda — é o que garante que todo mundo consiga chegar no
-          mesmo ponto.
-        </p>
+        <p className={styles.hint}>Todo mundo assiste e controla.</p>
         <button type="submit" className={`lk-button ${styles.submit}`} disabled={!input.trim()}>
           {emSessao ? 'Trocar o vídeo' : 'Começar'}
         </button>

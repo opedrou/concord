@@ -196,15 +196,11 @@ export function AppAudioControl(props: { share: AppAudioShare }) {
           <button type="button" className={`lk-button ${styles.action}`} onClick={stop}>
             Parar de compartilhar
           </button>
-          <p className={styles.hint}>
-            O som do app faz parte da tua transmissão: só toca pra quem estiver assistindo a tua
-            tela.
-          </p>
+          <p className={styles.hint}>Toca só pra quem assiste.</p>
         </>
       ) : devices.length === 0 ? (
         <p className={styles.hint}>
-          Nenhum dispositivo <strong>{APP_AUDIO_DEVICE_LABEL}</strong>. Rode isto num terminal,
-          escolha o app, e abra este painel de novo:
+          Sem <strong>{APP_AUDIO_DEVICE_LABEL}</strong>. Rode e reabra:
           <code className={styles.command}>{APP_AUDIO_COMMAND}</code>
         </p>
       ) : (

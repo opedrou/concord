@@ -40,7 +40,7 @@ export function MasterVolumeControl() {
   // O provider só existe no `RoomShell` — na home e nos canais de texto não há
   // mixer nenhum. Dizer isso é melhor que mostrar uma seção vazia.
   if (!mixer) {
-    return <p className={styles.hint}>O mixer fica disponível dentro de um canal de voz.</p>;
+    return <p className={styles.hint}>Só dentro de um canal.</p>;
   }
   const percent = Math.round(mixer.master * 100);
 
@@ -64,10 +64,7 @@ export function MasterVolumeControl() {
         aria-label="Volume geral da chamada"
         aria-valuetext={`${percent} por cento`}
       />
-      <p className={styles.hint}>
-        Multiplica o volume de todo mundo, sem apagar os ajustes individuais. O teto combinado é{' '}
-        {Math.round(MAX_VOLUME * 100)}%.
-      </p>
+      <p className={styles.hint}>Multiplica todos. Teto {Math.round(MAX_VOLUME * 100)}%.</p>
     </div>
   );
 }
@@ -88,10 +85,10 @@ export function MixerParticipantList() {
   }, [callState]);
 
   if (!callState?.slug) {
-    return <p className={styles.hint}>Entre num canal de voz para ver o mixer.</p>;
+    return <p className={styles.hint}>Entre num canal de voz.</p>;
   }
   if (people.length === 0) {
-    return <p className={styles.hint}>Ninguém mais está no canal agora.</p>;
+    return <p className={styles.hint}>Ninguém mais no canal.</p>;
   }
 
   return (

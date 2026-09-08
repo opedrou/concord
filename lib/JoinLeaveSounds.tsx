@@ -277,9 +277,7 @@ export function JoinLeaveSoundsSettings() {
           Ouvir transmissão
         </button>
       </div>
-      <p className={windowStyles.hint}>
-        Esses sons são só pra você — ninguém mais ouve, e nada disso sai no seu microfone.
-      </p>
+      <p className={windowStyles.hint}>Só você ouve.</p>
     </div>
   );
 }

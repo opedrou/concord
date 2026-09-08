@@ -129,12 +129,7 @@ function SoundboardPanel(props: {
 
       {sounds === null && !error && <p className={styles.hint}>Carregando…</p>}
 
-      {sounds !== null && sounds.length === 0 && (
-        <p className={styles.hint}>
-          Nenhum som ainda. Suba um em Configurações &rsaquo; Soundboard — todo mundo vai poder
-          tocar.
-        </p>
-      )}
+      {sounds !== null && sounds.length === 0 && <p className={styles.hint}>Nenhum som ainda.</p>}
 
       {sounds !== null && sounds.length > 0 && (
         <div className={styles.grid}>
@@ -155,7 +150,7 @@ function SoundboardPanel(props: {
       {/* Subir e apagar moram na janela de configuracoes: aqui e o lugar de
           TOCAR no meio do jogo, e gerenciar biblioteca no meio de uma call
           competitiva nao e o caso de uso. */}
-      <p className={styles.hint}>Adicionar ou apagar sons: Configurações &rsaquo; Soundboard.</p>
+      <p className={styles.hint}>Gerenciar em Configurações &rsaquo; Soundboard.</p>
     </div>
   );
 }

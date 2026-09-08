@@ -230,10 +230,7 @@ export function SoundTrimmer(props: {
         </button>
       </div>
 
-      <p className={styles.hint}>
-        O corte vale pra todo mundo e não apaga nada: o arquivo continua inteiro, dá pra afrouxar
-        depois.
-      </p>
+      <p className={styles.hint}>Vale pra todos, reversível.</p>
     </div>
   );
 }

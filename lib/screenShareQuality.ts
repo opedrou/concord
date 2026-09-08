@@ -27,25 +27,25 @@ export const QUALITY_OPTIONS: QualityOption[] = [
   {
     key: 'economica',
     label: '720p · 15fps',
-    hint: 'Econômica — 1,5 Mbps. Pra internet fraca ou quando o importante é só acompanhar.',
+    hint: 'Econômica — 1,5 Mbps, internet fraca.',
     preset: ScreenSharePresets.h720fps15,
   },
   {
     key: 'media',
     label: '720p · 30fps',
-    hint: 'Média — 2 Mbps. Movimento fluido em resolução menor; boa pra jogo com upload limitado.',
+    hint: 'Média — 2 Mbps, upload limitado.',
     preset: ScreenSharePresets.h720fps30,
   },
   {
     key: 'alta',
     label: '1080p · 30fps',
-    hint: 'Alta — 5 Mbps. Padrão do Concord: nítido e fluido pra acompanhar jogo.',
+    hint: 'Alta — 5 Mbps, padrão.',
     preset: ScreenSharePresets.h1080fps30,
   },
   {
     key: 'maxima',
     label: 'Original · 30fps',
-    hint: 'Máxima — 7 Mbps, sem redimensionar. Só vale se você tiver bastante upload sobrando.',
+    hint: 'Máxima — 7 Mbps, upload sobrando.',
     preset: ScreenSharePresets.original,
   },
 ];

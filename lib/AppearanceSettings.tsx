@@ -109,7 +109,7 @@ export function AppearanceSettings() {
           <option value="dark">Escuro</option>
           <option value="light">Claro</option>
         </select>
-        <p className={styles.hint}>O mesmo que o botão de sol/lua na barra de baixo da sidebar.</p>
+        <p className={styles.hint}>Igual ao botão da sidebar.</p>
       </div>
 
       <div className={styles.field}>
@@ -138,9 +138,7 @@ export function AppearanceSettings() {
           <option value="chapado">Cor chapada</option>
           <option value="degrade">Degradê</option>
         </select>
-        <p className={styles.hint}>
-          O degradê escurece o topo do tile, mantendo a cor da foto embaixo.
-        </p>
+        <p className={styles.hint}>Escurece o topo do tile.</p>
       </div>
     </>
   );
