@@ -17,6 +17,8 @@ import {
   HeadphonesOffIcon,
   VideoIcon,
   ConcordMark,
+  MenuIcon,
+  CloseIcon,
 } from '@/lib/icons';
 import { useCallState } from '@/lib/CallStateContext';
 import { useSpeakingHold } from '@/lib/useSpeakingHold';
@@ -226,6 +228,12 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
   const [settingsSection, setSettingsSection] = React.useState<SettingsSection | null>(null);
   const closeSettings = React.useCallback(() => setSettingsSection(null), []);
 
+  // Tela estreita: a coluna de canais vira uma gaveta que desliza por cima do
+  // conteudo (ver ChannelSidebar.module.css). Fora do mobile a variavel nao
+  // tem efeito nenhum — o CSS so olha pra ela abaixo de 640px.
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const closeDrawer = React.useCallback(() => setDrawerOpen(false), []);
+
   React.useEffect(() => {
     let cancelled = false;
     fetchChannels()
@@ -244,6 +252,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
 
   const handleEnterVoice = React.useCallback(
     (channel: Channel) => {
+      closeDrawer();
       // Atualiza a presenca localmente na hora — nao espera o proximo poll
       // pra sidebar refletir que voce entrou.
       if (props.user) {
@@ -287,12 +296,13 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
       }
       router.push(`/rooms/${encodeURIComponent(channel.slug)}`);
     },
-    [router, props.user, props.activeChannelSlug, applyOptimisticJoin, onReturnToCall],
+    [router, props.user, props.activeChannelSlug, applyOptimisticJoin, onReturnToCall, closeDrawer],
   );
 
   const { onSelectTextChannel } = props;
   const handleEnterText = React.useCallback(
     (channel: Channel) => {
+      closeDrawer();
       if (onSelectTextChannel) {
         // Contexto de dentro de uma sala de voz: abre em painel sobreposto,
         // sem navegar (a chamada continua tocando por baixo).
@@ -303,223 +313,240 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
       // conexao WebRTC pra proteger.
       router.push(`/channels/${encodeURIComponent(channel.slug)}`);
     },
-    [router, onSelectTextChannel],
+    [router, onSelectTextChannel, closeDrawer],
   );
 
   const textChannels = channels.filter((c) => c.type === 'text');
   const voiceChannels = channels.filter((c) => c.type === 'voice');
 
   return (
-    <nav
-      className={styles.sidebar}
-      aria-label="Canais"
-      // Variavel CSS, nao a propriedade `width` direta: inline style sempre
-      // vence qualquer regra de classe, e isso quebraria o media query de
-      // tela estreita (que precisa forcar width:100%, ver
-      // ChannelSidebar.module.css). Passando por variavel, quem decide o
-      // valor final continua sendo a cascata normal do CSS.
-      style={
-        props.widthPx
-          ? ({ '--sidebar-width': `${props.widthPx}px` } as React.CSSProperties)
-          : undefined
-      }
-    >
-      {/* Cabecalho de marca. Nao existia: a sidebar comecava direto em
+    <>
+      {/* So existe abaixo de 640px (ver o module). Fica flutuando sobre o
+          canto porque cada tela tem um cabecalho proprio (call, texto, home)
+          e nenhum deles e ancestral comum desta coluna. */}
+      <button
+        type="button"
+        className={styles.drawerToggle}
+        aria-label={drawerOpen ? 'Fechar canais' : 'Abrir canais'}
+        aria-expanded={drawerOpen}
+        onClick={() => setDrawerOpen((v) => !v)}
+      >
+        {drawerOpen ? <CloseIcon /> : <MenuIcon />}
+      </button>
+      {drawerOpen && (
+        <div className={styles.drawerBackdrop} onClick={closeDrawer} aria-hidden="true" />
+      )}
+      <nav
+        className={styles.sidebar}
+        data-drawer-open={drawerOpen ? 'true' : 'false'}
+        aria-label="Canais"
+        // Variavel CSS, nao a propriedade `width` direta: inline style sempre
+        // vence qualquer regra de classe, e isso quebraria o media query de
+        // tela estreita (que precisa forcar width:100%, ver
+        // ChannelSidebar.module.css). Passando por variavel, quem decide o
+        // valor final continua sendo a cascata normal do CSS.
+        style={
+          props.widthPx
+            ? ({ '--sidebar-width': `${props.widthPx}px` } as React.CSSProperties)
+            : undefined
+        }
+      >
+        {/* Cabecalho de marca. Nao existia: a sidebar comecava direto em
           "Canais de texto" e o nome do app so aparecia na home. No projeto de
           design ele ancora a coluna inteira — e e o unico lugar onde a marca
           fica visivel enquanto voce usa o app. */}
-      <div className={styles.brand}>
-        <ConcordMark size={34} />
-        <span className={styles.brandName}>Concord</span>
-      </div>
-
-      {loadError && <p className={styles.error}>Nao foi possivel carregar os canais.</p>}
-
-      {!loadError && channels.length === 0 && (
-        <p className={styles.empty}>Nenhum canal disponivel.</p>
-      )}
-
-      {textChannels.length > 0 && (
-        <div className={styles.section}>
-          <div className={styles.header}>
-            <span className={styles.headerTitle}>Canais de texto</span>
-          </div>
-          <ul className={styles.channelList}>
-            {textChannels.map((channel) => {
-              const isActive = channel.slug === props.activeTextChannelSlug;
-              return (
-                <li key={channel.id}>
-                  <button
-                    type="button"
-                    className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
-                    onClick={() => handleEnterText(channel)}
-                    aria-current={isActive ? 'true' : undefined}
-                  >
-                    <span className={styles.channelName}>
-                      <HashIcon />
-                      {channel.name}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+        <div className={styles.brand}>
+          <ConcordMark size={34} />
+          <span className={styles.brandName}>Concord</span>
         </div>
-      )}
 
-      {voiceChannels.length > 0 && (
-        <div className={styles.section}>
-          <div className={styles.header}>
-            <span className={styles.headerTitle}>Canais de voz</span>
+        {loadError && <p className={styles.error}>Nao foi possivel carregar os canais.</p>}
+
+        {!loadError && channels.length === 0 && (
+          <p className={styles.empty}>Nenhum canal disponivel.</p>
+        )}
+
+        {textChannels.length > 0 && (
+          <div className={styles.section}>
+            <div className={styles.header}>
+              <span className={styles.headerTitle}>Canais de texto</span>
+            </div>
+            <ul className={styles.channelList}>
+              {textChannels.map((channel) => {
+                const isActive = channel.slug === props.activeTextChannelSlug;
+                return (
+                  <li key={channel.id}>
+                    <button
+                      type="button"
+                      className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
+                      onClick={() => handleEnterText(channel)}
+                      aria-current={isActive ? 'true' : undefined}
+                    >
+                      <span className={styles.channelName}>
+                        <HashIcon />
+                        {channel.name}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <ul className={styles.channelList}>
-            {voiceChannels.map((channel) => {
-              // So o canal em que voce esta CONECTADO tem estado ao vivo (ver
-              // CallStateContext.tsx) — e la ele e a fonte INTEIRA da lista,
-              // nao um verniz por cima do polling: o polling so descobre que
-              // alguem entrou ou saiu no proximo tick (ate 4s de atraso, ver
-              // usePresencePolling.ts), mas o `CallStateBinder` ja escuta
-              // ParticipantConnected/ParticipantDisconnected e publica na
-              // hora. Nos demais canais nao existe conexao nenhuma pra tirar
-              // esse dado, entao o polling continua sendo a unica fonte.
-              const occupants: OccupantRow[] =
-                callState?.slug === channel.slug
-                  ? Object.entries(callState.byIdentity).map(([identity, p]) => ({
-                      identity,
-                      name: p.name,
-                      muted: p.muted,
-                      camera: p.camera,
-                      screenShare: p.screenShare,
-                      speaking: p.speaking,
-                    }))
-                  : (presence[channel.slug] ?? []).map((p) => ({
-                      identity: p.identity,
-                      name: p.name,
-                      muted: p.muted,
-                      camera: p.camera,
-                      screenShare: p.screenShare,
-                      // O polling nao sabe quem esta falando agora — isso so
-                      // existe no estado ao vivo, e so pro canal em que voce
-                      // esta.
-                      speaking: false,
-                    }));
-              const isActive = channel.slug === props.activeChannelSlug;
+        )}
 
-              // Defesa extra contra o bug da pessoa duplicada (ver
-              // PageClientImpl.tsx e HANDOFF secao 9): mesmo com o
-              // room.disconnect() correto no unmount, uma sessao fantasma
-              // ainda pode sobreviver por alguns segundos ate expirar no SFU
-              // (ex: aba fechada sem chegar a rodar o cleanup do React, ou o
-              // proprio timeout normal do servidor). Deduplicamos por
-              // `cleanName` na EXIBICAO — duas entradas pra mesma pessoa
-              // (do polling, do estado ao vivo, ou uma de cada enquanto o
-              // SFU nao expirou a sessao fantasma) viram um so avatar na
-              // lista, mesmo que as identities (com sufixo aleatorio
-              // diferente) continuem existindo de verdade no LiveKit.
-              const seenNames = new Set<string>();
-              const dedupedOccupants = occupants
-                .filter((p) => {
-                  const cleanName = p.name || p.identity;
-                  if (seenNames.has(cleanName)) return false;
-                  seenNames.add(cleanName);
-                  return true;
-                })
-                // O estado ao vivo reconstroi o mapa INTEIRO a cada evento do
-                // LiveKit (ver CallStateBinder.tsx), com o participante local
-                // sempre primeiro — uma ordem diferente da do polling.
-                // Ordenar por nome evita a lista pular de lugar a cada troca
-                // de fonte ou a cada evento.
-                .sort((a, b) => (a.name || a.identity).localeCompare(b.name || b.identity));
+        {voiceChannels.length > 0 && (
+          <div className={styles.section}>
+            <div className={styles.header}>
+              <span className={styles.headerTitle}>Canais de voz</span>
+            </div>
+            <ul className={styles.channelList}>
+              {voiceChannels.map((channel) => {
+                // So o canal em que voce esta CONECTADO tem estado ao vivo (ver
+                // CallStateContext.tsx) — e la ele e a fonte INTEIRA da lista,
+                // nao um verniz por cima do polling: o polling so descobre que
+                // alguem entrou ou saiu no proximo tick (ate 4s de atraso, ver
+                // usePresencePolling.ts), mas o `CallStateBinder` ja escuta
+                // ParticipantConnected/ParticipantDisconnected e publica na
+                // hora. Nos demais canais nao existe conexao nenhuma pra tirar
+                // esse dado, entao o polling continua sendo a unica fonte.
+                const occupants: OccupantRow[] =
+                  callState?.slug === channel.slug
+                    ? Object.entries(callState.byIdentity).map(([identity, p]) => ({
+                        identity,
+                        name: p.name,
+                        muted: p.muted,
+                        camera: p.camera,
+                        screenShare: p.screenShare,
+                        speaking: p.speaking,
+                      }))
+                    : (presence[channel.slug] ?? []).map((p) => ({
+                        identity: p.identity,
+                        name: p.name,
+                        muted: p.muted,
+                        camera: p.camera,
+                        screenShare: p.screenShare,
+                        // O polling nao sabe quem esta falando agora — isso so
+                        // existe no estado ao vivo, e so pro canal em que voce
+                        // esta.
+                        speaking: false,
+                      }));
+                const isActive = channel.slug === props.activeChannelSlug;
 
-              return (
-                <li key={channel.id}>
-                  <button
-                    type="button"
-                    className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
-                    onClick={() => handleEnterVoice(channel)}
-                    aria-current={isActive ? 'true' : undefined}
-                  >
-                    <span className={styles.channelName}>
-                      <SpeakerIcon />
-                      {channel.name}
-                    </span>
-                  </button>
-                  {/* FORA do <button> do canal de proposito: um <ul>/<li>
+                // Defesa extra contra o bug da pessoa duplicada (ver
+                // PageClientImpl.tsx e HANDOFF secao 9): mesmo com o
+                // room.disconnect() correto no unmount, uma sessao fantasma
+                // ainda pode sobreviver por alguns segundos ate expirar no SFU
+                // (ex: aba fechada sem chegar a rodar o cleanup do React, ou o
+                // proprio timeout normal do servidor). Deduplicamos por
+                // `cleanName` na EXIBICAO — duas entradas pra mesma pessoa
+                // (do polling, do estado ao vivo, ou uma de cada enquanto o
+                // SFU nao expirou a sessao fantasma) viram um so avatar na
+                // lista, mesmo que as identities (com sufixo aleatorio
+                // diferente) continuem existindo de verdade no LiveKit.
+                const seenNames = new Set<string>();
+                const dedupedOccupants = occupants
+                  .filter((p) => {
+                    const cleanName = p.name || p.identity;
+                    if (seenNames.has(cleanName)) return false;
+                    seenNames.add(cleanName);
+                    return true;
+                  })
+                  // O estado ao vivo reconstroi o mapa INTEIRO a cada evento do
+                  // LiveKit (ver CallStateBinder.tsx), com o participante local
+                  // sempre primeiro — uma ordem diferente da do polling.
+                  // Ordenar por nome evita a lista pular de lugar a cada troca
+                  // de fonte ou a cada evento.
+                  .sort((a, b) => (a.name || a.identity).localeCompare(b.name || b.identity));
+
+                return (
+                  <li key={channel.id}>
+                    <button
+                      type="button"
+                      className={`${styles.channelButton} ${isActive ? styles.channelButtonActive : ''}`}
+                      onClick={() => handleEnterVoice(channel)}
+                      aria-current={isActive ? 'true' : undefined}
+                    >
+                      <span className={styles.channelName}>
+                        <SpeakerIcon />
+                        {channel.name}
+                      </span>
+                    </button>
+                    {/* FORA do <button> do canal de proposito: um <ul>/<li>
                       dentro de <button> nao seria HTML valido. Uma linha por
                       pessoa, estilo Discord: foto redonda + nome + os icones
                       de estado a direita. */}
-                  {dedupedOccupants.length > 0 && (
-                    <ul className={styles.occupantList} aria-label={`Pessoas em ${channel.name}`}>
-                      {dedupedOccupants.map((p) => {
-                        // Casa por `name` (username limpo), nunca por
-                        // `identity` — a identity carrega o sufixo aleatorio
-                        // `${username}__${randomString(4)}` (ver
-                        // connection-details/route.ts), que nunca bate com
-                        // as chaves de avatarMap (indexado por username).
-                        const cleanName = p.name || p.identity;
+                    {dedupedOccupants.length > 0 && (
+                      <ul className={styles.occupantList} aria-label={`Pessoas em ${channel.name}`}>
+                        {dedupedOccupants.map((p) => {
+                          // Casa por `name` (username limpo), nunca por
+                          // `identity` — a identity carrega o sufixo aleatorio
+                          // `${username}__${randomString(4)}` (ver
+                          // connection-details/route.ts), que nunca bate com
+                          // as chaves de avatarMap (indexado por username).
+                          const cleanName = p.name || p.identity;
 
-                        return (
-                          <OccupantListItem
-                            key={p.identity}
-                            name={cleanName}
-                            avatarUrl={avatarMap[cleanName]?.avatarUrl ?? null}
-                            muted={p.muted}
-                            camera={p.camera}
-                            screenShare={p.screenShare}
-                            speaking={p.speaking}
-                          />
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+                          return (
+                            <OccupantListItem
+                              key={p.identity}
+                              name={cleanName}
+                              avatarUrl={avatarMap[cleanName]?.avatarUrl ?? null}
+                              muted={p.muted}
+                              camera={p.camera}
+                              screenShare={p.screenShare}
+                              speaking={p.speaking}
+                            />
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
-      {/* Rodape estilo Discord: foto redonda + bolinha de status, nome em
+        {/* Rodape estilo Discord: foto redonda + bolinha de status, nome em
           cima e "Online" embaixo, botoes de mic/fone/tema/engrenagem a
           direita. Mic e fone sao botoes DE VERDADE e funcionam tambem fora de
           uma call: o estado deles nao mora no Room, mora numa store de modulo
           persistida (lib/deafenPrefs.ts), e quem aplica ao Room — quando ha um
           — e o <DeafenBinder />. */}
-      <div className={styles.userBar}>
-        {props.user ? (
-          <>
-            {/* Clicar em si mesmo abre o perfil — atalho que o Discord tem
+        <div className={styles.userBar}>
+          {props.user ? (
+            <>
+              {/* Clicar em si mesmo abre o perfil — atalho que o Discord tem
                 e que evita ter que caçar a secao dentro da janela. */}
-            <div
-              className={styles.userIdentity}
-              role="button"
-              tabIndex={0}
-              title="Abrir seu perfil"
-              onClick={() => setSettingsSection('profile')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSettingsSection('profile');
-                }
-              }}
-            >
-              <span className={styles.avatarWrap}>
-                <Avatar
-                  username={props.user.username}
-                  avatarUrl={avatarMap[props.user.username]?.avatarUrl ?? null}
-                  size={32}
-                />
-                <span className={styles.statusDot} aria-hidden="true" />
-              </span>
-              <span className={styles.userText}>
-                <span className={styles.userName} title={props.user.username}>
-                  {props.user.username}
+              <div
+                className={styles.userIdentity}
+                role="button"
+                tabIndex={0}
+                title="Abrir seu perfil"
+                onClick={() => setSettingsSection('profile')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSettingsSection('profile');
+                  }
+                }}
+              >
+                <span className={styles.avatarWrap}>
+                  <Avatar
+                    username={props.user.username}
+                    avatarUrl={avatarMap[props.user.username]?.avatarUrl ?? null}
+                    size={32}
+                  />
+                  <span className={styles.statusDot} aria-hidden="true" />
                 </span>
-                <span className={styles.userStatus}>Online</span>
-              </span>
-            </div>
-            <div className={styles.userActions}>
-              {/* Esta sidebar renderiza FORA da arvore do RoomContext (e irma
+                <span className={styles.userText}>
+                  <span className={styles.userName} title={props.user.username}>
+                    {props.user.username}
+                  </span>
+                  <span className={styles.userStatus}>Online</span>
+                </span>
+              </div>
+              <div className={styles.userActions}>
+                {/* Esta sidebar renderiza FORA da arvore do RoomContext (e irma
                   do PageClientImpl, nao descendente), entao nao da pra ler
                   estado de track aqui com os hooks do LiveKit. Estes dois
                   botoes contornam isso pela store de modulo: eles so escrevem
@@ -528,66 +555,67 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                   microfone de verdade e quem espelha de volta o que for
                   decidido na ControlBar da call — os dois nunca discordam.
                   Sem atalho de teclado, de proposito. */}
-              <button
-                type="button"
-                className={`${styles.userIconButton} ${
-                  micMuted ? styles.userIconButtonDanger : ''
-                }`}
-                aria-label={micMuted ? 'Ligar o microfone' : 'Desligar o microfone'}
-                aria-pressed={micMuted}
-                title={micMuted ? 'Ligar o microfone' : 'Desligar o microfone'}
-                onClick={handleToggleMic}
-              >
-                {micMuted ? <MicOffIcon size={16} /> : <MicIcon size={16} />}
-              </button>
-              <button
-                type="button"
-                className={`${styles.userIconButton} ${
-                  deafened ? styles.userIconButtonDanger : ''
-                }`}
-                aria-label={deafened ? 'Voltar a ouvir' : 'Parar de ouvir'}
-                aria-pressed={deafened}
-                title={
-                  deafened
-                    ? 'Voltar a ouvir (devolve o microfone ao estado anterior)'
-                    : 'Parar de ouvir (silencia tudo e muta voce junto)'
-                }
-                onClick={handleToggleDeafen}
-              >
-                {deafened ? <HeadphonesOffIcon size={16} /> : <HeadphonesIcon size={16} />}
-              </button>
-              {/* Uma engrenagem, uma janela. Antes isto abria um popover de
+                <button
+                  type="button"
+                  className={`${styles.userIconButton} ${
+                    micMuted ? styles.userIconButtonDanger : ''
+                  }`}
+                  aria-label={micMuted ? 'Ligar o microfone' : 'Desligar o microfone'}
+                  aria-pressed={micMuted}
+                  title={micMuted ? 'Ligar o microfone' : 'Desligar o microfone'}
+                  onClick={handleToggleMic}
+                >
+                  {micMuted ? <MicOffIcon size={16} /> : <MicIcon size={16} />}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.userIconButton} ${
+                    deafened ? styles.userIconButtonDanger : ''
+                  }`}
+                  aria-label={deafened ? 'Voltar a ouvir' : 'Parar de ouvir'}
+                  aria-pressed={deafened}
+                  title={
+                    deafened
+                      ? 'Voltar a ouvir (devolve o microfone ao estado anterior)'
+                      : 'Parar de ouvir (silencia tudo e muta voce junto)'
+                  }
+                  onClick={handleToggleDeafen}
+                >
+                  {deafened ? <HeadphonesOffIcon size={16} /> : <HeadphonesIcon size={16} />}
+                </button>
+                {/* Uma engrenagem, uma janela. Antes isto abria um popover de
                   20rem que so tinha audio + links de conta; tudo virou secao
                   da mesma janela (ver lib/SettingsWindow.tsx). */}
-              <button
-                type="button"
-                className={styles.userIconButton}
-                aria-haspopup="dialog"
-                aria-expanded={settingsSection !== null}
-                aria-label="Configurações"
-                onClick={() => setSettingsSection('voice')}
-              >
-                <SettingsIcon size={16} />
-              </button>
-            </div>
-          </>
-        ) : (
-          <span className={styles.userName}>...</span>
-        )}
-      </div>
+                <button
+                  type="button"
+                  className={styles.userIconButton}
+                  aria-haspopup="dialog"
+                  aria-expanded={settingsSection !== null}
+                  aria-label="Configurações"
+                  onClick={() => setSettingsSection('voice')}
+                >
+                  <SettingsIcon size={16} />
+                </button>
+              </div>
+            </>
+          ) : (
+            <span className={styles.userName}>...</span>
+          )}
+        </div>
 
-      {/* Portalizada pro <body> (ver AccountOverlay), mas montada DENTRO desta
+        {/* Portalizada pro <body> (ver AccountOverlay), mas montada DENTRO desta
           arvore de proposito: assim o ramo irmao — o PageClientImpl com o
           <Room> — nunca desmonta, e a voz continua tocando por baixo. */}
-      {settingsSection !== null && props.user && (
-        <SettingsWindow
-          username={props.user.username}
-          isAdmin={props.user.isAdmin}
-          initialSection={settingsSection}
-          onClose={closeSettings}
-          onLogout={props.onLogout}
-        />
-      )}
-    </nav>
+        {settingsSection !== null && props.user && (
+          <SettingsWindow
+            username={props.user.username}
+            isAdmin={props.user.isAdmin}
+            initialSection={settingsSection}
+            onClose={closeSettings}
+            onLogout={props.onLogout}
+          />
+        )}
+      </nav>
+    </>
   );
 }

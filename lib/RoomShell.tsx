@@ -137,8 +137,8 @@ export function RoomShell(props: {
                 {openTextChannel && (
                   <div className={styles.textLayer}>
                     <p className={styles.callBanner}>
-                      Chamada de voz continua em andamento em segundo plano. Clique no canal de voz
-                      ao lado pra voltar pra ela.
+                      Chamada de voz continua em andamento em segundo plano. Abra a lista de canais
+                      e clique no canal de voz pra voltar pra ela.
                     </p>
                     <TextChannelPanel
                       channelId={openTextChannel.id}

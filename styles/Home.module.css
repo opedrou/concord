@@ -9,19 +9,13 @@
   flex-grow: 1;
 }
 
-/* Layout da home: sidebar de canais + painel principal. Em telas estreitas
-   a sidebar vira uma tira no topo (ver ChannelSidebar.module.css) e o shell
-   empilha em coluna. */
+/* Layout da home: sidebar de canais + painel principal. Em telas estreitas a
+   sidebar vira gaveta sobreposta (ver ChannelSidebar.module.css), sai do fluxo
+   e o painel principal fica com a largura toda. */
 .appShell {
   display: flex;
   height: 100%;
   min-height: 100dvh;
-}
-
-@media (max-width: 640px) {
-  .appShell {
-    flex-direction: column;
-  }
 }
 
 .welcomePane {

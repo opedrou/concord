@@ -339,15 +339,71 @@
    wrapper de posicionamento e o backdrop que existiam aqui sumiram junto: a
    janela e portalizada pro <body> e traz o proprio backdrop. */
 
-/* Telas estreitas: a sidebar nao pode comer a tela inteira. Vira uma tira
-   colapsavel no topo em vez de ocupar a largura toda de forma fixa. */
+/* O botao da gaveta so existe em tela estreita — no desktop a coluna esta
+   sempre visivel e o botao nao teria o que abrir. */
+.drawerToggle {
+  display: none;
+}
+
+/* Telas estreitas: a coluna de canais era uma tira fixa de 45vh no topo, ou
+   seja, quase metade da tela ocupada em TODA pagina (home, canal de texto e
+   call). Aqui ela sai do fluxo e vira uma gaveta que desliza por cima, do
+   jeito que um app de celular faz. */
 @media (max-width: 640px) {
   .sidebar {
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    max-height: 45vh;
-    border-right: none;
-    border-bottom: 1px solid var(--lk-border-color);
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(85vw, 20rem);
+    max-width: none;
+    height: 100dvh;
+    border-right: 1px solid var(--lk-border-color);
+    /* Fechada por padrao. `translate` em vez de `display:none` pra transicao
+       existir e pro estado da lista nao se perder ao abrir e fechar. */
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    /* Escondida do leitor de tela e do foco enquanto esta fora da tela. */
+    visibility: hidden;
+  }
+
+  .sidebar[data-drawer-open='true'] {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .drawerBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  .drawerToggle {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 31;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 44px e o alvo de toque minimo recomendado (WCAG 2.5.8 / HIG). */
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--lk-border-color);
+    border-radius: 12px;
+    background-color: var(--lk-bg2);
+    color: var(--fg2);
+    cursor: pointer;
+  }
+
+  /* Enquanto a gaveta esta aberta o botao vira o "fechar" dela, entao sobe
+     junto pra continuar clicavel por cima do painel. */
+  .sidebar[data-drawer-open='true'] ~ .drawerToggle,
+  .drawerToggle[aria-expanded='true'] {
+    background-color: var(--lk-bg3, var(--lk-bg2));
   }
 }

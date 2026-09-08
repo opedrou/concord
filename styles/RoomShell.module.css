@@ -32,13 +32,14 @@
   color: var(--lk-fg2, rgba(255, 255, 255, 0.7));
 }
 
-/* Mesmo padrao da home: em tela estreita a sidebar vira uma tira no topo
-   (ver ChannelSidebar.module.css) em vez de comer a tela inteira durante a
-   chamada. */
+/* Em tela estreita a sidebar vira gaveta sobreposta (ver
+   ChannelSidebar.module.css): sai do fluxo e a chamada fica com a tela toda.
+   O que sobra na linha e o painel de membros, que ao lado de uma coluna de
+   412px roubava um terco da largura e cobria as mensagens — empilhado embaixo
+   ele volta a ser a tira de rodape que o proprio module dele ja previa. */
 @media (max-width: 640px) {
   .shell {
     flex-direction: column;
-    height: 100dvh;
   }
 
   .main {

@@ -41,7 +41,7 @@ export default function Page() {
             letreiro do produto. */}
         <ConcordMark size={92} className={styles.welcomeMark} />
         <h2 className={styles.welcomeTitle}>Bem-vindo de volta, {user?.username ?? 'por aqui'}.</h2>
-        <p className={styles.welcomeHint}>Escolha um canal ao lado.</p>
+        <p className={styles.welcomeHint}>Escolha um canal pra começar.</p>
       </main>
     </div>
   );
