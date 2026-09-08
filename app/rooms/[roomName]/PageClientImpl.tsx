@@ -37,6 +37,7 @@ import {
   ScreenSharePresets,
   Room,
   DeviceUnsupportedError,
+  DisconnectReason,
   RoomConnectOptions,
   RoomEvent,
   Track,
@@ -46,8 +47,10 @@ import {
   TrackPublishOptions,
 } from 'livekit-client';
 import { useRouter } from 'next/navigation';
+import { isDefinitiveDisconnect } from '@/lib/disconnectReason';
 import { useSetupE2EE } from '@/lib/useSetupE2EE';
 import { useLowCPUOptimizer } from '@/lib/usePerfomanceOptimiser';
+import { useKeepAwake } from '@/lib/useKeepAwake';
 
 const CONN_DETAILS_ENDPOINT =
   process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? '/api/connection-details';
@@ -83,6 +86,11 @@ const CONN_DETAILS_ENDPOINT =
 
 /** Traduz o `MediaDeviceKind` do browser pro nome em portugues usado nas
  * mensagens de erro. */
+// Teto de reconexoes seguidas depois de uma queda (ver `handleOnLeave`). Cinco
+// cobre uma troca de rede ou um tunel reiniciando; alem disso o problema nao e
+// transitorio e insistir so gera pedido de token em loop.
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 function labelForDeviceKind(kind?: MediaDeviceKind): string {
   switch (kind) {
     case 'videoinput':
@@ -281,6 +289,10 @@ export function PageClientImpl(props: {
         <VideoConferenceComponent
           connectionDetails={connectionDetails}
           userChoices={userChoices}
+          // Pedir um token NOVO e reconectar. E o mesmo caminho do botao
+          // "Tentar de novo" acima: refaz o fetch, o `connectionDetails` muda
+          // e o efeito de conexao la embaixo roda de novo.
+          onReconnectNeeded={() => setAttempt((n) => n + 1)}
           options={{
             codec: props.codec,
             hq: props.hq,
@@ -300,6 +312,9 @@ function VideoConferenceComponent(props: {
     codec: VideoCodec;
     singlePeerConnection: boolean;
   };
+  /** Chamado quando a conexao cai por motivo NAO intencional — ver
+   * `handleOnLeave`. Busca um token novo e reconecta. */
+  onReconnectNeeded: () => void;
 }) {
   const keyProvider = new ExternalE2EEKeyProvider();
   const { worker, e2eePassphrase } = useSetupE2EE();
@@ -527,7 +542,67 @@ function VideoConferenceComponent(props: {
   const lowPowerMode = useLowCPUOptimizer(room);
 
   const router = useRouter();
-  const handleOnLeave = React.useCallback(() => router.push('/'), [router]);
+  // Quantas reconexoes seguidas ja tentamos sem conseguir voltar. Zera a cada
+  // conexao bem-sucedida; o teto existe pra uma falha permanente (servidor
+  // fora do ar) parar de pedir token em loop.
+  const reconnectAttemptsRef = React.useRef(0);
+  const [connectionLost, setConnectionLost] = React.useState(false);
+
+  /**
+   * ANTES: qualquer `RoomEvent.Disconnected` chamava `router.push('/')`.
+   *
+   * No celular isso era o bug de "a call morre quando a tela apaga": o Chrome
+   * do Android congela a aba em segundo plano, o WebSocket de sinalizacao cai
+   * junto e a livekit-client emite `Disconnected` — o app entao te tirava do
+   * canal. Ao desbloquear, voce ja estava na home, e parecia que a chamada
+   * tinha caido sozinha. Nao tinha: o app desistia dela.
+   *
+   * Agora so sai do canal quando a saida foi DEFINITIVA (voce clicou em sair,
+   * foi removido, a sala acabou, ou outra aba assumiu a sua identity). Queda
+   * de rede e sinalizacao fechada viram tentativa de voltar.
+   *
+   * A lista de motivos definitivos (e por que `DUPLICATE_IDENTITY` esta nela)
+   * mora em lib/disconnectReason.ts, com teste.
+   */
+  const handleOnLeave = React.useCallback(
+    (reason?: DisconnectReason) => {
+      if (isDefinitiveDisconnect(reason)) {
+        router.push('/');
+        return;
+      }
+      // Visivel de proposito: e o unico jeito de saber, no celular e sem cabo,
+      // se a chamada caiu e voltou ou se nunca chegou a cair.
+      toast.loading('Conexao caiu. Voltando pro canal…', { id: 'reconnecting' });
+      setConnectionLost(true);
+    },
+    [router],
+  );
+
+  // A reconexao espera a aba estar VISIVEL: com a tela bloqueada o pedido de
+  // token sairia (ou nem sairia, com os timers congelados) e queimaria uma
+  // tentativa a toa. Ao desbloquear, roda na hora.
+  React.useEffect(() => {
+    if (!connectionLost) return;
+    const { onReconnectNeeded } = props;
+    const retry = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        toast.error('A chamada caiu e nao foi possivel voltar. Entre no canal de novo.', {
+          id: 'reconnecting',
+          duration: 8000,
+        });
+        return;
+      }
+      reconnectAttemptsRef.current += 1;
+      setConnectionLost(false);
+      onReconnectNeeded();
+    };
+    retry();
+    document.addEventListener('visibilitychange', retry);
+    return () => document.removeEventListener('visibilitychange', retry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionLost, props.onReconnectNeeded]);
+
   const handleError = React.useCallback((error: Error) => {
     console.error(error);
     toast.error(`Erro inesperado, veja o console para detalhes: ${error.message}`, {
@@ -572,6 +647,13 @@ function VideoConferenceComponent(props: {
   );
 
   React.useEffect(() => {
+    const handleConnected = () => {
+      if (reconnectAttemptsRef.current > 0) {
+        toast.success('De volta na chamada.', { id: 'reconnecting', duration: 3000 });
+      }
+      reconnectAttemptsRef.current = 0;
+    };
+    room.on(RoomEvent.Connected, handleConnected);
     room.on(RoomEvent.Disconnected, handleOnLeave);
     room.on(RoomEvent.EncryptionError, handleEncryptionError);
     room.on(RoomEvent.MediaDevicesError, handleMediaDeviceError);
@@ -634,6 +716,7 @@ function VideoConferenceComponent(props: {
 
     return () => {
       cancelled = true;
+      room.off(RoomEvent.Connected, handleConnected);
       room.off(RoomEvent.Disconnected, handleOnLeave);
       room.off(RoomEvent.EncryptionError, handleEncryptionError);
       room.off(RoomEvent.MediaDevicesError, handleMediaDeviceError);
@@ -740,6 +823,10 @@ function VideoConferenceComponent(props: {
       console.warn('Low power mode enabled');
     }
   }, [lowPowerMode]);
+
+  // Celular: a tela apagava por inatividade no meio da call e a chamada caia
+  // junto. Ver lib/useKeepAwake.ts.
+  useKeepAwake(true, props.connectionDetails.roomName);
 
   return (
     <div className="lk-room-container">
