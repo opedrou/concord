@@ -251,13 +251,16 @@ export function CallParticipantTile(props: {
   }, [watch]);
   const member = avatarMap[trackRef.participant.name || trackRef.participant.identity];
   const avatarUrl = member?.avatarUrl ?? null;
-  // Fundo do tile de camera desligada (U1): a cor DOMINANTE da foto, chapada.
+  // Fundo do tile de camera desligada (U1): a cor DOMINANTE da foto, em
+  // degrade vertical — escuro em cima, cor cheia embaixo (mockup do design).
   // Quem nao tem foto (ou cuja cor ainda nao foi calculada) fica com o roxo de
   // acento do tema — de proposito, nao uma cor gerada a partir do nome: cor por
   // nome vira arco-iris aleatorio e nao diz nada sobre a pessoa.
   // `background` (shorthand) e nao `background-color`: zera de quebra qualquer
-  // imagem/degrade que venha do CSS, garantindo a cor chapada que o design pede.
-  const placeholderBackground = member?.avatarColor ?? 'var(--accent)';
+  // imagem que venha do CSS. `color-mix` faz o topo escuro sem precisar de uma
+  // segunda cor calculada no JS.
+  const placeholderColor = member?.avatarColor ?? 'var(--accent)';
+  const placeholderBackground = `linear-gradient(180deg, color-mix(in srgb, ${placeholderColor} 62%, #000) 0%, ${placeholderColor} 62%)`;
 
   return (
     <div

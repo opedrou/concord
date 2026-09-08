@@ -53,10 +53,10 @@
    de 96px. `!important` porque o tamanho vem em `style` inline do componente
    (ver lib/Avatar.tsx) — e inline so perde pra `!important`. */
 .tileAvatar {
-  width: min(96px, 58cqmin) !important;
-  height: min(96px, 58cqmin) !important;
+  width: min(72px, 34cqmin) !important;
+  height: min(72px, 34cqmin) !important;
   /* Das iniciais: mesma proporcao que o Avatar usa (0.4 do diametro). */
-  font-size: min(38px, 23cqmin) !important;
+  font-size: min(29px, 14cqmin) !important;
 }
 
 /* Anel de "esta falando": acelera o APAGAR.
@@ -285,8 +285,8 @@
 .tile :global(.lk-participant-metadata-item) {
   background: var(--pill);
   backdrop-filter: blur(6px);
-  padding: 0.3rem 0.7rem;
-  border-radius: 20px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
   font-size: 0.8rem;
   font-weight: 600;
@@ -294,6 +294,26 @@
   white-space: nowrap;
   max-width: 100%;
   min-width: 0;
+}
+
+/* O nome so aparece quando o ponteiro esta na AREA DA CALL (`.stage`, ver
+   CallStage.module.css) — nao no tile individual: o pedido e ver os nomes de
+   todo mundo de uma vez ao mexer o mouse, nao caçar tile por tile. A regra
+   que ACENDE mora la, porque e o `.stage` que tem o :hover; aqui fica so o
+   estado de repouso. `visibility` junto do `opacity` tira a pilula do
+   caminho do clique quando invisivel. */
+.tile :global(.lk-participant-metadata) {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.15s ease-in-out,
+    visibility 0.15s;
+}
+
+/* Teclado: quem chega no tile por Tab tem que saber de quem e o tile. */
+.tile:focus-within :global(.lk-participant-metadata) {
+  opacity: 1;
+  visibility: visible;
 }
 
 .tile :global(.lk-participant-name) {
