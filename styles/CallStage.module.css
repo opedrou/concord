@@ -98,12 +98,18 @@
   font-weight: 700;
   font-size: 1.03rem;
   letter-spacing: -0.01em;
+  /* text-overflow so corta se o filho puder encolher, e o minimo automatico de
+     um item flex e a largura do conteudo — sem isto o nome empurrava a
+     contagem e os botoes pra fora em vez de virar reticencias. */
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .headerCount {
+  font-variant-numeric: tabular-nums;
   font-size: 0.78rem;
   color: var(--fg2);
   background: var(--lk-bg3);
@@ -128,6 +134,7 @@
   width: 34px;
   height: 34px;
   min-width: 34px;
+  touch-action: manipulation;
   padding: 0;
   display: flex;
   align-items: center;
@@ -485,6 +492,7 @@
   align-items: center;
   justify-content: center;
   padding: 0.4rem;
+  touch-action: manipulation;
   border: none;
   border-radius: var(--lk-border-radius, 0.5rem);
   background: var(--pill);
@@ -593,4 +601,84 @@
 .endedClose:focus-visible {
   outline: 2px solid var(--lk-accent-bg);
   outline-offset: 1px;
+}
+
+/* Alvo de toque em ponteiro grosseiro. Cresce a AREA CLICAVEL, nao o desenho:
+   a pastilha continua com os mesmos 34px pintados (e o botao de tela cheia com
+   os mesmos 24px), o que aumenta e a caixa que recebe o dedo. Fora do
+   `pointer: coarse` porque no mouse 34px ja sao confortaveis e 44px comeriam o
+   canto do video. */
+@media (pointer: coarse) {
+  .headerButton,
+  .header :global(.lk-button),
+  .fullscreenButton {
+    position: relative;
+  }
+
+  .headerButton::after,
+  .header :global(.lk-button)::after,
+  .fullscreenButton::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--tap);
+    height: var(--tap);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ENTRADA DOS QUADROS
+   ------------------------------------------------------------------------
+   Trocar de layout (alguem entra, alguem sai, uma transmissao comeca) reescreve
+   a grade inteira de uma vez: o numero de colunas muda, os quadros mudam de
+   tamanho e de lugar, e tudo aparecia no frame seguinte, seco. A animacao nao
+   tenta interpolar a GRADE (grid-template nao interpola entre contagens
+   diferentes sem custo alto) — ela so amacia a chegada de cada quadro novo, que
+   e o que a pessoa percebe como salto.
+
+   Curta de proposito: 180ms. Passou disso numa call de verdade vira atraso, nao
+   suavidade. Sob prefers-reduced-motion o bloco de globals.css ja zera a
+   duracao, entao o quadro aparece direto. */
+@keyframes tileIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.grid > *,
+.focusStrip > * {
+  animation: tileIn var(--dur, 180ms) ease-out;
+}
+
+/* Gap e padding SIM interpolam, e sao o que muda quando a grade reflui entre
+   contagens. Sai de graca no compositor. */
+.grid {
+  transition:
+    gap var(--dur) ease-out,
+    padding var(--dur) ease-out;
+}
+
+/* Faixa de tablet: a grade base e de 2 colunas e so o celular (<=640px) virava
+   coluna unica. Entre 641px e 1024px, 3+ pessoas em 2 colunas dao quadros
+   largos e baixos demais depois que a sidebar tira a sua parte — com 5 a 9
+   participantes a regra de 3 colunas la de cima piorava mais ainda. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .grid[data-count='5'],
+  .grid[data-count='6'],
+  .grid[data-count='7'],
+  .grid[data-count='8'],
+  .grid[data-count='9'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    padding: 6px 12px 12px;
+    gap: 10px;
+  }
 }

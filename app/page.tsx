@@ -26,8 +26,10 @@ export default function Page() {
 
   if (loading) {
     return (
-      <main className={styles.main} data-lk-theme="default">
-        <p>Carregando...</p>
+      <main id="conteudo" className={styles.main} data-lk-theme="default">
+        <p role="status" aria-live="polite">
+          Carregando…
+        </p>
       </main>
     );
   }
@@ -35,12 +37,12 @@ export default function Page() {
   return (
     <div className={styles.appShell} data-lk-theme="default">
       <ChannelSidebar user={user} onLogout={handleLogout} />
-      <main className={styles.welcomePane}>
+      <main id="conteudo" className={styles.welcomePane}>
         {/* A marca desenhada no lugar do wordmark em SVG: no projeto de design
             a home e a marca grande + uma saudacao com o SEU nome, nao um
             letreiro do produto. */}
         <ConcordMark size={92} className={styles.welcomeMark} />
-        <h2 className={styles.welcomeTitle}>Bem-vindo de volta, {user?.username ?? 'por aqui'}.</h2>
+        <h1 className={styles.welcomeTitle}>Bem-vindo de volta, {user?.username ?? 'por aqui'}.</h1>
         <p className={styles.welcomeHint}>Escolha um canal pra começar.</p>
       </main>
     </div>

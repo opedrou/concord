@@ -153,13 +153,43 @@ export function CallParticipantTile(props: {
       // controla pela ControlBar, e a propria transmissao nao se ouve.
       if (trackRef.participant.isLocal) return;
       event.preventDefault();
+      // A tecla Menu (e Shift+F10) dispara `contextmenu` NATIVAMENTE no
+      // elemento focado — de graça, desde que o tile seja focavel. Só que ai o
+      // evento vem com clientX/clientY = 0 e o card abriria colado no canto da
+      // janela; nesse caso ancora no proprio tile.
+      const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+      const rect = fromKeyboard ? containerRef.current?.getBoundingClientRect() : null;
       onOpenVolume(
         trackRef.participant as RemoteParticipant,
-        { x: event.clientX, y: event.clientY },
+        rect
+          ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+          : { x: event.clientX, y: event.clientY },
         trackRef.source === Track.Source.ScreenShare ? 'screen' : 'person',
       );
     },
     [trackRef.participant, trackRef.source, onOpenVolume],
+  );
+
+  // O tile so entra na ordem de tabulacao se clicar nele FIZER alguma coisa:
+  // transmissao (esquerdo amplia/assiste) ou participante remoto (direito abre
+  // o volume). O proprio tile de camera nao reage a clique nenhum, e um stop de
+  // tab que nao faz nada e pior que nenhum — numa call de 9 pessoas seriam 9
+  // paradas mudas antes de chegar na barra de controles.
+  const isInteractive =
+    trackRef.source === Track.Source.ScreenShare || !trackRef.participant.isLocal;
+
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      // So o proprio tile: Enter dentro de um <button> filho (Assistir, Parar
+      // de assistir, Ampliar) ja e tratado por ele e nao pode disparar aqui de
+      // novo.
+      if (event.target !== event.currentTarget) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleClick();
+      }
+    },
+    [handleClick],
   );
 
   const { elementProps } = useParticipantTile<HTMLDivElement>({
@@ -263,6 +293,20 @@ export function CallParticipantTile(props: {
     <div
       {...elementProps}
       ref={containerRef}
+      // Sem isto o tile era um <div> com onClick puro: assistir e ampliar uma
+      // transmissao so existiam no mouse, e o :focus-visible que o
+      // CallParticipantTile.module.css ja definia era regra morta, porque o
+      // elemento nunca recebia foco.
+      tabIndex={isInteractive ? 0 : undefined}
+      role={isInteractive ? 'button' : undefined}
+      aria-label={
+        isInteractive
+          ? `${trackRef.participant.name || trackRef.participant.identity}${
+              trackRef.source === Track.Source.ScreenShare ? ' — transmissão' : ''
+            }`
+          : undefined
+      }
+      onKeyDown={isInteractive ? handleKeyDown : undefined}
       // Depois do spread, de proposito: sobrescreve o valor vindo do servidor.
       data-lk-speaking={isSpeaking}
       // So diagnostico (nao afeta CSS nenhum) — 'local-volume' ou

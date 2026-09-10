@@ -30,6 +30,7 @@ export function WatchPanel() {
         className="lk-button"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={emSessao ? 'Assistindo junto' : 'Assistir junto'}
         title={emSessao ? 'Assistindo junto' : 'Assistir junto'}
         data-active={emSessao || undefined}
         onClick={() => setOpen(true)}
@@ -91,10 +92,21 @@ function WatchModal({ onClose }: { onClose: () => void }) {
             setInput(event.target.value);
             setErro(null);
           }}
-          placeholder="https://youtu.be/..."
-          autoFocus
+          type="url"
+          inputMode="url"
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
+          placeholder="https://youtu.be/…"
+          // So no desktop: no celular o autoFocus sobe o teclado na hora e
+          // cobre o proprio modal que a pessoa acabou de abrir.
+          autoFocus={typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches}
         />
-        {erro && <p className={styles.erro}>{erro}</p>}
+        {erro && (
+          <p className={styles.erro} role="alert">
+            {erro}
+          </p>
+        )}
         <p className={styles.hint}>Todo mundo assiste e controla.</p>
         <button type="submit" className={`lk-button ${styles.submit}`} disabled={!input.trim()}>
           {emSessao ? 'Trocar o vídeo' : 'Começar'}
@@ -195,6 +207,24 @@ const PROBLEMA: Record<string, string> = {
  */
 export function WatchBar() {
   const watch = useWatch();
+  // Preferencia local e persistida: quem precisa de legenda precisa em todo
+  // video, nao so no que estava aberto quando ligou.
+  const [legenda, setLegenda] = React.useState(false);
+  const player = watch?.player;
+
+  React.useEffect(() => {
+    try {
+      if (window.localStorage.getItem('concord:watch-captions') === 'true') setLegenda(true);
+    } catch {
+      // localStorage indisponivel (modo privado): segue sem lembrar.
+    }
+  }, []);
+
+  // Reaplica a cada troca de video: o player novo nasce sem legenda nenhuma.
+  React.useEffect(() => {
+    player?.setCaptions?.(legenda);
+  }, [player, legenda]);
+
   if (!watch?.sync.timeline) {
     return null;
   }
@@ -241,7 +271,33 @@ export function WatchBar() {
       >
         +10s
       </button>
-      {problem && <span className={styles.problema}>{PROBLEMA[problem] ?? problem}</span>}
+      {/* O player roda com `controls: 0`, o que tira a barra nativa do YouTube
+          inteira — inclusive o CC. Sem este botao, legenda simplesmente nao
+          existia pra quem depende dela. */}
+      {player?.setCaptions && (
+        <button
+          type="button"
+          className={`lk-button ${styles.barButton}`}
+          aria-pressed={legenda}
+          onClick={() => {
+            const next = !legenda;
+            setLegenda(next);
+            try {
+              window.localStorage.setItem('concord:watch-captions', String(next));
+            } catch {
+              // Sem persistencia, o botao ainda funciona nesta sessao.
+            }
+          }}
+          title={legenda ? 'Desligar legenda (só pra você)' : 'Ligar legenda (só pra você)'}
+        >
+          CC
+        </button>
+      )}
+      {problem && (
+        <span className={styles.problema} role="alert">
+          {PROBLEMA[problem] ?? problem}
+        </span>
+      )}
       {sync.lastEvent && sync.lastEvent.type !== 'hb' && (
         <span className={styles.evento}>
           {sync.lastEvent.by} {sync.lastEvent.type === 'pause' ? 'pausou' : 'mexeu no vídeo'}

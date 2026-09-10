@@ -53,7 +53,11 @@ export function TextChannelShell(props: { channelSlug: string }) {
 
   return (
     <div className={styles.shell} data-lk-theme="default">
-      <ChannelSidebar user={user} activeTextChannelSlug={props.channelSlug} onLogout={handleLogout} />
+      <ChannelSidebar
+        user={user}
+        activeTextChannelSlug={props.channelSlug}
+        onLogout={handleLogout}
+      />
       <div className={styles.main}>
         {loadError && <p className={textStyles.centeredMessage}>{loadError}</p>}
         {!loadError && channels === null && (

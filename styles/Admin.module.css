@@ -67,6 +67,7 @@
 }
 
 .tabs button {
+  min-block-size: var(--tap);
   padding: 0.45rem 1rem;
   border: none;
   border-radius: 8px;
@@ -211,6 +212,11 @@
 }
 
 .reorderButtons button {
+  /* Reordenar canal e a acao que MAIS depende de precisao no celular (nao tem
+     drag-and-drop alternativo) e era a de menor alvo: 0.125rem de padding dava
+     ~20px de altura. */
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
   padding: 0.125rem 0.5rem;
   line-height: 1;
 }
@@ -306,4 +312,11 @@
   .rowActions {
     justify-content: flex-start;
   }
+}
+
+/* Contagem/numero em lista do admin nao muda de largura a cada atualizacao. */
+.list time,
+.list output,
+.count {
+  font-variant-numeric: tabular-nums;
 }

@@ -181,7 +181,9 @@ export function IntegrationsPanel() {
           </div>
         </form>
 
-        {saved && <p className={styles.muted}>Webhook salvo.</p>}
+        <p className={styles.muted} role="status" aria-live="polite">
+          {saved && 'Webhook salvo.'}
+        </p>
         {actionError && (
           <p className={styles.error} role="alert">
             {actionError}
@@ -245,8 +247,11 @@ export function IntegrationsPanel() {
           )}
         </div>
 
+        {/* `assertive`, nao `polite`: o valor so existe nesta renderizacao e
+            some pra sempre ao recarregar — esperar a fila do leitor de tela
+            esvaziar aqui e perder o segredo. */}
         {freshSecret && (
-          <div className={styles.errorBox}>
+          <div className={styles.errorBox} role="alert" aria-live="assertive">
             <p>
               <strong>Copie agora.</strong> Este valor não aparece de novo — nem recarregando a
               página. Se perder, gere outro e atualize o n8n.

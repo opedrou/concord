@@ -4,7 +4,15 @@
   background: rgba(0, 0, 0, 0.6);
   padding: 1rem;
   max-height: min(100%, 100vh);
-  overflow-y: auto;
+  /* As tabelas de bitrate por track sao largas e nao cabem num celular: sem
+     teto de largura o overlay empurrava a call inteira pro lado. */
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.overlay table {
+  font-variant-numeric: tabular-nums;
 }
 
 .detailsSection {

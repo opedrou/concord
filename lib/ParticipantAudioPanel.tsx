@@ -13,6 +13,7 @@ import {
   sliderToGain,
   type SourceKey,
 } from '@/lib/participantVolumes';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 import styles from '../styles/ParticipantAudioPanel.module.css';
 
 /**
@@ -196,6 +197,11 @@ export function ParticipantVolumeCard(props: {
             window.innerHeight - CARD_HEIGHT - 8,
           ),
         };
+
+  // Escape ja fechava; o que faltava era o foco ENTRAR no card ao abrir e
+  // VOLTAR pro tile ao fechar. Sem isso, abrir o card pelo teclado deixava o
+  // foco no tile atras e os sliders de volume eram inalcancaveis.
+  useFocusTrap(true, cardRef);
 
   return (
     <div

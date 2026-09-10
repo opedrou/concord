@@ -26,8 +26,8 @@ export function SettingsMenu(props: SettingsMenuProps) {
 
   const settings = React.useMemo(() => {
     return {
-      media: { camera: true, microphone: true, label: 'Media Devices', speaker: true },
-      recording: recordingEndpoint ? { label: 'Recording' } : undefined,
+      media: { camera: true, microphone: true, label: 'Dispositivos', speaker: true },
+      recording: recordingEndpoint ? { label: 'Gravação' } : undefined,
     };
   }, []);
 
@@ -98,7 +98,7 @@ export function SettingsMenu(props: SettingsMenuProps) {
           <>
             {settings.media && settings.media.camera && (
               <>
-                <h3>Camera</h3>
+                <h2 className="lk-settings-heading">Câmera</h2>
                 <section>
                   <CameraSettings />
                 </section>
@@ -106,7 +106,7 @@ export function SettingsMenu(props: SettingsMenuProps) {
             )}
             {settings.media && settings.media.microphone && (
               <>
-                <h3>Microphone</h3>
+                <h2 className="lk-settings-heading">Microfone</h2>
                 <section>
                   <MicrophoneSettings />
                 </section>
@@ -114,9 +114,15 @@ export function SettingsMenu(props: SettingsMenuProps) {
             )}
             {settings.media && settings.media.speaker && (
               <>
-                <h3>Speaker & Headphones</h3>
-                <section className="lk-button-group">
-                  <span className="lk-button">Audio Output</span>
+                <h2 className="lk-settings-heading">Saída de áudio</h2>
+                <section
+                  className="lk-button-group"
+                  role="group"
+                  aria-labelledby="lk-audio-output-label"
+                >
+                  <span className="lk-button" id="lk-audio-output-label">
+                    Dispositivo de saída
+                  </span>
                   <div className="lk-button-group-menu">
                     <MediaDeviceMenu kind="audiooutput"></MediaDeviceMenu>
                   </div>
@@ -127,19 +133,23 @@ export function SettingsMenu(props: SettingsMenuProps) {
         )}
         {activeTab === 'recording' && (
           <>
-            <h3>Record Meeting</h3>
+            <h2 className="lk-settings-heading">Gravar a chamada</h2>
             <section>
-              <p>
-                {isRecording
-                  ? 'Meeting is currently being recorded'
-                  : 'No active recordings for this meeting'}
+              {/* Ligar/desligar gravacao passa por uma requisicao: sem regiao
+                  viva, a confirmacao chegava calada. */}
+              <p role="status" aria-live="polite">
+                {isRecording ? 'Esta chamada está sendo gravada.' : 'Nenhuma gravação em curso.'}
               </p>
               <button
                 className="lk-button"
                 disabled={processingRecRequest}
                 onClick={() => toggleRoomRecording()}
               >
-                {isRecording ? 'Stop' : 'Start'} Recording
+                {processingRecRequest
+                  ? 'Aguarde…'
+                  : isRecording
+                    ? 'Parar gravação'
+                    : 'Começar gravação'}
               </button>
             </section>
           </>
@@ -150,7 +160,7 @@ export function SettingsMenu(props: SettingsMenuProps) {
           className={`lk-button`}
           onClick={() => layoutContext?.widget.dispatch?.({ msg: 'toggle_settings' })}
         >
-          Close
+          Fechar
         </button>
       </div>
     </div>

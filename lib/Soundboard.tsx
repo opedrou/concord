@@ -73,7 +73,7 @@ function LastPlayed({ event }: { event: { by: string; name: string; at: number }
     return null;
   }
   return (
-    <span className={styles.lastPlayed}>
+    <span className={styles.lastPlayed} role="status" aria-live="polite">
       {event.by} tocou <strong>{event.name}</strong>
     </span>
   );
@@ -86,6 +86,7 @@ function SoundboardPanel(props: {
 }) {
   const [sounds, setSounds] = React.useState<Sound[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const { onClose } = props;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -101,8 +102,19 @@ function SoundboardPanel(props: {
     };
   }, []);
 
+  // O backdrop ja fechava no clique, mas so no clique: sem teclado nao tinha
+  // saida. Os outros dialogos do app (AccountOverlay, ParticipantVolumeCard) ja
+  // tratam Escape — este era o unico fora do padrao.
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
-    <div className={styles.panel} role="dialog" aria-label="Soundboard">
+    <div className={styles.panel} role="dialog" aria-modal="true" aria-label="Soundboard">
       <header className={styles.header}>
         <span className={styles.title}>Soundboard</span>
         {/* Parar vale pra TODO MUNDO (ver soundboardEvents): o som está tocando
@@ -127,9 +139,10 @@ function SoundboardPanel(props: {
         </p>
       )}
 
-      {sounds === null && !error && <p className={styles.hint}>Carregando…</p>}
-
-      {sounds !== null && sounds.length === 0 && <p className={styles.hint}>Nenhum som ainda.</p>}
+      <p className={styles.hint} role="status" aria-live="polite">
+        {sounds === null && !error && 'Carregando…'}
+        {sounds !== null && sounds.length === 0 && 'Nenhum som ainda.'}
+      </p>
 
       {sounds !== null && sounds.length > 0 && (
         <div className={styles.grid}>
@@ -172,6 +185,7 @@ export function SoundboardSettings() {
   const [busy, setBusy] = React.useState(false);
   const [editing, setEditing] = React.useState<number | null>(null);
   const [renaming, setRenaming] = React.useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
@@ -237,6 +251,7 @@ export function SoundboardSettings() {
     try {
       await deleteSound(sound.id);
       setSounds((prev) => (prev ?? []).filter((s) => s.id !== sound.id));
+      setConfirmDeleteId(null);
     } catch (err) {
       setError(apiErrorMessage(err));
     }
@@ -327,16 +342,39 @@ export function SoundboardSettings() {
                   {editing === sound.id ? 'Fechar' : 'Editar'}
                 </button>
               )}
-              {canDelete && (
-                <button
-                  type="button"
-                  className="lk-button"
-                  onClick={() => handleDelete(sound)}
-                  title="Apagar da biblioteca — vale pra todo mundo"
-                >
-                  Apagar
-                </button>
-              )}
+              {/* Apagar tira o som da biblioteca do GRUPO e nao tem volta, entao
+                  passa pela confirmacao inline — mesmo padrao do UsersPanel do
+                  admin, em vez de um confirm() nativo que trava a aba no meio de
+                  uma call. */}
+              {canDelete &&
+                (confirmDeleteId === sound.id ? (
+                  <span className={styles.inlineConfirm}>
+                    <span>Apagar pra todo mundo?</span>
+                    <button
+                      type="button"
+                      className={`lk-button ${styles.dangerButton}`}
+                      onClick={() => void handleDelete(sound)}
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      type="button"
+                      className="lk-button"
+                      onClick={() => setConfirmDeleteId(null)}
+                    >
+                      Cancelar
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className={`lk-button ${styles.dangerButton}`}
+                    onClick={() => setConfirmDeleteId(sound.id)}
+                    title="Apagar da biblioteca — vale pra todo mundo"
+                  >
+                    Apagar
+                  </button>
+                ))}
             </div>
             {editing === sound.id && (
               <SoundTrimmer

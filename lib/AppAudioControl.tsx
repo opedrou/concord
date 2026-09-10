@@ -177,6 +177,10 @@ export function useAppAudioShare(): AppAudioShare {
 export function AppAudioControl(props: { share: AppAudioShare }) {
   const { sharing, devices, error, refresh, start, stop } = props.share;
   const [selected, setSelected] = React.useState('');
+  // `start` faz getUserMedia + publishTrack: em maquina lenta sao alguns
+  // segundos com o botao inerte e nenhum sinal de que ja comecou. A guarda
+  // interna (startingRef) ja impedia publicar duas faixas, mas era invisivel.
+  const [starting, setStarting] = React.useState(false);
 
   // O popover só existe enquanto está aberto: abrir já é o gesto de "olha de
   // novo se o dispositivo apareceu".
@@ -220,10 +224,13 @@ export function AppAudioControl(props: { share: AppAudioShare }) {
           <button
             type="button"
             className={`lk-button ${styles.action}`}
-            onClick={() => start(current)}
-            disabled={!current}
+            onClick={() => {
+              setStarting(true);
+              void Promise.resolve(start(current)).finally(() => setStarting(false));
+            }}
+            disabled={!current || starting}
           >
-            Compartilhar
+            {starting ? 'Compartilhando…' : 'Compartilhar'}
           </button>
         </>
       )}

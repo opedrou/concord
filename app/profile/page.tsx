@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default function ProfilePage() {
   return (
-    <main className={styles.main} data-lk-theme="default">
+    <main id="conteudo" className={styles.main} data-lk-theme="default">
       <div className={styles.card}>
         <h1 className={styles.title}>Seu perfil</h1>
         <ProfileClientImpl />

@@ -700,7 +700,9 @@ export function CallStage(props: {
             <header className={styles.header}>
               <SpeakerIcon size={18} className={styles.headerIcon} />
               <span className={styles.headerTitle}>{room?.name}</span>
-              <span className={styles.headerCount}>
+              {/* Entrar e sair da call nao tem som proprio pra quem usa leitor
+                  de tela: sem regiao viva, a contagem mudava calada. */}
+              <span className={styles.headerCount} role="status" aria-live="polite">
                 {participants.length === 1 ? '1 na chamada' : `${participants.length} na chamada`}
               </span>
               {/* So o chat fica no topo, encostado na direita — o modo teatro

@@ -61,6 +61,7 @@
   background: var(--lk-bg3, var(--lk-bg2, #1f1f1f));
   border: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.15));
   box-shadow: var(--lk-box-shadow, 0 8px 32px rgba(0, 0, 0, 0.6));
+  overscroll-behavior: contain;
 }
 
 .header {
@@ -153,6 +154,9 @@
 .settingsRow {
   display: flex;
   align-items: center;
+  /* Sem wrap, a fileira Ouvir/Parar/Renomear/Editar/Apagar estourava a largura
+     em tela estreita e cortava o botao de apagar pra fora do painel. */
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.35rem 0;
   border-top: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.12));
@@ -237,6 +241,10 @@
   pointer-events: none;
 }
 
+/* O alvo do dedo tem que chegar nos 44px do guideline; o traco visual continua
+   com 2px (ver ::before abaixo). No mouse 12px ja bastavam, entao a largura
+   cheia so entra em ponteiro grosseiro — no desktop uma alca de 44px comeria
+   metade de uma forma de onda curta. */
 .handle {
   position: absolute;
   top: 0;
@@ -246,6 +254,13 @@
   cursor: ew-resize;
   background: transparent;
   touch-action: none;
+}
+
+@media (pointer: coarse) {
+  .handle {
+    width: var(--tap);
+    margin-left: calc(var(--tap) / -2);
+  }
 }
 
 /* Linha fina dentro de uma area de toque larga: o alvo do dedo tem 12px, o
@@ -283,4 +298,18 @@
   background: var(--lk-bg, #111);
   color: var(--lk-fg, #fff);
   font-size: 0.8rem;
+}
+
+/* Confirmacao inline de apagar — mesmo padrao do UsersPanel do admin. */
+.inlineConfirm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+}
+
+.dangerButton {
+  border-color: var(--lk-danger, #ff6352);
+  color: var(--lk-danger, #ff6352);
 }

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { CloseIcon } from '@/lib/icons';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 import styles from '../styles/AccountOverlay.module.css';
 
 /**
@@ -55,9 +56,15 @@ export function AccountOverlay(props: {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [onClose]);
 
+  // `aria-modal` prometia ao leitor de tela que o resto da pagina estava
+  // inerte, mas o Tab continuava passeando pela sidebar e pelos controles da
+  // call atras do backdrop. Ver lib/useFocusTrap.ts.
+  const trapRef = useFocusTrap(true);
+
   const overlay = (
     <div className={styles.backdrop} onClick={onClose}>
       <div
+        ref={trapRef}
         className={`${styles.window} ${props.size === 'narrow' ? styles.windowNarrow : ''} ${
           props.size === 'large' ? styles.windowLarge : ''
         }`}

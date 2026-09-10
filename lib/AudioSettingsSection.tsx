@@ -76,12 +76,21 @@ function DeviceSettings() {
   return (
     <div className={styles.field}>
       <span className={styles.fieldLabel}>Dispositivos</span>
-      <div className={styles.deviceRow}>
-        <span className={styles.deviceLabel}>Microfone</span>
+      {/* Os tres <span> eram rotulo so visualmente: o MediaDeviceMenu do
+          LiveKit renderiza um <button>, nao um <select>, entao nao existe
+          htmlFor pra ligar os dois. Com role="group" + aria-labelledby o leitor
+          de tela anuncia "Microfone, grupo" ao entrar na linha, em vez de um
+          botao sem nome nenhum. */}
+      <div className={styles.deviceRow} role="group" aria-labelledby="dev-mic">
+        <span className={styles.deviceLabel} id="dev-mic">
+          Microfone
+        </span>
         <MediaDeviceMenu kind="audioinput" />
       </div>
-      <div className={styles.deviceRow}>
-        <span className={styles.deviceLabel}>Saída de áudio</span>
+      <div className={styles.deviceRow} role="group" aria-labelledby="dev-out">
+        <span className={styles.deviceLabel} id="dev-out">
+          Saída de áudio
+        </span>
         {canChooseOutput ? (
           <MediaDeviceMenu
             kind="audiooutput"
@@ -91,8 +100,10 @@ function DeviceSettings() {
           <span className={styles.hint}>Escolha a saída no sistema.</span>
         )}
       </div>
-      <div className={styles.deviceRow}>
-        <span className={styles.deviceLabel}>Câmera</span>
+      <div className={styles.deviceRow} role="group" aria-labelledby="dev-cam">
+        <span className={styles.deviceLabel} id="dev-cam">
+          Câmera
+        </span>
         <MediaDeviceMenu kind="videoinput" />
       </div>
     </div>
@@ -108,7 +119,7 @@ function MicSettings({ mic }: { mic: Mic }) {
 
       {mic.monitorDevice && (
         <p className={styles.warning}>
-          Dispositivo &quot;Monitor of...&quot; detectado (áudio do sistema como microfone). Redução
+          Dispositivo &quot;Monitor of…&quot; detectado (áudio do sistema como microfone). Redução
           de ruído e um limiar alto destroem esse áudio — deixamos os dois desligados por padrão;
           mexa só se souber o que está fazendo.
         </p>
@@ -166,14 +177,33 @@ function NoiseLevelPicker({ mic }: { mic: Mic }) {
     <div className={styles.field}>
       <span className={styles.fieldLabel}>Redução de ruído</span>
       <div className={styles.segmented} role="radiogroup" aria-label="Redução de ruído">
-        {NOISE_LEVELS.map((level) => (
+        {NOISE_LEVELS.map((level, index) => (
           <button
             key={level}
+            id={`ruido-${level}`}
             type="button"
             role="radio"
             aria-checked={mic.noiseLevel === level}
+            // Roving tabindex: num radiogroup o Tab entra e SAI do grupo, quem
+            // anda entre as opcoes e a seta. Sem isto os tres botoes eram tres
+            // paradas de Tab e as setas nao faziam nada.
+            tabIndex={mic.noiseLevel === level ? 0 : -1}
             className={`${styles.segment} ${mic.noiseLevel === level ? styles.segmentActive : ''}`}
             onClick={() => mic.setNoiseLevel(level)}
+            onKeyDown={(event) => {
+              const delta =
+                event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                  ? 1
+                  : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                    ? -1
+                    : 0;
+              if (delta === 0) return;
+              event.preventDefault();
+              const next =
+                NOISE_LEVELS[(index + delta + NOISE_LEVELS.length) % NOISE_LEVELS.length];
+              mic.setNoiseLevel(next);
+              document.getElementById(`ruido-${next}`)?.focus();
+            }}
             title={noiseLevelDescription(level)}
           >
             {noiseLevelLabel(level)}
@@ -181,7 +211,11 @@ function NoiseLevelPicker({ mic }: { mic: Mic }) {
         ))}
       </div>
       <p className={styles.hint}>{noiseLevelDescription(mic.noiseLevel)}</p>
-      {message && <p className={degraded ? styles.warning : styles.status}>{message}</p>}
+      {message && (
+        <p className={degraded ? styles.warning : styles.status} role="status" aria-live="polite">
+          {message}
+        </p>
+      )}
     </div>
   );
 }

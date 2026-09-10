@@ -211,7 +211,11 @@ export function ChannelsPanel() {
                   {!isEditing ? (
                     <>
                       <span className={styles.rowTitle}>
-                        {channel.type === 'text' ? <HashIcon size={15} /> : <SpeakerIcon size={15} />}
+                        {channel.type === 'text' ? (
+                          <HashIcon size={15} />
+                        ) : (
+                          <SpeakerIcon size={15} />
+                        )}
                         {channel.name}
                       </span>
                       <span className={styles.rowMeta}>
@@ -243,7 +247,11 @@ export function ChannelsPanel() {
                       >
                         Salvar
                       </button>
-                      <button className="lk-button" type="button" onClick={() => setEditingId(null)}>
+                      <button
+                        className="lk-button"
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                      >
                         Cancelar
                       </button>
                     </span>

@@ -38,7 +38,17 @@ export function MembersPanel() {
   const [loadError, setLoadError] = React.useState<Error | null>(null);
   // Estado de aberto/fechado persistido — quem fecha o painel nao quer
   // reabri-lo toda vez que troca de canal de texto.
-  const [collapsed, setCollapsed] = React.useState(loadCollapsedPref);
+  //
+  // Comeca SEMPRE no default (recolhido) e le o localStorage num efeito, nao no
+  // inicializador do useState: o inicializador roda tambem no servidor, onde
+  // `window` nao existe e a preferencia real e desconhecida. Quem tinha o
+  // painel expandido recebia HTML com ele recolhido e o React corrigia na
+  // hidratacao — mismatch, e o painel piscava no primeiro paint.
+  const [collapsed, setCollapsed] = React.useState(true);
+
+  React.useEffect(() => {
+    setCollapsed(loadCollapsedPref());
+  }, []);
   const { presence } = usePresencePolling();
 
   const toggleCollapsed = React.useCallback(() => {

@@ -158,6 +158,11 @@ export function UsersPanel({ currentUsername }: { currentUsername: string }) {
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               autoComplete="off"
+              // Nome de usuario nao e prosa: sem isto o navegador sublinha em
+              // vermelho e o corretor do celular ainda tenta "consertar".
+              spellCheck={false}
+              autoCapitalize="none"
+              autoCorrect="off"
               required
             />
           </div>

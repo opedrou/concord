@@ -517,18 +517,15 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
             <>
               {/* Clicar em si mesmo abre o perfil — atalho que o Discord tem
                 e que evita ter que caçar a secao dentro da janela. */}
-              <div
+              {/* <button> de verdade, nao um <div role="button">: o teclado, o
+                  Enter/Espaco e o nome acessivel vem do elemento, em vez de
+                  serem reimplementados a mao (e era so o que o onKeyDown daqui
+                  fazia). */}
+              <button
+                type="button"
                 className={styles.userIdentity}
-                role="button"
-                tabIndex={0}
                 title="Abrir seu perfil"
                 onClick={() => setSettingsSection('profile')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSettingsSection('profile');
-                  }
-                }}
               >
                 <span className={styles.avatarWrap}>
                   <Avatar
@@ -544,7 +541,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
                   </span>
                   <span className={styles.userStatus}>Online</span>
                 </span>
-              </div>
+              </button>
               <div className={styles.userActions}>
                 {/* Esta sidebar renderiza FORA da arvore do RoomContext (e irma
                   do PageClientImpl, nao descendente), entao nao da pra ler
@@ -599,7 +596,7 @@ export function ChannelSidebar(props: ChannelSidebarProps) {
               </div>
             </>
           ) : (
-            <span className={styles.userName}>...</span>
+            <span className={styles.userName}>…</span>
           )}
         </div>
 

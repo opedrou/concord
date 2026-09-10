@@ -257,6 +257,9 @@ export function JoinLeaveSoundsSettings() {
         disabled={muted}
         onChange={(e) => setSoundVolume(Number(e.target.value))}
         aria-label="Volume dos sons de presença"
+        // Sem isto o leitor de tela le o valor cru da escala 0-1 ("0,55"); os
+        // outros sliders do app ja anunciam a porcentagem.
+        aria-valuetext={`${Math.round(volume * 100)}%`}
       />
 
       <div className={windowStyles.soundPreview}>

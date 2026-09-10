@@ -111,7 +111,9 @@
   border-radius: 11px;
 }
 
-.field input:focus {
+/* `:focus-visible` e nao `:focus`: com `:focus` o anel acendia tambem no
+   clique de mouse, que e ruido — o anel existe pra dizer onde o TECLADO esta. */
+.field input:focus-visible {
   outline: 2px solid var(--lk-focus-outline-color, #1f8cf9);
   outline-offset: -1px;
 }

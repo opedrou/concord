@@ -96,8 +96,29 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
     [currentPassword, newPassword, confirmPassword, user?.username],
   );
 
+  // Os tres campos de senha ficam preenchidos e o "Voltar" fica logo abaixo do
+  // "Salvar nova senha": clicar no errado jogava tudo fora sem avisar.
+  const hasUnsavedPassword =
+    !passwordSuccess && !!(currentPassword || newPassword || confirmPassword);
+
+  const confirmLeave = React.useCallback(() => {
+    if (!hasUnsavedPassword) return true;
+    return window.confirm('Você digitou uma senha e ainda não salvou. Sair mesmo assim?');
+  }, [hasUnsavedPassword]);
+
+  const handleClose = React.useCallback(() => {
+    if (confirmLeave()) props.onClose?.();
+  }, [confirmLeave, props]);
+
+  const handleLeave = React.useCallback(
+    (event: React.MouseEvent) => {
+      if (!confirmLeave()) event.preventDefault();
+    },
+    [confirmLeave],
+  );
+
   if (loading || !user) {
-    return <p>Carregando...</p>;
+    return <p>Carregando…</p>;
   }
 
   return (
@@ -127,9 +148,18 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
         />
       </div>
 
-      {avatarBusy && <p>Enviando...</p>}
-      {avatarError && <p className={styles.error}>{avatarError}</p>}
-      {avatarSuccess && !avatarBusy && <p>Foto atualizada.</p>}
+      {/* Um container vivo fixo em vez de tres <p> que entram e saem: regiao
+          que so aparece junto com a mensagem costuma nao ser anunciada, porque
+          o leitor de tela precisa dela no DOM ANTES da mudanca. */}
+      <p role="status" aria-live="polite">
+        {avatarBusy && 'Enviando…'}
+        {avatarSuccess && !avatarBusy && 'Foto atualizada.'}
+      </p>
+      {avatarError && (
+        <p className={styles.error} role="alert">
+          {avatarError}
+        </p>
+      )}
 
       <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border)' }} />
 
@@ -177,16 +207,20 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
           />
         </div>
 
-        {passwordError && <p className={styles.error}>{passwordError}</p>}
+        {passwordError && (
+          <p className={styles.error} role="alert">
+            {passwordError}
+          </p>
+        )}
         {passwordSuccess && !passwordBusy && (
-          <p>
+          <p role="status" aria-live="polite">
             Senha atualizada. Se você estiver logado em outro dispositivo, essa sessão continua
             valendo até expirar — trocar a senha não desconecta os outros de propósito.
           </p>
         )}
 
         <button type="submit" className="lk-button" disabled={passwordBusy}>
-          {passwordBusy ? 'Salvando...' : 'Salvar nova senha'}
+          {passwordBusy ? 'Salvando…' : 'Salvar nova senha'}
         </button>
       </form>
 
@@ -194,11 +228,11 @@ export function ProfileClientImpl(props: { onClose?: () => void } = {}) {
           aqui navegaria e derrubaria a chamada. Na rota /profile, sem
           `onClose`, continua sendo o link de sempre. */}
       {props.onClose ? (
-        <button type="button" className="lk-button" onClick={props.onClose}>
+        <button type="button" className="lk-button" onClick={handleClose}>
           Voltar
         </button>
       ) : (
-        <Link href="/" style={{ textAlign: 'center' }}>
+        <Link href="/" style={{ textAlign: 'center' }} onClick={handleLeave}>
           Voltar
         </Link>
       )}

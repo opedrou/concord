@@ -12,9 +12,11 @@ import type { MessageAttachment } from '@/lib/api-client';
 import styles from '../styles/AttachmentPreview.module.css';
 
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  // \u00A0 (espaco inquebravel) e nao espaco comum: "1.4 MB" no fim de uma
+  // linha estreita quebrava com o "MB" sozinho na linha de baixo.
+  if (bytes < 1024) return `${bytes}\u00A0B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}\u00A0KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}\u00A0MB`;
 }
 
 export function AttachmentPreview({ attachment }: { attachment: MessageAttachment }) {

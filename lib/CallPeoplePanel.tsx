@@ -39,6 +39,9 @@ export function CallPeoplePanel() {
         className="lk-button"
         aria-haspopup="dialog"
         aria-expanded={open}
+        // `title` nao vira nome acessivel de forma confiavel e nao aparece em
+        // toque nenhum — num botao que so tem icone dentro, era o unico texto.
+        aria-label="Chamar pessoas"
         title="Chamar pessoas"
         onClick={() => setOpen(true)}
       >

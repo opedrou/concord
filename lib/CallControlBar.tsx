@@ -13,6 +13,7 @@ import {
 } from '@livekit/components-react';
 import { ChevronDownIcon, ChevronRightIcon } from '@/lib/icons';
 import { Soundboard } from '@/lib/Soundboard';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 import { AppAudioControl, useAppAudioShare } from '@/lib/AppAudioControl';
 import { CallPeoplePanel } from '@/lib/CallPeoplePanel';
 import { WatchPanel } from '@/lib/WatchPanel';
@@ -39,6 +40,7 @@ export function CallControlBar(props: {
 }) {
   const layoutContext = useMaybeLayoutContext();
   const [qualityOpen, setQualityOpen] = React.useState(false);
+  const qualityRef = useFocusTrap(qualityOpen);
 
   // O estado de "estou compartilhando o audio de um app" mora AQUI, e nao no
   // painel: o popover desmonta ao fechar, e o cleanup do hook despublicaria a
@@ -130,7 +132,22 @@ export function CallControlBar(props: {
           {qualityOpen && (
             <>
               <div className={styles.popoverBackdrop} onClick={() => setQualityOpen(false)} />
-              <div className={styles.qualityPopover}>
+              {/* So o backdrop fechava, e backdrop so responde a clique: sem
+                  mouse nao havia saida. O popover tem os controles de qualidade
+                  da transmissao e de audio de app dentro, entao prende o foco
+                  como os outros dialogos do app (ver lib/useFocusTrap.ts). */}
+              <div
+                ref={qualityRef}
+                className={styles.qualityPopover}
+                role="dialog"
+                aria-label="Qualidade da transmissão e áudio de app"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    setQualityOpen(false);
+                  }
+                }}
+              >
                 <ScreenShareQualityControl />
                 <hr className={styles.popoverDivider} />
                 <AppAudioControl share={appAudio} />

@@ -44,6 +44,7 @@
   background: var(--lk-bg3, var(--lk-bg2, #1f1f1f));
   border: 1px solid var(--lk-border-color, rgba(255, 255, 255, 0.15));
   box-shadow: var(--lk-box-shadow, 0 8px 32px rgba(0, 0, 0, 0.6));
+  overscroll-behavior: contain;
 }
 
 .header {

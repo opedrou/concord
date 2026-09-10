@@ -47,6 +47,11 @@
 .closeButton {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  /* Alvo de toque: o padding de 0.25rem dava ~24px de altura num botao que so
+     tem um X dentro. */
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
   background: transparent;
   border: none;
   color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
@@ -69,6 +74,9 @@
   flex-grow: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Chegando na ponta do historico o scroll parava de ser do painel e virava
+     da pagina de tras (scroll chaining) — no iOS isso arrasta a call inteira. */
+  overscroll-behavior: contain;
   padding: 0.75rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -270,8 +278,18 @@
   line-height: 1.5;
 }
 
-.textarea:focus {
+/* O campo nao pinta anel no proprio elemento porque quem desenha a moldura e a
+   caixa do composer em volta (.composer:focus-within, abaixo) — sem isso eram
+   dois aneis concentricos. O foco de teclado continua visivel, so mudou de
+   elemento. */
+.textarea:focus,
+.textarea:focus-visible {
   outline: none;
+}
+
+.composer:focus-within {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 1px var(--accent2);
 }
 
 /* Botoes de dentro da caixa: discretos, do tamanho de uma linha do campo. */
@@ -346,4 +364,11 @@
 
 .pendingRemove:hover {
   background-color: var(--hover-strong);
+}
+
+/* Confirmacao inline de apagar mensagem. */
+.inlineConfirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }

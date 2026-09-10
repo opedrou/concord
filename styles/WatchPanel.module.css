@@ -121,6 +121,7 @@
   gap: 0.25rem;
   max-height: 40vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .item {

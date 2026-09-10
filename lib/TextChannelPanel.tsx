@@ -24,12 +24,24 @@ const PAGE_SIZE = 50;
 // (sem repetir nome/horario) — mesma ideia do Discord.
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
+// Formatter criado uma vez, nao por mensagem: `Intl.DateTimeFormat` e caro de
+// construir e o historico chama isto uma vez por linha.
+//
+// `undefined` como locale = o locale do proprio usuario (navigator.languages),
+// que era o que o 'pt-BR' cravado ignorava — quem usa o SO em outro idioma via
+// horario no formato errado.
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+const fullDateTimeFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'short',
+  timeStyle: 'medium',
+});
+
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return timeFormat.format(ts);
 }
 
 function formatFullDateTime(ts: number): string {
-  return new Date(ts).toLocaleString('pt-BR');
+  return fullDateTimeFormat.format(ts);
 }
 
 export interface TextChannelPanelProps {
@@ -64,6 +76,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [sendError, setSendError] = React.useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<number | null>(null);
 
   const seenIds = React.useRef<Set<number>>(new Set());
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
@@ -342,16 +355,37 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
                             {formatTime(message.createdAt)}
                           </span>
                         )}
-                        {canDelete && (
-                          <button
-                            type="button"
-                            className={styles.deleteButton}
-                            onClick={() => handleDelete(message.id)}
-                            aria-label="Apagar mensagem"
-                          >
-                            Apagar
-                          </button>
-                        )}
+                        {/* Apagar mensagem nao tem volta e o botao fica a um
+                            pixel do corpo da mensagem — sem confirmacao, um
+                            clique errado apaga direto. */}
+                        {canDelete &&
+                          (confirmDeleteId === message.id ? (
+                            <span className={styles.inlineConfirm}>
+                              <button
+                                type="button"
+                                className={styles.deleteButton}
+                                onClick={() => void handleDelete(message.id)}
+                              >
+                                Confirmar
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.deleteButton}
+                                onClick={() => setConfirmDeleteId(null)}
+                              >
+                                Cancelar
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.deleteButton}
+                              onClick={() => setConfirmDeleteId(message.id)}
+                              aria-label="Apagar mensagem"
+                            >
+                              Apagar
+                            </button>
+                          ))}
                       </div>
                     </div>
                   </li>
@@ -415,6 +449,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
         </button>
         <textarea
           className={styles.textarea}
+          aria-label={`Mensagem em #${props.channelName}`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -438,7 +473,7 @@ export function TextChannelPanel(props: TextChannelPanelProps) {
           onClick={handleSend}
           disabled={sending || uploading || (!draft.trim() && !pending)}
         >
-          Enviar
+          {sending ? 'Enviando…' : 'Enviar'}
         </button>
       </div>
     </div>

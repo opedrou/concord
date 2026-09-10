@@ -6,12 +6,16 @@
 .panel {
   display: flex;
   flex-direction: column;
-  width: 232px;
+  /* 14.5rem em vez de 232px: acompanha o tamanho de fonte de quem aumentou o
+     padrao do navegador, em vez de espremer o texto numa caixa fixa. */
+  width: 14.5rem;
   max-width: 80vw;
   flex-shrink: 0;
   background-color: var(--lk-bg2);
   border-left: 1px solid var(--lk-border-color);
   overflow-y: auto;
+  /* Rolar ate a ponta da lista nao arrasta a pagina de tras junto. */
+  overscroll-behavior: contain;
 }
 
 .panel.collapsed {
@@ -27,6 +31,8 @@
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
+  /* Era ~35px de altura: e o unico jeito de abrir/fechar o painel no celular. */
+  min-block-size: var(--tap);
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--lk-border-color);
@@ -152,5 +158,14 @@
     border-left: none;
     border-top: 1px solid var(--lk-border-color);
     max-height: 45vh;
+  }
+}
+
+/* Ver a nota da faixa de tablet em ChannelSidebar.module.css: entre 641px e
+   1024px o painel divide a linha com a sidebar e com o conteudo, e 14.5rem ali
+   e um terco da largura util. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .panel {
+    width: 11.5rem;
   }
 }

@@ -96,6 +96,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Chegando na ponta, o scroll passava pra pagina de tras e arrastava a call
+     inteira junto — no iOS isso e o comportamento padrao. */
+  overscroll-behavior: contain;
   padding: 1.25rem;
 }
 

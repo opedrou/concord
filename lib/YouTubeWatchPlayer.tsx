@@ -38,6 +38,8 @@ interface YTPlayer {
   getCurrentTime(): number;
   getPlayerState(): number;
   getVideoData(): { isLive?: boolean; allowLiveDvr?: boolean } | undefined;
+  loadModule(name: string): void;
+  unloadModule(name: string): void;
   destroy(): void;
 }
 
@@ -251,6 +253,22 @@ function makeWatchPlayer(player: YTPlayer): WatchPlayer {
       // é ignorado em silêncio. Isso NÃO foi medido — se a correção suave não
       // funcionar na prática, é aqui que se descobre.
       player.setPlaybackRate(rate);
+    },
+    setCaptions(on) {
+      // `controls: 0` tira a barra nativa do YouTube inteira, e com ela o botão
+      // CC — quem depende de legenda ficava sem nenhum caminho até ela. Estes
+      // dois módulos são a única porta que a IFrame API deixa aberta pra isso.
+      //
+      // Dois nomes de módulo porque o YouTube usa 'captions' no player antigo e
+      // 'cc' no atual, e qual dos dois responde depende do vídeo. Chamar o que
+      // não existe é no-op, então liga os dois em vez de tentar adivinhar.
+      for (const modulo of ['captions', 'cc']) {
+        if (on) {
+          player.loadModule(modulo);
+        } else {
+          player.unloadModule(modulo);
+        }
+      }
     },
   };
 }

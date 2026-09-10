@@ -142,8 +142,8 @@ export function createAudioContextForDenoise(): AudioContext | undefined {
   const AudioContextCtor =
     typeof window === 'undefined'
       ? undefined
-      : window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      : (window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
   if (!AudioContextCtor) {
     return undefined;
   }

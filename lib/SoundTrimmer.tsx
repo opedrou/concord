@@ -239,26 +239,54 @@ export function SoundTrimmer(props: {
 function Waveform(props: { peaks: Float32Array | null; startRatio: number; endRatio: number }) {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
 
+  // Arrastar uma alca dispara pointermove dezenas de vezes por segundo, e cada
+  // um mudava startRatio/endRatio e refazia TODO este efeito: um
+  // getBoundingClientRect (leitura de layout forcada), uma reatribuicao de
+  // canvas.width (que sozinha ja limpa e realoca o bitmap) e o laco de 160
+  // barras. Num celular fraco isso e o arraste travando.
+  //
+  // Agora o desenho e agendado num requestAnimationFrame: varios pointermove
+  // dentro do mesmo frame viram UM desenho, que e o maximo que a tela mostra de
+  // qualquer jeito. O tamanho do bitmap so muda quando o tamanho em CSS muda.
   React.useEffect(() => {
     const canvas = canvasRef.current;
     const peaks = props.peaks;
     if (!canvas || !peaks) return;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(Math.round(rect.width * dpr), 1);
-    canvas.height = Math.max(Math.round(rect.height * dpr), 1);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const barWidth = canvas.width / peaks.length;
-    const middle = canvas.height / 2;
-    for (let i = 0; i < peaks.length; i += 1) {
-      const ratio = (i + 0.5) / peaks.length;
-      const inside = ratio >= props.startRatio && ratio <= props.endRatio;
-      ctx.fillStyle = inside ? 'rgba(120, 180, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)';
-      const height = Math.max(peaks[i] * canvas.height, dpr);
-      ctx.fillRect(i * barWidth, middle - height / 2, Math.max(barWidth - dpr, dpr), height);
-    }
+
+    let frame = 0;
+    const draw = () => {
+      frame = 0;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(Math.round(rect.width * dpr), 1);
+      const height = Math.max(Math.round(rect.height * dpr), 1);
+      // So reatribui se mudou de verdade: escrever canvas.width com o mesmo
+      // valor ainda apaga o bitmap inteiro.
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const barWidth = canvas.width / peaks.length;
+      const middle = canvas.height / 2;
+      for (let i = 0; i < peaks.length; i += 1) {
+        const ratio = (i + 0.5) / peaks.length;
+        const inside = ratio >= props.startRatio && ratio <= props.endRatio;
+        ctx.fillStyle = inside ? 'rgba(120, 180, 255, 0.95)' : 'rgba(255, 255, 255, 0.25)';
+        const barHeight = Math.max(peaks[i] * canvas.height, dpr);
+        ctx.fillRect(
+          i * barWidth,
+          middle - barHeight / 2,
+          Math.max(barWidth - dpr, dpr),
+          barHeight,
+        );
+      }
+    };
+
+    frame = requestAnimationFrame(draw);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [props.peaks, props.startRatio, props.endRatio]);
 
   return <canvas ref={canvasRef} className={styles.waveform} />;

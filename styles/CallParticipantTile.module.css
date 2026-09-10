@@ -173,6 +173,7 @@
   position: static;
   width: 1.75rem;
   height: 1.75rem;
+  touch-action: manipulation;
   flex: none;
   display: flex;
   align-items: center;
@@ -430,15 +431,20 @@
   inset: 3px;
   z-index: 1;
   border-radius: var(--lk-border-radius);
-  border: 0 solid transparent;
+  /* Largura FIXA e opacidade 0 em repouso, em vez de border-width animando de
+     0 ate 2.5px: animar border-width repinta e recalcula geometria a cada
+     frame, e o anel de "falando" acende varias vezes por segundo numa conversa
+     normal. opacity fica no compositor. */
+  border: var(--lk-speaking-indicator-width, 2.5px) solid transparent;
+  opacity: 0;
   pointer-events: none;
   transition:
-    border-width 0.2s ease-in-out,
-    border-color 0.2s ease-in-out;
+    opacity var(--dur) ease-in-out,
+    border-color var(--dur) ease-in-out;
 }
 
 .tile.tile[data-concord-focus]::before {
-  border-width: var(--lk-speaking-indicator-width, 2.5px);
+  opacity: 1;
 }
 
 /* Em foco e AINDA me ouvindo — roxo vivo. */

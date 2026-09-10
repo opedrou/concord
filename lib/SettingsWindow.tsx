@@ -114,8 +114,13 @@ export function SettingsWindow(props: {
           {current.id === 'soundboard' && <SoundboardSettings />}
           {current.id === 'notifications' && <JoinLeaveSoundsSettings />}
           {current.id === 'appearance' && <AppearanceSettings />}
+          {/* Suspense porque o AdminDashboard le a aba da URL com
+              useSearchParams, e sem um limite em volta isso forca a rota
+              inteira da call pra renderizacao dinamica no build. */}
           {current.id === 'admin' && (
-            <AdminDashboard currentUsername={props.username} onClose={props.onClose} />
+            <React.Suspense fallback={<p>Carregando…</p>}>
+              <AdminDashboard currentUsername={props.username} onClose={props.onClose} />
+            </React.Suspense>
           )}
         </div>
       </div>

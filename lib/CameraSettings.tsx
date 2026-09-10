@@ -76,25 +76,29 @@ export function CameraSettings() {
       )}
 
       <section className="lk-button-group">
-        <TrackToggle source={Track.Source.Camera}>Camera</TrackToggle>
+        <TrackToggle source={Track.Source.Camera}>Câmera</TrackToggle>
         <div className="lk-button-group-menu">
           <MediaDeviceMenu kind="videoinput" />
         </div>
       </section>
 
       <div style={{ marginTop: '10px' }}>
-        <div style={{ marginBottom: '8px' }}>Background Effects</div>
+        {/* <h4> e nao um <div> estilizado: e o titulo de uma secao dentro da
+            janela de configuracoes, e sem heading real ele nao aparece na lista
+            de secoes de um leitor de tela. */}
+        <h4 style={{ marginTop: 0, marginBottom: '8px', fontSize: '0.9rem' }}>Fundo de tela</h4>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button
             onClick={() => selectBackground('none')}
             className="lk-button"
             aria-pressed={backgroundType === 'none'}
             style={{
-              border: backgroundType === 'none' ? '2px solid #0090ff' : '1px solid #d1d1d1',
+              border:
+                backgroundType === 'none' ? '2px solid var(--accent)' : '1px solid var(--border2)',
               minWidth: '80px',
             }}
           >
-            None
+            Nenhum
           </button>
 
           <button
@@ -102,9 +106,10 @@ export function CameraSettings() {
             className="lk-button"
             aria-pressed={backgroundType === 'blur'}
             style={{
-              border: backgroundType === 'blur' ? '2px solid #0090ff' : '1px solid #d1d1d1',
+              border:
+                backgroundType === 'blur' ? '2px solid var(--accent)' : '1px solid var(--border2)',
               minWidth: '80px',
-              backgroundColor: '#f0f0f0',
+              backgroundColor: 'var(--bg3)',
               position: 'relative',
               overflow: 'hidden',
               height: '60px',
@@ -117,7 +122,7 @@ export function CameraSettings() {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: '#e0e0e0',
+                backgroundColor: 'var(--surface)',
                 filter: 'blur(8px)',
                 zIndex: 0,
               }}
@@ -126,13 +131,13 @@ export function CameraSettings() {
               style={{
                 position: 'relative',
                 zIndex: 1,
-                backgroundColor: 'rgba(0,0,0,0.6)',
+                backgroundColor: 'var(--pill)',
                 padding: '2px 5px',
                 borderRadius: '4px',
                 fontSize: '12px',
               }}
             >
-              Blur
+              Desfoque
             </span>
           </button>
 
@@ -152,13 +157,13 @@ export function CameraSettings() {
                 height: '60px',
                 border:
                   backgroundType === 'image' && virtualBackgroundImagePath === image.path.src
-                    ? '2px solid #0090ff'
-                    : '1px solid #d1d1d1',
+                    ? '2px solid var(--accent)'
+                    : '1px solid var(--border2)',
               }}
             >
               <span
                 style={{
-                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  backgroundColor: 'var(--pill)',
                   padding: '2px 5px',
                   borderRadius: '4px',
                   fontSize: '12px',

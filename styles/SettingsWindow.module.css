@@ -173,10 +173,16 @@
 
 /* Slider comum (ganho, volume geral, volume dos sons). O medidor do gate tem
    trilha própria, mais abaixo. */
+/* O thumb nativo tem ~13px e e o alvo de arrasto principal desta tela inteira
+   (ganho, volume geral, volume dos sons). `accent-color` sozinho pinta, mas nao
+   aumenta nada. A altura vem do proprio input pra o dedo pegar a faixa toda, e
+   nao so a bolinha. */
 .plainRange {
   width: 100%;
+  min-block-size: var(--tap);
   accent-color: var(--lk-accent-bg, #1f6feb);
   cursor: pointer;
+  touch-action: none;
 }
 
 .plainRange:disabled {
@@ -305,6 +311,16 @@
   transition: clip-path 60ms linear;
 }
 
+/* O medidor pulsa ~33 vezes por segundo enquanto a janela esta aberta: e
+   exatamente o "movimento continuo" que prefers-reduced-motion pede pra parar.
+   O valor continua correto e visivel — o que some e a interpolacao, entao a
+   barra passa a saltar direto pro nivel medido em vez de deslizar. */
+@media (prefers-reduced-motion: reduce) {
+  .meterActive {
+    transition: none;
+  }
+}
+
 .rangeInput {
   position: absolute;
   inset: 0;
@@ -332,8 +348,8 @@
 
 .rangeInput::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1.15rem;
+  height: 1.15rem;
   border-radius: 50%;
   background: #fff;
   border: none;
@@ -347,8 +363,8 @@
 }
 
 .rangeInput::-moz-range-thumb {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1.15rem;
+  height: 1.15rem;
   border-radius: 50%;
   background: #fff;
   border: none;
@@ -393,4 +409,24 @@
     width: 1.05rem;
     height: 1.05rem;
   }
+}
+
+/* Em ponteiro grosseiro o thumb precisa de bolinha maior: no mouse a mira e
+   exata, no dedo o alvo e a polpa inteira. */
+@media (pointer: coarse) {
+  .rangeInput::-webkit-slider-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .rangeInput::-moz-range-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+}
+
+/* Numero que muda enquanto se arrasta o slider (dB, %, ms) nao pode mudar de
+   largura a cada frame — o rotulo inteiro tremia junto. */
+.fieldValue {
+  font-variant-numeric: tabular-nums;
 }

@@ -10,6 +10,9 @@
   background-color: var(--lk-bg2);
   border-right: 1px solid var(--lk-border-color);
   overflow-y: auto;
+  /* Como gaveta sobreposta no celular, chegar na ponta da lista de canais
+     arrastava a call atras. */
+  overscroll-behavior: contain;
 }
 
 /* Marca no topo da coluna (ver o cabecalho no projeto de design). `sticky`
@@ -234,6 +237,15 @@
 .userIdentity {
   cursor: pointer;
   border-radius: 0.375rem;
+  /* Zera o desenho nativo do <button> — o elemento virou botao pelo
+     comportamento (foco, Enter, nome acessivel), nao pela aparencia. */
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 
   display: flex;
   align-items: center;
@@ -304,6 +316,7 @@
   justify-content: center;
   width: 2rem;
   height: 2rem;
+  touch-action: manipulation;
   color: var(--lk-fg2, rgba(255, 255, 255, 0.6));
 }
 
@@ -405,5 +418,43 @@
   .sidebar[data-drawer-open='true'] ~ .drawerToggle,
   .drawerToggle[aria-expanded='true'] {
     background-color: var(--lk-bg3, var(--lk-bg2));
+  }
+}
+
+/* Mic, fone e engrenagem tem 32px pintados e ficam colados um no outro no
+   rodape da sidebar — no dedo, errar o alvo aqui significa mutar sem querer no
+   meio de uma call. A area de toque vai a 44px sem mexer no desenho. */
+@media (pointer: coarse) {
+  .userIconButton {
+    position: relative;
+  }
+
+  .userIconButton::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--tap);
+    height: var(--tap);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* FAIXA DE TABLET (641px – 1024px)
+   ------------------------------------------------------------------------
+   O projeto tinha UM breakpoint (640px): ou a gaveta do celular, ou o layout
+   de desktop inteiro. No meio disso — tablet na horizontal, notebook de 11",
+   janela encostada na metade da tela — a sidebar de 18rem (288px) + o painel
+   de membros (14.5rem) comiam ~470px de uma largura de 800px, e o que sobrava
+   pro palco da call era menos que as duas colunas laterais somadas.
+
+   A gaveta nao serve aqui: nessa largura ainda cabe uma coluna permanente, e
+   escondê-la atras de um botao seria pior. O que muda e so a largura dela. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .sidebar {
+    /* O --sidebar-width que o arrasto grava continua valendo se a pessoa
+       escolheu um valor menor; o max() so impede que uma escolha feita no
+       monitor grande atravesse pra ca. */
+    width: min(var(--sidebar-width, 18rem), 13rem);
   }
 }

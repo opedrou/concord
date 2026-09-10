@@ -15,8 +15,14 @@
   background-color: var(--lk-accent-bg, rgba(255, 255, 255, 0.15));
 }
 
+/* O `outline: none` de antes trocava o anel por uma barra de 6px pintada no
+   accent — mesma pintura do hover, ou seja, o teclado nao tinha sinal PROPRIO:
+   quem chegava aqui por Tab via o que veria passando o mouse. Agora a alca
+   ganha um anel de verdade, e o `outline-offset` positivo o joga pra fora dos
+   6px pra ele nao ficar rente demais pra enxergar. */
 .handle:focus-visible {
-  outline: none;
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
 }
 
 .vertical {

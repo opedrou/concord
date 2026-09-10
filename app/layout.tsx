@@ -38,7 +38,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // Barra do navegador no mobile, na cor do papel do tema (ver styles/globals.css).
-  themeColor: '#221d18',
+  //
+  // Duas entradas, nao uma: o valor unico ficava marrom escuro tambem pra quem
+  // usa o tema claro, e ainda era um marrom que a paleta cinza nao usa mais em
+  // lugar nenhum. Agora bate com --bg de cada tema.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#181818' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -69,6 +76,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "try{var d=document.documentElement.dataset;if(localStorage.getItem('concord:theme')==='light')d.concordTheme='light';if(localStorage.getItem('concord:ring')==='recortado')d.concordRing='recortado';if(localStorage.getItem('concord:tileBg')==='degrade')d.concordTileBg='degrade'}catch(e){}",
           }}
         />
+        {/* Primeiro tab de qualquer tela. A sidebar tem dezenas de paradas
+            (canais, membros, controles do rodape) e sem isto quem navega por
+            teclado atravessa todas elas antes de chegar no conteudo. */}
+        <a href="#conteudo" className="skipLink">
+          Pular para o conteúdo
+        </a>
         <AppToaster />
         {children}
       </body>

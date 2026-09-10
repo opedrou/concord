@@ -275,3 +275,192 @@ h2 a {
 h2 a {
   text-decoration: none;
 }
+
+/* =========================================================================
+   CAMADA TRANSVERSAL
+   =========================================================================
+   O que estava faltando nao era cuidado por arquivo — era politica. Cada
+   module acertava o seu canto e nenhum resolvia o que vale pro app inteiro:
+   movimento, alvo de toque, notch, escala. Fica tudo aqui, num lugar so. */
+
+:root {
+  /* Espacamento — a escala que cada module vinha cravando na mao
+     (0.375/0.5/0.75/1rem repetidos por 28 arquivos). */
+  --space-1: 0.25rem;
+  --space-2: 0.375rem;
+  --space-3: 0.5rem;
+  --space-4: 0.75rem;
+  --space-5: 1rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+
+  /* Raio — --lk-border-radius (12px) era o unico token; 18px do .card e do
+     .profileBanner e 999px das pilulas eram valores soltos. */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Elevacao — box-shadow era literal repetido arquivo a arquivo. */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.46);
+
+  /* Alvo de toque minimo (WCAG 2.5.8 / Web Interface Guidelines). Usado como
+     min-block-size/min-inline-size nos controles de icone. */
+  --tap: 44px;
+
+  /* Tipografia fluida: o app inteiro era px/rem fixo, sem um clamp(). A
+     escala cresce com a viewport em vez de saltar no breakpoint. */
+  --text-xs: clamp(0.7rem, 0.68rem + 0.1vw, 0.75rem);
+  --text-sm: clamp(0.78rem, 0.75rem + 0.15vw, 0.85rem);
+  --text-base: clamp(0.875rem, 0.85rem + 0.15vw, 0.95rem);
+  --text-lg: clamp(1rem, 0.95rem + 0.25vw, 1.15rem);
+  --text-xl: clamp(1.25rem, 1.15rem + 0.5vw, 1.6rem);
+  --text-2xl: clamp(1.6rem, 1.4rem + 1vw, 2.25rem);
+
+  /* Duracoes — pra reduced-motion zerar num lugar so e nao caçar transition
+     por 28 arquivos. */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+}
+
+:root[data-concord-theme='light'] {
+  --shadow-sm: 0 1px 3px rgba(24, 24, 24, 0.1);
+  --shadow: 0 4px 18px rgba(24, 24, 24, 0.14);
+  --shadow-lg: 0 12px 40px rgba(24, 24, 24, 0.18);
+}
+
+/* MOVIMENTO — o app nao tinha uma unica ocorrencia de prefers-reduced-motion,
+   entao TODA transicao rodava pra quem pediu menos movimento no SO, incluindo
+   o medidor de microfone animando clip-path a ~33Hz.
+
+   Zera em vez de remover: `transition: none` mantem o estado final (o hover
+   continua acontecendo, so nao interpola), e 0.01ms em vez de 0 preserva o
+   disparo de transitionend/animationend, que algum componente pode estar
+   esperando pra so entao desmontar. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur: 0.01ms;
+    --dur-slow: 0.01ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* TOQUE — nenhum controle tinha touch-action, entao iOS/Android cobravam os
+   ~300ms de espera do double-tap-zoom em cada clique de botao. Escopo nos
+   controles, nao no `*`: no palco de video e nas areas de scroll o gesto de
+   pinch/zoom tem que continuar funcionando. */
+button,
+a,
+label,
+select,
+summary,
+[role='button'],
+[role='tab'],
+[role='radio'],
+[role='option'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Foco visivel padrao. Cada module define o seu, mas o que nao definir para
+   de ficar sem nada — e `:focus-visible` (nao `:focus`) pra nao acender o
+   anel no clique de mouse. */
+:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+}
+
+/* SAFE AREA — o shell e 100dvh e full-bleed; sem isto o notch e a barra de
+   gestos comem a barra de controles da call e o rodape da sidebar. */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Titulo nao quebra deixando uma palavra orfa na ultima linha. */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+/* Texto corrido evita orfa tambem, sem o custo do balance em bloco longo. */
+p {
+  text-wrap: pretty;
+}
+
+/* Numero que MUDA no lugar (contador, dB, %, ms, duracao) precisa de largura
+   de digito fixa, senao o texto treme a cada tick. */
+.tabularNums,
+time,
+output {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Alvo de toque minimo pros controles de icone. Classe utilitaria em vez de
+   regra global: aplicar em TODO button quebraria as pilulas densas que ja
+   passam de 44px de largura mas sao propositalmente baixas. */
+.tapTarget {
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
+}
+
+/* Pula pro conteudo — primeiro tab de qualquer tela. Fica fora da tela ate
+   receber foco. */
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: var(--space-3) var(--space-5);
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: 0 0 var(--radius) 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.skipLink:focus {
+  left: 0;
+}
+
+/* Ancora de heading nao fica escondida atras de header sticky. */
+:target {
+  scroll-margin-top: 5rem;
+}
+
+/* Conteudo de usuario (nome, mensagem, nome de dispositivo de audio) pode ser
+   uma URL de 400 caracteres sem espaco. */
+.breakWords {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* <select> nativo no dark do Windows herda o branco do SO se a cor nao for
+   explicita — texto claro em fundo claro. */
+select {
+  background-color: var(--bg3);
+  color: var(--fg);
+}
+
+select option {
+  background-color: var(--bg3);
+  color: var(--fg);
+}

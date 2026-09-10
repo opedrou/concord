@@ -56,6 +56,15 @@ export interface WatchPlayer {
   play(): void;
   pause(): void;
   setRate(rate: number): void;
+  /**
+   * Liga/desliga legenda. Opcional porque e capacidade do player, nao do
+   * protocolo: nao trafega pela sincronia e nao entra em nenhum tick.
+   *
+   * Legenda e preferencia de QUEM ASSISTE — quem precisa dela precisa sempre, e
+   * quem nao precisa acha poluicao. Sincronizar isso pro grupo (como play e
+   * seek) faria uma pessoa ligar legenda e aparecer na tela de todo mundo.
+   */
+  setCaptions?(on: boolean): void;
 }
 
 export interface WatchEvent {

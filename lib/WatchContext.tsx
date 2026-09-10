@@ -30,6 +30,12 @@ export interface WatchContextValue {
   source: WatchSource | null;
   /** O CallStage chama isto quando o player fica pronto (ou morre). */
   registerPlayer: (player: WatchPlayer | null) => void;
+  /**
+   * O player DESTE cliente. A WatchBar usa pra legenda, que e local e nao passa
+   * pela sincronia — todo o resto (play, pause, seek) tem que ir por `sync`,
+   * senao vale so pra quem clicou.
+   */
+  player: WatchPlayer | null;
   /** O CallStage chama isto na entrada, com a borda ao vivo (ou `null`). */
   reportLiveEdge: (edgeMs: number | null) => void;
   problem: WatchPlayerProblem | null;
@@ -112,13 +118,14 @@ export function WatchProvider({ children }: { children: React.ReactNode }) {
       sync,
       source,
       registerPlayer: setPlayer,
+      player,
       reportLiveEdge,
       problem,
       reportProblem,
       open,
       openJellyfin,
     }),
-    [sync, source, reportLiveEdge, problem, reportProblem, open, openJellyfin],
+    [sync, source, player, reportLiveEdge, problem, reportProblem, open, openJellyfin],
   );
 
   return <WatchContext.Provider value={value}>{children}</WatchContext.Provider>;

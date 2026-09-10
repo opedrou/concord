@@ -30,7 +30,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className={styles.main} data-lk-theme="default">
+    <main id="conteudo" className={styles.main} data-lk-theme="default">
       {/* Os dois halos de acento do projeto de design, um em cada canto
           oposto. Puramente decorativos e atras de tudo. */}
       <span className={`${styles.glow} ${styles.glowTop}`} aria-hidden="true" />

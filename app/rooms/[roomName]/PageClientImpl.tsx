@@ -263,7 +263,7 @@ export function PageClientImpl(props: {
   }, [props.roomName, props.region, username, attempt]);
 
   return (
-    <main data-lk-theme="default" style={{ height: '100%' }}>
+    <main id="conteudo" data-lk-theme="default" style={{ height: '100%' }}>
       {connectionDetails === undefined ? (
         <div
           style={{
@@ -275,14 +275,25 @@ export function PageClientImpl(props: {
           }}
         >
           {joinError ? (
-            <div style={{ display: 'grid', justifyItems: 'center', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', justifyItems: 'center', gap: '0.75rem' }} role="alert">
               <p style={{ margin: 0 }}>Não foi possível entrar no canal. {joinError}</p>
-              <button type="button" className="lk-button" onClick={() => setAttempt((n) => n + 1)}>
+              {/* autoFocus aqui e justificado e nao contraria a regra de usar
+                  com parcimonia: a tela inteira virou uma mensagem de erro com
+                  um unico botao, e sem foco a falha passava batida pra quem usa
+                  leitor de tela. */}
+              <button
+                type="button"
+                className="lk-button"
+                autoFocus
+                onClick={() => setAttempt((n) => n + 1)}
+              >
                 Tentar de novo
               </button>
             </div>
           ) : (
-            <p style={{ margin: 0 }}>Entrando no canal…</p>
+            <p style={{ margin: 0 }} role="status" aria-live="polite">
+              Entrando no canal…
+            </p>
           )}
         </div>
       ) : (
@@ -496,7 +507,7 @@ function VideoConferenceComponent(props: {
             // (Linux), nao marcado a caixinha, ou estar no Firefox (sem
             // suporte nenhum). So avisa, sem travar o compartilhamento.
             toast(
-              'Compartilhamento de tela iniciado SEM áudio. No Chrome/Linux só existe áudio de aba (janela/tela cheia não têm); Firefox não suporta áudio de tela. Alternativa pra som de jogo: escolha o dispositivo "Monitor of ..." no seletor de microfone.',
+              'Compartilhamento de tela iniciado SEM áudio. No Chrome/Linux só existe áudio de aba (janela/tela cheia não têm); Firefox não suporta áudio de tela. Alternativa pra som de jogo: escolha o dispositivo "Monitor of …" no seletor de microfone.',
               {
                 id: 'screen-share-no-audio',
                 duration: 6000,

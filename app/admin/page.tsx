@@ -6,6 +6,7 @@
 // evita o flash da tela pra quem não é admin; a barreira que vale de
 // verdade é o `requireAdmin` em cada rota de app/api/users e
 // app/api/channels (ONDA 1).
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE_NAME, verifySession } from '@/lib/session';
@@ -39,8 +40,10 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className={styles.main} data-lk-theme="default">
-      <AdminDashboard currentUsername={row.username} />
+    <main id="conteudo" className={styles.main} data-lk-theme="default">
+      <Suspense fallback={<p>Carregando…</p>}>
+        <AdminDashboard currentUsername={row.username} />
+      </Suspense>
     </main>
   );
 }
