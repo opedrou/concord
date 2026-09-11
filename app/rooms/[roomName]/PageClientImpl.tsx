@@ -86,10 +86,13 @@ const CONN_DETAILS_ENDPOINT =
 
 /** Traduz o `MediaDeviceKind` do browser pro nome em portugues usado nas
  * mensagens de erro. */
-// Teto de reconexoes seguidas depois de uma queda (ver `handleOnLeave`). Cinco
-// cobre uma troca de rede ou um tunel reiniciando; alem disso o problema nao e
-// transitorio e insistir so gera pedido de token em loop.
-const MAX_RECONNECT_ATTEMPTS = 5;
+// Teto de reconexoes seguidas depois de uma queda (ver `handleOnLeave`). Com o
+// backoff abaixo (2s, 4s, 8s ... 30s) dez tentativas cobrem uns 3 min de SFU
+// fora — foi o que durou o travamento por memoria da VPS em 11/09/2026, quando
+// cinco tentativas instantaneas queimavam em segundos e todo mundo ficava preso
+// no "nao foi possivel voltar".
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_MAX_DELAY_MS = 30_000;
 
 function labelForDeviceKind(kind?: MediaDeviceKind): string {
   switch (kind) {
@@ -595,8 +598,9 @@ function VideoConferenceComponent(props: {
   React.useEffect(() => {
     if (!connectionLost) return;
     const { onReconnectNeeded } = props;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const retry = () => {
-      if (document.visibilityState !== 'visible') return;
+      if (timer !== undefined || document.visibilityState !== 'visible') return;
       if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
         toast.error('A chamada caiu e nao foi possivel voltar. Entre no canal de novo.', {
           id: 'reconnecting',
@@ -604,13 +608,19 @@ function VideoConferenceComponent(props: {
         });
         return;
       }
+      const delay = Math.min(2_000 * 2 ** reconnectAttemptsRef.current, RECONNECT_MAX_DELAY_MS);
       reconnectAttemptsRef.current += 1;
-      setConnectionLost(false);
-      onReconnectNeeded();
+      timer = setTimeout(() => {
+        setConnectionLost(false);
+        onReconnectNeeded();
+      }, delay);
     };
     retry();
     document.addEventListener('visibilitychange', retry);
-    return () => document.removeEventListener('visibilitychange', retry);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', retry);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionLost, props.onReconnectNeeded]);
 
